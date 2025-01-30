@@ -26,7 +26,7 @@ const NewIssuePage = () => {
     resolver: zodResolver(createIssueSchema),
   });
   const [error, setError] = useState("");
-  const [isSubmitting, setSubmitting] = useState(false); // to show spinner only on submit
+  const [isSubmitting, setSubmitting] = useState(false); // tracking to show spinner only on submit
 
   const onSubmit = async (data: IssueForm) => {
     try {
