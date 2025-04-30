@@ -51,7 +51,7 @@ const NewIssuePage = () => {
       {/* Form Submission */}
       <form className="max-w-xl space-y-3" onSubmit={handleSubmit(onSubmit)}>
         <TextField.Root
-          placeholder="Title"
+          placeholder="Name"
           {...register("title")}
         ></TextField.Root>
         <ErrorMessage>{errors.title?.message}</ErrorMessage>
@@ -67,7 +67,7 @@ const NewIssuePage = () => {
         <ErrorMessage>{errors.description?.message}</ErrorMessage>
 
         <Button disabled={isSubmitting}>
-          Submit New Issue {isSubmitting && <Spinner />}
+          Submit New Inventory {isSubmitting && <Spinner />}
         </Button>
       </form>
     </div>
