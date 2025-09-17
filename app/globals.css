@@ -3,19 +3,59 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary: #1e40af; /* Changed to a lighter blue */
+  --secondary: #3498db;
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --danger: #e74c3c;
+  --light: #ecf0f1;
+  --dark: #1e293b; /* Changed to a lighter dark color */
+  --gray: #95a5a6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Custom utility classes */
+@layer components {
+  .status {
+    @apply px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-pending {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+
+  .status-completed {
+    @apply bg-green-100 text-green-800;
+  }
+
+  .status-warning {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .btn {
+    @apply px-5 py-2.5 rounded-md font-medium transition-colors cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply bg-secondary text-white hover:bg-blue-600;
+  }
+
+  .progress-bar {
+    @apply bg-gray-200 h-2 w-full rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply bg-blue-500 h-full rounded-full;
+  }
 }

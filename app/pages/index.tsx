@@ -1,12 +1,10 @@
-"use client";
-
 import { useState } from "react";
-import Layout from "@/app/components/Layout";
-import Dashboard from "@/app/components/Dashboard";
-import Onboarding from "@/app/components/Onboarding";
-import Terminations from "@/app/components/Terminations";
-import ITAssets from "@/app/components/ITAssets";
-import Reports from "@/app/components/Reports";
+import Layout from "../components/Layout";
+import Dashboard from "../components/Dashboard";
+import Onboarding from "../components/Onboarding";
+import Terminations from "../components/Terminations";
+import ITAssets from "../components/ITAssets";
+import Reports from "../components/Reports";
 
 export default function Home() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -28,9 +26,5 @@ export default function Home() {
     }
   };
 
-  return (
-    <Layout activePage={activePage} setActivePage={setActivePage}>
-      {renderPage()}
-    </Layout>
-  );
+  return <Layout>{renderPage()}</Layout>;
 }
