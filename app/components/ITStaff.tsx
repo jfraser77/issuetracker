@@ -232,7 +232,7 @@ export default function ITAssets() {
             </div>
 
             {/* Buttons to adjust available inventory */}
-            <div className="flex justify-center items-center">
+            <div className="flex justify-between items-center">
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => decreaseAvailable(staff.id)}
