@@ -9,6 +9,9 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -39,6 +42,17 @@ export default function Sidebar({
     { id: "logout", name: "Logout", icon: ArrowRightOnRectangleIcon },
   ];
 
+  const currentPath = usePathname();
+
+  const links = [
+    { label: "Dashboard", href: "/" },
+    { label: "Onboarding", href: "/management-portal/onboarding" },
+    { label: "Terminations", href: "/management-portal/terminations" },
+    { label: "IT Assets", href: "/management-portal/it-assets" },
+    { label: "Reports", href: "/management-portal/reports" },
+    { label: "Settings", href: "/management-portal/settings" },
+  ];
+
   const handleItemClick = (id: string) => {
     if (id !== "settings" && id !== "logout") {
       setActivePage(id);
@@ -64,14 +78,23 @@ export default function Sidebar({
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
       `}
       >
-        <div className="flex items-center justify-center h-16 bg-blue-900 px-4">
-          <ComputerDesktopIcon className="h-8 w-8 text-white" />
-          <h2 className="text-white text-xl font-semibold ml-2">
+        <div className="flex items-center mt-5 justify-center h-16 bg-blue-800 px-4">
+          <Link href="/">
+            <Image
+              src="/nsn_revenue_resources_logo.jpg"
+              alt="NSN image"
+              width={500}
+              height={300}
+              className="rounded-full"
+            />
+          </Link>
+
+          <h2 className="text-white text-xl font-semibold ml-2 bg-blue-800">
             IT Management Portal
           </h2>
         </div>
 
-        <nav className="mt-5 px-2">
+        <nav className="mt-9 px-2">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             return (
