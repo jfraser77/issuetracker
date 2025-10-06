@@ -27,6 +27,19 @@ export interface OnboardingItem {
   progress: number;
 }
 
+export interface CreateNewEmployee {
+  name: string;
+  jobTitle: string;
+  startDate: string;
+  currentManager: string;
+  directorRegionalDirector: string;
+}
+
+export interface NewEmployee extends CreateNewEmployee {
+  id: number;
+  timestamp: string;
+}
+
 export interface TerminationItem {
   employee: string;
   department: string;

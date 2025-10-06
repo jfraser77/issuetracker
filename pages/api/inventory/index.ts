@@ -3,7 +3,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import {
   getInventoryItems,
   createInventoryItem,
-} from "../../../services/inventoryService";
+} from "../../../services/employeeService";
 
 export default async function handler(
   req: NextApiRequest,
