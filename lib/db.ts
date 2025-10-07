@@ -1,24 +1,19 @@
-// lib/db.ts
+// lib/db.ts - Clean Azure SQL Configuration
 import sql from "mssql";
 
-// Validate environment variables
-function getRequiredEnvVar(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
 const config: sql.config = {
-  user: getRequiredEnvVar("DB_USER"),
-  password: getRequiredEnvVar("DB_PASSWORD"),
-  server: getRequiredEnvVar("DB_SERVER"), // nsncenterdata.database.windows.net
-  database: getRequiredEnvVar("DB_NAME"), // FedEx
+  user: "joefraser7",
+  password: "Revenue80!",
+  server: "nsncenterdata.database.windows.net",
+  database: "FedEx",
+  port: 1433,
   options: {
-    encrypt: true, // Mandatory for Azure
-    trustServerCertificate: false, // Should be false for production Azure SQL
+    encrypt: true, // REQUIRED for Azure
+    trustServerCertificate: false, // REQUIRED for Azure
     enableArithAbort: true,
+    connectTimeout: 30000,
+    requestTimeout: 30000,
+    cancelTimeout: 5000,
   },
   pool: {
     max: 10,
@@ -33,20 +28,30 @@ export async function connectToDatabase() {
   if (connection) return connection;
 
   try {
+    console.log("🔵 Connecting to Azure SQL...");
+    console.log("Server:", config.server);
+    console.log("Database:", config.database);
+
     connection = await sql.connect(config);
-    console.log("Connected to Azure SQL Database");
+
+    // Test connection with simple query
+    const result = await connection
+      .request()
+      .query("SELECT @@SPID as session_id, DB_NAME() as db_name");
+    console.log("✅ Azure SQL Connection Successful!");
+    console.log("Session ID:", result.recordset[0].session_id);
+    console.log("Database:", result.recordset[0].db_name);
+
     return connection;
-  } catch (err) {
-    console.error("Database connection failed:", err);
+  } catch (err: any) {
+    console.error("❌ Azure SQL Connection Failed:");
+    console.error("Error:", err.message);
+    console.error("Code:", err.code);
+    if (err.originalError) {
+      console.error("Original Error:", err.originalError.message);
+    }
     throw err;
   }
 }
 
-// Graceful shutdown handler
-process.on("SIGINT", async () => {
-  if (connection) {
-    await connection.close();
-    console.log("Azure SQL connection closed");
-    process.exit(0);
-  }
-});
+export { sql };
