@@ -28,7 +28,8 @@ export interface OnboardingItem {
 }
 
 export interface CreateNewEmployee {
-  name: string;
+  firstName: string;
+  lastName: string;
   jobTitle: string;
   startDate: string;
   currentManager: string;

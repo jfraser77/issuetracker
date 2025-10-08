@@ -1,4 +1,3 @@
-// services/employeeService.ts
 import { connectToDatabase } from "../lib/db";
 import { NewEmployee, CreateNewEmployee } from "../app/types/index";
 import sql from "mssql";
@@ -17,7 +16,8 @@ export async function createEmployee(
   const pool = await connectToDatabase();
   const result = await pool
     .request()
-    .input("name", sql.NVarChar, employee.name)
+    .input("firstName", sql.NVarChar, employee.firstName)
+    .input("lastName", sql.NVarChar, employee.lastName)
     .input("jobTitle", sql.NVarChar, employee.jobTitle)
     .input("startDate", sql.Date, employee.startDate)
     .input("currentManager", sql.NVarChar, employee.currentManager)
@@ -27,10 +27,10 @@ export async function createEmployee(
       employee.directorRegionalDirector
     ).query(`
       INSERT INTO Employees 
-        (name, jobTitle, startDate, currentManager, directorRegionalDirector)
+        (firstName, lastName, jobTitle, startDate, currentManager, directorRegionalDirector)
       OUTPUT INSERTED.*
       VALUES 
-        (@name, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
+        (@firstName, @lastName, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
     `);
 
   return result.recordset[0];

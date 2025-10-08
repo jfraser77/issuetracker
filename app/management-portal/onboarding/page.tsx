@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 interface Employee {
   id: number;
-  name: string;
+  firstName: string;
+  lastName: string;
   jobTitle: string;
   startDate: string;
   currentManager: string;
@@ -19,9 +20,13 @@ interface ApplicationStatus {
   [key: string]: "not begun" | "in progress" | "completed";
 }
 
+interface EmployeeWithStatus extends Employee {
+  applicationStatus?: ApplicationStatus;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   // System applications with initial status
@@ -47,18 +52,40 @@ export default function OnboardingPage() {
   };
 
   useEffect(() => {
-    fetchEmployees();
+    fetchEmployeesWithStatus();
     // Check for completed employees every day
     const interval = setInterval(checkCompletedEmployees, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchEmployees = async () => {
+  const fetchEmployeesWithStatus = async () => {
     try {
       const response = await fetch("/api/employees");
       if (response.ok) {
-        const data = await response.json();
-        setEmployees(data);
+        const employeesData = await response.json();
+
+        // Fetch status for each employee
+        const employeesWithStatus = await Promise.all(
+          employeesData.map(async (employee: Employee) => {
+            try {
+              const statusResponse = await fetch(
+                `/api/employees/${employee.id}/status`
+              );
+              if (statusResponse.ok) {
+                const applicationStatus = await statusResponse.json();
+                return { ...employee, applicationStatus };
+              }
+            } catch (error) {
+              console.error(
+                `Error fetching status for employee ${employee.id}:`,
+                error
+              );
+            }
+            return { ...employee, applicationStatus: systemApplications };
+          })
+        );
+
+        setEmployees(employeesWithStatus);
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -92,10 +119,13 @@ export default function OnboardingPage() {
     }
   };
 
-  const calculateOverallProgress = (employee: Employee) => {
-    // In a real app, this would come from the database
+  const calculateOverallProgress = (employee: EmployeeWithStatus) => {
     const totalApps = Object.keys(systemApplications).length;
-    const completedApps = 0; // This would be calculated from actual data
+    if (!employee.applicationStatus) return 0;
+
+    const completedApps = Object.values(employee.applicationStatus).filter(
+      (status) => status === "completed"
+    ).length;
     return Math.round((completedApps / totalApps) * 100);
   };
 
@@ -161,7 +191,7 @@ export default function OnboardingPage() {
                       href={`/management-portal/onboarding/${employee.id}`}
                       className="text-xl font-semibold text-blue-600 hover:text-blue-800"
                     >
-                      {employee.name}
+                      {employee.firstName} {employee.lastName}
                     </Link>
                     <p className="text-gray-600">{employee.jobTitle}</p>
                     <p className="text-sm text-gray-500">
@@ -192,23 +222,30 @@ export default function OnboardingPage() {
                     System Applications
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {Object.entries(systemApplications).map(([app, status]) => (
-                      <div
-                        key={app}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                      >
-                        <span className="text-sm text-gray-700 flex-1">
-                          {app}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                            status
-                          )}`}
-                        >
-                          {status}
-                        </span>
-                      </div>
-                    ))}
+                    {Object.entries(systemApplications).map(
+                      ([app, defaultStatus]) => {
+                        // Use the actual status from database or default
+                        const currentStatus =
+                          employee.applicationStatus?.[app] || defaultStatus;
+                        return (
+                          <div
+                            key={app}
+                            className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                          >
+                            <span className="text-sm text-gray-700 flex-1">
+                              {app}
+                            </span>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                                currentStatus
+                              )}`}
+                            >
+                              {currentStatus}
+                            </span>
+                          </div>
+                        );
+                      }
+                    )}
                   </div>
                 </div>
 
