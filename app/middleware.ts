@@ -3,21 +3,25 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const authCookie = request.cookies.get("auth-user");
+  const { pathname } = request.nextUrl;
+
+  console.log("Middleware triggered:", {
+    pathname,
+    hasAuthCookie: !!authCookie,
+  });
 
   // If trying to access protected routes without auth, redirect to signin
-  if (
-    request.nextUrl.pathname.startsWith("/management-portal") &&
-    !authCookie
-  ) {
-    return NextResponse.redirect(new URL("/signin", request.url));
+  if (pathname.startsWith("/management-portal") && !authCookie) {
+    console.log("Redirecting to signin - no auth cookie");
+    const signinUrl = new URL("/signin", request.url);
+    // Add redirect parameter so we know where they came from
+    signinUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(signinUrl);
   }
 
   // If already authenticated and trying to access signin/signup, redirect to dashboard
-  if (
-    (request.nextUrl.pathname === "/signin" ||
-      request.nextUrl.pathname === "/signup") &&
-    authCookie
-  ) {
+  if ((pathname === "/signin" || pathname === "/signup") && authCookie) {
+    console.log("Redirecting to onboarding - already authenticated");
     return NextResponse.redirect(
       new URL("/management-portal/onboarding", request.url)
     );
@@ -27,5 +31,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/management-portal/:path*", "/signin", "/signup"],
+  matcher: [
+    "/management-portal/:path*",
+    "/signin",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ],
 };

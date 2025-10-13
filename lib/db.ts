@@ -1,11 +1,19 @@
-// lib/db.ts - Clean Azure SQL Configuration
+// lib/db.ts - Updated for production
 import sql from "mssql";
 
+function getRequiredEnvVar(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 const config: sql.config = {
-  user: "joefraser7",
-  password: "Revenue80!",
-  server: "nsncenterdata.database.windows.net",
-  database: "FedEx",
+  user: getRequiredEnvVar("DB_USER"),
+  password: getRequiredEnvVar("DB_PASSWORD"),
+  server: getRequiredEnvVar("DB_SERVER"),
+  database: getRequiredEnvVar("DB_NAME"),
   port: 1433,
   options: {
     encrypt: true, // REQUIRED for Azure
