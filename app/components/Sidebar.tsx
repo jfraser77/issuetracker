@@ -12,52 +12,56 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signout } from "@/app/actions/auth";
 
 interface SidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  activePage: string;
-  setActivePage: (page: string) => void;
 }
 
-interface MenuItem {
-  id: string;
+interface NavItem {
   name: string;
+  href: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
-export default function Sidebar({
-  sidebarOpen,
-  setSidebarOpen,
-  activePage,
-  setActivePage,
-}: SidebarProps) {
-  const menuItems: MenuItem[] = [
-    { id: "dashboard", name: "Dashboard", icon: HomeIcon },
-    { id: "onboarding", name: "Onboarding", icon: UserIcon },
-    { id: "terminations", name: "Terminations", icon: UserMinusIcon },
-    { id: "it-assets", name: "IT Assets", icon: ComputerDesktopIcon },
-    { id: "reports", name: "Reports", icon: ChartBarIcon },
-    { id: "settings", name: "Settings", icon: Cog6ToothIcon },
-    { id: "logout", name: "Logout", icon: ArrowRightOnRectangleIcon },
-  ];
-
+export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const currentPath = usePathname();
 
-  const links = [
-    { label: "Dashboard", href: "/" },
-    { label: "Onboarding", href: "/management-portal/onboarding" },
-    { label: "Terminations", href: "/management-portal/terminations" },
-    { label: "IT Assets", href: "/management-portal/it-assets" },
-    { label: "Reports", href: "/management-portal/reports" },
-    { label: "Settings", href: "/management-portal/settings" },
+  const navItems: NavItem[] = [
+    { name: "Dashboard", href: "/", icon: HomeIcon },
+    {
+      name: "Onboarding",
+      href: "/management-portal/onboarding",
+      icon: UserIcon,
+    },
+    {
+      name: "Terminations",
+      href: "/management-portal/terminations",
+      icon: UserMinusIcon,
+    },
+    {
+      name: "IT Assets",
+      href: "/management-portal/it-assets",
+      icon: ComputerDesktopIcon,
+    },
+    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
+    {
+      name: "Settings",
+      href: "/management-portal/settings",
+      icon: Cog6ToothIcon,
+    },
   ];
 
-  const handleItemClick = (id: string) => {
-    if (id !== "settings" && id !== "logout") {
-      setActivePage(id);
+  const isActive = (href: string) => {
+    if (href === "/") {
+      return currentPath === "/";
     }
-    setSidebarOpen(false);
+    return currentPath.startsWith(href);
+  };
+
+  const handleSignout = async () => {
+    await signout();
   };
 
   return (
@@ -79,7 +83,7 @@ export default function Sidebar({
       `}
       >
         <div className="flex items-center mt-5 justify-center h-16 bg-blue-800 px-4">
-          <Link href="/">
+          <Link href="/" onClick={() => setSidebarOpen(false)}>
             <Image
               src="/nsn_revenue_resources_logo.jpg"
               alt="NSN image"
@@ -95,24 +99,34 @@ export default function Sidebar({
         </div>
 
         <nav className="mt-9 px-2">
-          {menuItems.map((item) => {
+          {navItems.map((item) => {
             const IconComponent = item.icon;
             return (
-              <button
-                key={item.id}
+              <Link
+                key={item.href}
+                href={item.href}
                 className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors
                   ${
-                    activePage === item.id
+                    isActive(item.href)
                       ? "bg-blue-700 border-l-4 border-blue-400"
                       : ""
                   }`}
-                onClick={() => handleItemClick(item.id)}
+                onClick={() => setSidebarOpen(false)}
               >
                 <IconComponent className="h-6 w-6" />
                 <span className="ml-3">{item.name}</span>
-              </button>
+              </Link>
             );
           })}
+
+          {/* Logout button */}
+          <button
+            onClick={handleSignout}
+            className="flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors mt-4"
+          >
+            <ArrowRightOnRectangleIcon className="h-6 w-6" />
+            <span className="ml-3">Logout</span>
+          </button>
         </nav>
       </div>
     </>

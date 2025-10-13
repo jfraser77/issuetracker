@@ -1,10 +1,38 @@
+"use client";
+
 import { MagnifyingGlassIcon, Bars3Icon } from "@heroicons/react/24/outline";
+import { useEffect, useState } from "react";
 
 interface HeaderProps {
   setSidebarOpen: (open: boolean) => void;
 }
 
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
+
 export default function Header({ setSidebarOpen }: HeaderProps) {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const response = await fetch("/api/auth/user");
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      }
+    }
+
+    fetchUser();
+  }, []);
+
   return (
     <header className="bg-white shadow-sm z-10">
       <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
@@ -32,16 +60,18 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
 
         <div className="ml-4 flex items-center md:ml-6">
           <div className="flex items-center">
-            <div className="h-10 w-10 rounded-full overflow-hidden">
-              <img
-                src="https://randommer.io/images/cartoons/BB-8.webp"
-                alt="User"
-                className="h-full w-full object-cover"
-              />
+            <div className="h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center">
+              <span className="text-white font-semibold text-sm">
+                {user?.name?.charAt(0).toUpperCase() || "U"}
+              </span>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-700">Joe Fraser</p>
-              <p className="text-xs font-medium text-gray-500">System Admin</p>
+              <p className="text-sm font-medium text-gray-700">
+                {user?.name || "Loading..."}
+              </p>
+              <p className="text-xs font-medium text-gray-500 capitalize">
+                {user?.role || "User"}
+              </p>
             </div>
           </div>
         </div>
