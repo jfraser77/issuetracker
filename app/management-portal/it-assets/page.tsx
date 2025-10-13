@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   ComputerDesktopIcon,
-  ArrowPathIcon,
+  // ArrowPathIcon,
   PlusIcon,
   MinusIcon,
   ShoppingCartIcon,
