@@ -13,8 +13,7 @@ export default function Onboarding() {
           Current Onboarding Processes
         </h2>
         <p className="text-gray-500">
-          Onboarding content will be displayed here.
-        </p>
+          Onboarding content will be displayed here        </p>
       </div>
     </div>
   );
