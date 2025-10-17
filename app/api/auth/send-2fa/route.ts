@@ -4,7 +4,7 @@ import sql from "mssql";
 import * as nodemailer from "nodemailer";
 
 // Configure Exchange Online transporter with your dedicated account
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.office365.com",
   port: parseInt(process.env.SMTP_PORT || "587"),
   secure: false, // Use TLS
