@@ -54,7 +54,7 @@ export default function TerminationsPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showTerminationForm, setShowTerminationForm] = useState(false);
-  const [newTermination, setNewTermination] = useState({
+  const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
     employeeEmail: "",
     jobTitle: "",
@@ -114,41 +114,41 @@ export default function TerminationsPage() {
   };
 
   const createTermination = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAuthorized) {
-      alert("You are not authorized to initiate terminations.");
-      return;
-    }
+  e.preventDefault();
+  if (!isAuthorized) {
+    alert("You are not authorized to initiate terminations.");
+    return;
+  }
 
-    try {
-      const response = await fetch("/api/terminations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newTermination,
-          initiatedBy: currentUser?.name
-        }),
+  try {
+    const response = await fetch("/api/terminations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...terminationForm, // Changed from newTermination
+        initiatedBy: currentUser?.name
+      }),
+    });
+
+    if (response.ok) {
+      setShowTerminationForm(false);
+      setTerminationForm({ // Reset terminationForm instead of newTermination
+        employeeName: "",
+        employeeEmail: "",
+        jobTitle: "",
+        department: "",
+        terminationDate: new Date().toISOString().split('T')[0],
+        terminationReason: "",
+        equipmentDisposition: "return_to_pool"
       });
-
-      if (response.ok) {
-        setShowTerminationForm(false);
-        setNewTermination({
-          employeeName: "",
-          employeeEmail: "",
-          jobTitle: "",
-          department: "",
-          terminationDate: new Date().toISOString().split('T')[0],
-          terminationReason: "",
-          equipmentDisposition: "return_to_pool"
-        });
-        fetchTerminations();
-        alert("Termination process initiated successfully.");
-      }
-    } catch (error) {
-      console.error("Error creating termination:", error);
-      alert("Failed to initiate termination process.");
+      fetchTerminations();
+      alert("Termination process initiated successfully.");
     }
-  };
+  } catch (error) {
+    console.error("Error creating termination:", error);
+    alert("Failed to initiate termination process.");
+  }
+};
 
   const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
     try {
@@ -323,8 +323,8 @@ export default function TerminationsPage() {
                   </label>
                   <input
                     type="text"
-                    value={newTermination.employeeName}
-                    onChange={(e) => setNewTermination({ ...newTermination, employeeName: e.target.value })}
+                    value={terminationForm.employeeName}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, employeeName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
@@ -335,8 +335,8 @@ export default function TerminationsPage() {
                   </label>
                   <input
                     type="email"
-                    value={newTermination.employeeEmail}
-                    onChange={(e) => setNewTermination({ ...newTermination, employeeEmail: e.target.value })}
+                    value={terminationForm.employeeEmail}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, employeeEmail: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
@@ -347,8 +347,8 @@ export default function TerminationsPage() {
                   </label>
                   <input
                     type="text"
-                    value={newTermination.jobTitle}
-                    onChange={(e) => setNewTermination({ ...newTermination, jobTitle: e.target.value })}
+                    value={terminationForm.jobTitle}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, jobTitle: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
@@ -359,8 +359,8 @@ export default function TerminationsPage() {
                   </label>
                   <input
                     type="text"
-                    value={newTermination.department}
-                    onChange={(e) => setNewTermination({ ...newTermination, department: e.target.value })}
+                    value={terminationForm.department}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, department: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
@@ -371,8 +371,8 @@ export default function TerminationsPage() {
                   </label>
                   <input
                     type="date"
-                    value={newTermination.terminationDate}
-                    onChange={(e) => setNewTermination({ ...newTermination, terminationDate: e.target.value })}
+                    value={terminationForm.terminationDate}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, terminationDate: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
@@ -382,8 +382,8 @@ export default function TerminationsPage() {
                     Equipment Disposition *
                   </label>
                   <select
-                    value={newTermination.equipmentDisposition}
-                    onChange={(e) => setNewTermination({ ...newTermination, equipmentDisposition: e.target.value as any })}
+                    value={terminationForm.equipmentDisposition}
+                    onChange={(e) => setTerminationForm({ ...terminationForm, equipmentDisposition: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   >
@@ -397,8 +397,8 @@ export default function TerminationsPage() {
                   Termination Reason *
                 </label>
                 <textarea
-                  value={newTermination.terminationReason}
-                  onChange={(e) => setNewTermination({ ...newTermination, terminationReason: e.target.value })}
+                  value={terminationForm.terminationReason}
+                  onChange={(e) => setTerminationForm({ ...terminationForm, terminationReason: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                   rows={3}
                   required
