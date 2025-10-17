@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import nodemailer from "nodemailer";
+import * as nodemailer from "nodemailer";
 
 // Configure Exchange Online transporter with your dedicated account
 const transporter = nodemailer.createTransporter({
@@ -13,29 +13,28 @@ const transporter = nodemailer.createTransporter({
     pass: process.env.SMTP_PASSWORD,
   },
   tls: {
-    ciphers: "SSLv3",
-    rejectUnauthorized: false,
+    ciphers: 'SSLv3',
+    rejectUnauthorized: false
   },
-});
+} as nodemailer.TransportOptions);
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
-
+    
     console.log("📧 Send-2FA request for:", email);
-
+    
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
     const pool = await connectToDatabase();
-
+    
     // Check if user exists
-    const userResult = await pool
-      .request()
-      .input("email", sql.NVarChar, email)
-      .query("SELECT id, name FROM Users WHERE email = @email");
-
+    const userResult = await pool.request()
+      .input('email', sql.NVarChar, email)
+      .query('SELECT id, name FROM Users WHERE email = @email');
+    
     if (userResult.recordset.length === 0) {
       console.log("❌ User not found for 2FA:", email);
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -43,20 +42,20 @@ export async function POST(request: NextRequest) {
 
     const userId = userResult.recordset[0].id;
     const userName = userResult.recordset[0].name;
-
+    
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
+    
     console.log("🔢 Generated 2FA code for", email, ":", code);
-
+    
     // Store code in database
-    await pool
-      .request()
-      .input("userId", sql.Int, userId)
-      .input("email", sql.NVarChar, email)
-      .input("code", sql.NVarChar, code)
-      .input("expiresAt", sql.DateTime, expiresAt).query(`
+    await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('email', sql.NVarChar, email)
+      .input('code', sql.NVarChar, code)
+      .input('expiresAt', sql.DateTime, expiresAt)
+      .query(`
         INSERT INTO TwoFactorAuth (userId, email, code, expiresAt, used)
         VALUES (@userId, @email, @code, @expiresAt, 0)
       `);
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
       const mailOptions = {
         from: `NSN IT Portal <${process.env.SMTP_FROM}>`,
         to: email,
-        subject: "Your NSN IT Management Portal Verification Code",
+        subject: 'Your NSN IT Management Portal Verification Code',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #2563eb, #1e40af); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
@@ -98,46 +97,42 @@ export async function POST(request: NextRequest) {
             </div>
           </div>
         `,
-        text: `Your NSN IT Management Portal verification code is: ${code}. This code will expire in 10 minutes. If you didn't request this code, please ignore this email.`,
+        text: `Your NSN IT Management Portal verification code is: ${code}. This code will expire in 10 minutes. If you didn't request this code, please ignore this email.`
       };
 
       console.log("📤 Attempting to send email from:", process.env.SMTP_FROM);
       console.log("📤 Sending to:", email);
-
+      
       // Verify connection first
       await transporter.verify();
       console.log("✅ SMTP connection verified");
-
+      
       const emailResult = await transporter.sendMail(mailOptions);
-      console.log(
-        "✅ Email sent successfully! Message ID:",
-        emailResult.messageId
-      );
+      console.log("✅ Email sent successfully! Message ID:", emailResult.messageId);
       console.log("✅ Email accepted by:", emailResult.accepted);
-
-      return NextResponse.json({
+      
+      return NextResponse.json({ 
         message: "Verification code has been sent to your email",
-        demoCode: code, // Still return for testing
+        demoCode: code // Still return for testing
       });
+      
     } catch (emailError: any) {
       console.error("❌ Email sending failed:", emailError);
       console.error("Email error code:", emailError.code);
       console.error("Email error response:", emailError.response);
-
+      
       // Still return success with demo code
-      return NextResponse.json({
+      return NextResponse.json({ 
         message: "Verification code generated (email may not have been sent)",
         demoCode: code,
-        emailError: emailError.message,
+        emailError: emailError.message
       });
     }
+    
   } catch (error: any) {
     console.error("❌ Error in send-2fa:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to process verification request",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ 
+      error: "Failed to process verification request" 
+    }, { status: 500 });
   }
 }
