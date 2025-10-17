@@ -1,20 +1,30 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/app/actions/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { connectToDatabase } from "../../../../lib/db";
+import sql from "mssql";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    const cookieStore = await cookies();
+    const userEmail = cookieStore.get("auth-user")?.value;
 
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    if (!userEmail) {
+      return NextResponse.json(null);
     }
 
-    return NextResponse.json(user);
+    const pool = await connectToDatabase();
+    const result = await pool
+      .request()
+      .input("email", sql.NVarChar, userEmail)
+      .query("SELECT id, name, email, role FROM Users WHERE email = @email");
+
+    if (result.recordset.length === 0) {
+      return NextResponse.json(null);
+    }
+
+    return NextResponse.json(result.recordset[0]);
   } catch (error) {
-    console.error("Error fetching user:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Get user error:", error);
+    return NextResponse.json(null);
   }
 }

@@ -1,36 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import Layout from "@/app/components/Layout";
-import Dashboard from "@/app/components/Dashboard";
-import Onboarding from "@/app/components/Onboarding";
-import Terminations from "@/app/components/Terminations";
-import ITAssets from "@/app/components/ITAssets";
-import Reports from "@/app/components/Reports";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const [activePage, setActivePage] = useState("dashboard");
+  const router = useRouter();
 
-  const renderPage = () => {
-    switch (activePage) {
-      case "dashboard":
-        return <Dashboard />;
-      case "onboarding":
-        return <Onboarding />;
-      case "terminations":
-        return <Terminations />;
-      case "it-assets":
-        return <ITAssets />;
-      case "reports":
-        return <Reports />;
-      default:
-        return <Dashboard />;
-    }
-  };
+  useEffect(() => {
+    // Check if user is authenticated and redirect accordingly
+    const checkAuthAndRedirect = async () => {
+      try {
+        const response = await fetch("/api/auth/user");
+        if (response.ok) {
+          router.push("/management-portal/dashboard");
+        } else {
+          router.push("/signin");
+        }
+      } catch (error) {
+        router.push("/signin");
+      }
+    };
+
+    checkAuthAndRedirect();
+  }, [router]);
 
   return (
-    <Layout activePage={activePage} setActivePage={setActivePage}>
-      {renderPage()}
-    </Layout>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Redirecting...</p>
+      </div>
+    </div>
   );
 }

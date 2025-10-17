@@ -1,12 +1,12 @@
 import "@/app/globals.css";
 import { Inter } from "next/font/google";
-import Header from "@/components/Header";
+import { AuthProvider } from "./auth-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Employee Management Dashboard",
-  description: "IT Portal for employee management",
+  title: "NSN IT-Management Portal",
+  description: "Secure employee management system",
 };
 
 export default function RootLayout({
@@ -17,10 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-gray-50 min-h-screen`}>
-        <Header />
-        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          {children}
-        </main>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
