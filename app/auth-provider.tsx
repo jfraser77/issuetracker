@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Header from "@/components/Header";
+import Header from "@/app/components/Header";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
