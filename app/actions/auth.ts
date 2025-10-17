@@ -88,15 +88,17 @@ export async function signin(formData: FormData) {
   const password = formData.get("password") as string;
   const twoFactorCode = formData.get("twoFactorCode") as string;
 
-  console.log("Signin attempt:", { email, has2FA: !!twoFactorCode });
-
-  if (!email || !password) {
-    return { error: "Email and password are required" };
-  }
+  console.log("🔐 Signin attempt:", { 
+    email, 
+    hasPassword: !!password, 
+    has2FA: !!twoFactorCode 
+  });
 
   try {
-    // If 2FA code is provided, verify it
+    // If 2FA code is provided, we're in the second step (password not required)
     if (twoFactorCode) {
+      console.log("🔄 Processing 2FA verification...");
+      
       const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-2fa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,10 +107,12 @@ export async function signin(formData: FormData) {
 
       if (!twoFactorResponse.ok) {
         const errorData = await twoFactorResponse.json();
+        console.log("❌ 2FA verification failed:", errorData);
         return { error: errorData.error || "Invalid verification code" };
       }
 
       const twoFactorData = await twoFactorResponse.json();
+      console.log("✅ 2FA verification successful:", twoFactorData);
       
       // Set session cookie after successful 2FA verification
       const cookieStore = await cookies();
@@ -119,10 +123,22 @@ export async function signin(formData: FormData) {
         path: "/",
       });
 
-      console.log("2FA signin successful, redirecting to dashboard");
+      console.log("✅ Session cookie set, redirecting to dashboard");
+      
+      // Add a small delay to ensure cookie is set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       redirect("/management-portal/dashboard");
     }
 
+    // If we get here, this is the first step (email/password verification)
+    if (!email || !password) {
+      console.log("❌ Email and password required for first step");
+      return { error: "Email and password are required" };
+    }
+
+    console.log("🔄 Step 1: Verifying credentials...");
+    
     // First verify credentials
     const verifyResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-credentials`, {
       method: "POST",
@@ -132,13 +148,17 @@ export async function signin(formData: FormData) {
 
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.json();
+      console.log("❌ Credential verification failed:", errorData);
       return { error: errorData.error || "Invalid email or password" };
     }
 
     const verifyData = await verifyResponse.json();
+    console.log("✅ Credentials valid:", verifyData);
 
     // If 2FA is required, send code and show 2FA form
     if (verifyData.requires2FA) {
+      console.log("🔄 2FA required, sending code...");
+      
       const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/send-2fa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,13 +166,17 @@ export async function signin(formData: FormData) {
       });
 
       if (twoFactorResponse.ok) {
+        console.log("✅ 2FA code sent");
         return { requires2FA: true, email };
       } else {
+        console.log("❌ Failed to send 2FA code");
         return { error: "Failed to send verification code" };
       }
     }
 
     // If no 2FA required, set session and redirect
+    console.log("🔄 No 2FA required, setting session...");
+    
     const cookieStore = await cookies();
     cookieStore.set("auth-user", email, {
       httpOnly: true,
@@ -161,11 +185,13 @@ export async function signin(formData: FormData) {
       path: "/",
     });
 
-    console.log("Signin successful, redirecting to dashboard");
+    console.log("✅ Signin successful, redirecting to dashboard");
+    
+    await new Promise(resolve => setTimeout(resolve, 100));
     redirect("/management-portal/dashboard");
 
   } catch (error: any) {
-    console.error("Signin error:", error);
+    console.error("🚨 Signin error:", error);
     return { error: "Failed to sign in: " + error.message };
   }
 }

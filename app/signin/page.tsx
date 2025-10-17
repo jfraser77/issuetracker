@@ -27,7 +27,9 @@ export default function SigninPage() {
   setIsLoading(true);
 
   try {
-    // Verify the 2FA code
+    console.log("🔄 Step 3: Starting 2FA verification");
+
+    // Verify the 2FA code via API
     const verifyResponse = await fetch("/api/auth/verify-2fa", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,6 +39,8 @@ export default function SigninPage() {
       }),
     });
 
+    console.log("🔐 2FA Verification - Status:", verifyResponse.status);
+
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.json();
       alert(errorData.error || "Invalid verification code");
@@ -44,33 +48,33 @@ export default function SigninPage() {
     }
 
     const verifyData = await verifyResponse.json();
-    
-    // Now call the server action to create the session
+    console.log("✅ 2FA verification successful!", verifyData);
+
+    // Call server action with ONLY email and twoFactorCode
     const formDataToSubmit = new FormData();
     formDataToSubmit.append("email", formData.email);
     formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
+    // NOTE: We DON'T append password here
     
+    console.log("🔄 Calling server action for session creation...");
     await signin(formDataToSubmit);
     
   } catch (error) {
-    console.error("2FA verification error:", error);
+    console.error("🚨 2FA submission error:", error);
     alert("An error occurred during verification");
   } finally {
     setIsLoading(false);
   }
 };
 
-  const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
+ const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
 
   try {
     console.log("🔄 Step 1: Starting signin for", formData.email);
     
-    const apiUrl = "/api/auth/verify-credentials";
-    console.log("📨 Calling API:", apiUrl);
-
-    const response = await fetch(apiUrl, {
+    const response = await fetch("/api/auth/verify-credentials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -79,48 +83,49 @@ export default function SigninPage() {
       }),
     });
 
-    console.log("📊 Response status:", response.status);
-    console.log("📊 Response ok:", response.ok);
-    console.log("📊 Response headers:", Object.fromEntries(response.headers.entries()));
+    console.log("📨 Credentials API - Status:", response.status, "OK:", response.ok);
 
-    // Check if we got any response at all
-    if (response.status === 404) {
-      console.log("❌ API route not found (404)");
-      alert("Authentication service unavailable. Please try again later.");
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.log("❌ Credential error:", errorData);
+      alert(errorData.error || "Invalid email or password");
       return;
     }
 
-    let data;
+    const data = await response.json();
+    console.log("✅ Credentials valid! Data:", data);
+
+    // If credentials are valid, send 2FA code
+    console.log("🔄 Step 2: Sending 2FA code to", formData.email);
+    
+    const twoFactorResponse = await fetch("/api/auth/send-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formData.email }),
+    });
+
+    console.log("📧 2FA API - Status:", twoFactorResponse.status, "OK:", twoFactorResponse.ok);
+
+    // Check the raw response
+    const twoFactorText = await twoFactorResponse.text();
+    console.log("📄 2FA Raw response:", twoFactorText);
+
+    let twoFactorData;
     try {
-      data = await response.json();
-      console.log("📊 Response data:", data);
+      twoFactorData = twoFactorText ? JSON.parse(twoFactorText) : {};
     } catch (parseError) {
-      console.log("❌ Failed to parse JSON response:", parseError);
-      alert("Invalid response from server");
-      return;
+      console.error("❌ Failed to parse 2FA JSON:", parseError);
     }
 
-    if (response.ok) {
-      console.log("✅ Credentials valid, sending 2FA code");
-      // If credentials are valid, send 2FA code
-      const twoFactorResponse = await fetch("/api/auth/send-2fa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email }),
-      });
+    console.log("📊 2FA Parsed data:", twoFactorData);
 
-      console.log("📧 2FA response status:", twoFactorResponse.status);
-
-      if (twoFactorResponse.ok) {
-        console.log("✅ 2FA code sent, showing 2FA form");
-        setShowTwoFactor(true);
-      } else {
-        console.log("❌ Failed to send 2FA code");
-        alert("Failed to send verification code");
-      }
+    if (twoFactorResponse.ok) {
+      console.log("✅ 2FA code sent successfully!");
+      console.log("🔢 Demo code (if available):", twoFactorData.demoCode);
+      setShowTwoFactor(true);
     } else {
-      console.log("❌ Credential verification failed:", data.error);
-      alert(data.error || "Invalid email or password");
+      console.log("❌ 2FA failed:", twoFactorData.error);
+      alert(twoFactorData.error || "Failed to send verification code");
     }
   } catch (error) {
     console.error("🚨 Signin error:", error);
