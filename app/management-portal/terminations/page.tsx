@@ -11,6 +11,7 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon 
 } from "@heroicons/react/24/outline";
+import SearchEmployees from "@/components/SearchEmployees";
 
 interface User {
   id: number;
@@ -268,6 +269,17 @@ export default function TerminationsPage() {
     }
   };
 
+  const handleEmployeeSelect = (employee: any) => {
+    // Pre-fill termination form with employee data
+    setTerminationForm(prev => ({
+      ...prev,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      employeeEmail: employee.email,
+      jobTitle: employee.jobTitle,
+      department: employee.department
+    }));
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -282,6 +294,12 @@ export default function TerminationsPage() {
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Terminations
         </h1>
+        <div className="w-80">
+          <SearchEmployees
+            onEmployeeSelect={handleEmployeeSelect}
+            placeholder="Search employees to initiate termination..."
+          />
+        </div>
         {isAuthorized && (
           <button
             onClick={() => setShowTerminationForm(true)}

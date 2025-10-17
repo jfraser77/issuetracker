@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDownIcon, ChevronRightIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import SearchEmployees from "@/components/SearchEmployees";
 
 interface User {
   id: number;
@@ -254,6 +255,11 @@ export default function OnboardingPage() {
     const diffTime = Math.abs(today.getTime() - addedDate.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
+ const handleEmployeeSelect = (employee: any) => {
+    // Navigate to employee onboarding details
+    router.push(`/management-portal/onboarding/${employee.id}`);
+  };
+
 
   if (loading) {
     return (
@@ -269,6 +275,12 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Onboarding
         </h1>
+        <div className="w-80">
+          <SearchEmployees
+            onEmployeeSelect={handleEmployeeSelect}
+            placeholder="Search to quickly access employee onboarding..."
+          />
+        </div>
         <Link
           href="/management-portal/onboarding/new"
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"

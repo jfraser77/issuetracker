@@ -1,77 +1,62 @@
 "use client";
 
-import { MagnifyingGlassIcon, Bars3Icon } from "@heroicons/react/24/outline";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import SearchEmployees from "./SearchEmployees";
+import { BellIcon, CogIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
-interface HeaderProps {
-  setSidebarOpen: (open: boolean) => void;
-}
-
-interface User {
+interface Employee {
   id: number;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  role: string;
+  jobTitle: string;
+  department: string;
+  status: string;
 }
 
-export default function Header({ setSidebarOpen }: HeaderProps) {
-  const [user, setUser] = useState<User | null>(null);
+export default function HeaderWithSearch() {
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const response = await fetch("/api/auth/user");
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        }
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
-      }
-    }
-
-    fetchUser();
-  }, []);
+  const handleEmployeeSelect = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    // You can navigate to employee details or perform other actions
+    console.log("Selected employee:", employee);
+  };
 
   return (
-    <header className="bg-white shadow-sm z-10">
-      <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-        <button
-          className="lg:hidden text-gray-500 hover:text-gray-600"
-          onClick={() => setSidebarOpen(true)}
-        >
-          <Bars3Icon className="h-6 w-6" />
-        </button>
-
-        <div className="flex-1 flex justify-center lg:justify-end">
-          <div className="w-full max-w-xs lg:max-w-sm">
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-secondary focus:border-secondary"
-                placeholder="Search employees..."
-              />
-            </div>
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Left side - Search */}
+          <div className="flex-1 max-w-2xl">
+            <SearchEmployees
+              onEmployeeSelect={handleEmployeeSelect}
+              placeholder="Search employees, departments, job titles..."
+              className="max-w-2xl"
+              showStatus={true}
+            />
           </div>
-        </div>
 
-        <div className="ml-4 flex items-center md:ml-6">
-          <div className="flex items-center">
-            <div className="h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center">
-              <span className="text-white font-semibold text-sm">
-                {user?.name?.charAt(0).toUpperCase() || "U"}
-              </span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-700">
-                {user?.name || "Loading..."}
-              </p>
-              <p className="text-xs font-medium text-gray-500 capitalize">
-                {user?.role || "User"}
-              </p>
+          {/* Right side - User actions */}
+          <div className="flex items-center space-x-4">
+            {/* Notifications */}
+            <button className="p-2 text-gray-400 hover:text-gray-500 relative">
+              <BellIcon className="h-6 w-6" />
+              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            {/* Settings */}
+            <button className="p-2 text-gray-400 hover:text-gray-500">
+              <CogIcon className="h-6 w-6" />
+            </button>
+
+            {/* User profile */}
+            <div className="flex items-center space-x-3">
+              <UserCircleIcon className="h-8 w-8 text-gray-400" />
+              <div className="hidden md:block">
+                <div className="text-sm font-medium text-gray-700">Current User</div>
+                <div className="text-xs text-gray-500">Admin</div>
+              </div>
             </div>
           </div>
         </div>
