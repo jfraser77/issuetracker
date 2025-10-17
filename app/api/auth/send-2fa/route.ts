@@ -19,10 +19,19 @@ const transporter = nodemailer.createTransport({
 } as nodemailer.TransportOptions);
 
 export async function POST(request: NextRequest) {
+
+
   try {
     const { email } = await request.json();
     
     console.log("📧 Send-2FA request for:", email);
+    // Add this at the beginning of your POST function
+console.log("🔧 Environment check:", {
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD ? "***" : "MISSING",
+  NODE_ENV: process.env.NODE_ENV
+});
     
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
