@@ -22,18 +22,43 @@ export default function SigninPage() {
     rememberMe: false,
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const handleTwoFactorSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      await signin(formData);
-    } catch (error) {
-      console.error("Signin error:", error);
-    } finally {
-      setIsLoading(false);
+  try {
+    // Verify the 2FA code
+    const verifyResponse = await fetch("/api/auth/verify-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        code: formData.twoFactorCode,
+      }),
+    });
+
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.json();
+      alert(errorData.error || "Invalid verification code");
+      return;
     }
-  };
+
+    const verifyData = await verifyResponse.json();
+    
+    // Now call the server action to create the session
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append("email", formData.email);
+    formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
+    
+    await signin(formDataToSubmit);
+    
+  } catch (error) {
+    console.error("2FA verification error:", error);
+    alert("An error occurred during verification");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,7 +285,7 @@ export default function SigninPage() {
               </form>
             ) : (
               // 2FA Form
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form className="space-y-6" onSubmit={handleTwoFactorSubmit}>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
