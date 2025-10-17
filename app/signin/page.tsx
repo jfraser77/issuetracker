@@ -61,41 +61,74 @@ export default function SigninPage() {
 };
 
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
+  try {
+    console.log("🔄 Step 1: Starting signin for", formData.email);
+    
+    const apiUrl = "/api/auth/verify-credentials";
+    console.log("📨 Calling API:", apiUrl);
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    console.log("📊 Response status:", response.status);
+    console.log("📊 Response ok:", response.ok);
+    console.log("📊 Response headers:", Object.fromEntries(response.headers.entries()));
+
+    // Check if we got any response at all
+    if (response.status === 404) {
+      console.log("❌ API route not found (404)");
+      alert("Authentication service unavailable. Please try again later.");
+      return;
+    }
+
+    let data;
     try {
-      // First, verify email/password
-      const response = await fetch("/api/auth/verify-credentials", {
+      data = await response.json();
+      console.log("📊 Response data:", data);
+    } catch (parseError) {
+      console.log("❌ Failed to parse JSON response:", parseError);
+      alert("Invalid response from server");
+      return;
+    }
+
+    if (response.ok) {
+      console.log("✅ Credentials valid, sending 2FA code");
+      // If credentials are valid, send 2FA code
+      const twoFactorResponse = await fetch("/api/auth/send-2fa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify({ email: formData.email }),
       });
 
-      if (response.ok) {
-        // If credentials are valid, send 2FA code
-        const twoFactorResponse = await fetch("/api/auth/send-2fa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: formData.email }),
-        });
+      console.log("📧 2FA response status:", twoFactorResponse.status);
 
-        if (twoFactorResponse.ok) {
-          setShowTwoFactor(true);
-        }
+      if (twoFactorResponse.ok) {
+        console.log("✅ 2FA code sent, showing 2FA form");
+        setShowTwoFactor(true);
       } else {
-        alert("Invalid email or password");
+        console.log("❌ Failed to send 2FA code");
+        alert("Failed to send verification code");
       }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("An error occurred during sign in");
-    } finally {
-      setIsLoading(false);
+    } else {
+      console.log("❌ Credential verification failed:", data.error);
+      alert(data.error || "Invalid email or password");
     }
-  };
+  } catch (error) {
+    console.error("🚨 Signin error:", error);
+    alert("An error occurred during sign in");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex bg-white">
