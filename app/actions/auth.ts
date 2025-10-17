@@ -122,8 +122,7 @@ export async function signin(formData: FormData) {
     const cookieStore = await cookies();
     cookieStore.set("auth-user", user.email, {
       httpOnly: true,
-      secure: true, // Always true in production
-      sameSite: "lax", 
+      secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: "/",
     });
