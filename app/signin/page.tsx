@@ -23,48 +23,70 @@ export default function SigninPage() {
   });
 
   const handleTwoFactorSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  
+  // Prevent multiple submissions
+  if (isLoading) {
+    console.log("⏳ Already processing, skipping duplicate submission");
+    return;
+  }
+  
+  setIsLoading(true);
 
-    try {
-      console.log("🔄 Step 3: Starting 2FA verification");
+  try {
+    console.log("🔄 Step 3: Starting 2FA verification");
 
-      // Verify the 2FA code via API
-      const verifyResponse = await fetch("/api/auth/verify-2fa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          code: formData.twoFactorCode,
-        }),
-      });
+    // Verify the 2FA code via API
+    const verifyResponse = await fetch("/api/auth/verify-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        code: formData.twoFactorCode,
+      }),
+    });
 
-      console.log("🔐 2FA Verification - Status:", verifyResponse.status);
+    console.log("🔐 2FA Verification - Status:", verifyResponse.status);
 
-      if (!verifyResponse.ok) {
-        const errorData = await verifyResponse.json();
-        alert(errorData.error || "Invalid verification code");
-        return;
-      }
-
-      const verifyData = await verifyResponse.json();
-      console.log("✅ 2FA verification successful!", verifyData);
-
-      // Call server action with ONLY email and twoFactorCode
-      const formDataToSubmit = new FormData();
-      formDataToSubmit.append("email", formData.email);
-      formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
-      // NOTE: We DON'T append password here
-
-      console.log("🔄 Calling server action for session creation...");
-      await signin(formDataToSubmit);
-    } catch (error) {
-      console.error("🚨 2FA submission error:", error);
-      alert("An error occurred during verification");
-    } finally {
-      setIsLoading(false);
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.json();
+      alert(errorData.error || "Invalid verification code");
+      return;
     }
-  };
+
+    const verifyData = await verifyResponse.json();
+    console.log("✅ 2FA verification successful!", verifyData);
+
+    // Call server action to create session
+    console.log("🔄 Calling server action for session creation...");
+    
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append("email", formData.email);
+    formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
+    
+    const signinResult = await signin(formDataToSubmit);
+    console.log("📊 Server action result:", signinResult);
+
+    // Handle the response from server action
+    if (signinResult?.success) {
+      console.log("✅ Login successful, redirecting to dashboard...");
+      window.location.href = "/management-portal/dashboard";
+    } else if (signinResult?.error) {
+      console.log("❌ Login failed:", signinResult.error);
+      alert(signinResult.error);
+    } else {
+      // Fallback redirect
+      console.log("🔄 No clear response, using fallback redirect...");
+      window.location.href = "/management-portal/dashboard";
+    }
+    
+  } catch (error) {
+    console.error("🚨 2FA submission error:", error);
+    alert("An error occurred during verification");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -123,12 +123,14 @@ export async function signin(formData: FormData) {
         path: "/",
       });
 
-      console.log("✅ Session cookie set, redirecting to dashboard");
+      console.log("✅ Session cookie set");
       
-      // Add a small delay to ensure cookie is set
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      redirect("/management-portal/dashboard");
+      // Return success instead of redirecting
+      return { 
+        success: true, 
+        message: "Login successful",
+        redirectTo: "/management-portal/dashboard"
+      };
     }
 
     // If we get here, this is the first step (email/password verification)
@@ -185,10 +187,13 @@ export async function signin(formData: FormData) {
       path: "/",
     });
 
-    console.log("✅ Signin successful, redirecting to dashboard");
+    console.log("✅ Signin successful");
     
-    await new Promise(resolve => setTimeout(resolve, 100));
-    redirect("/management-portal/dashboard");
+    return { 
+      success: true, 
+      message: "Login successful",
+      redirectTo: "/management-portal/dashboard"
+    };
 
   } catch (error: any) {
     console.error("🚨 Signin error:", error);
