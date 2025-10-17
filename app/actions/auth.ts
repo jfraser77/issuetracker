@@ -76,7 +76,7 @@ export async function signup(formData: FormData) {
     console.log("Signup completed successfully for:", newUser.email);
 
     // Redirect after successful signup
-    redirect("cbo-inventory.azurewebsites.net/management-portal/dashboard");
+    redirect("/management-portal/dashboard");
   } catch (error: any) {
     console.error("Signup error:", error);
     return { error: "Failed to create account: " + error.message };
@@ -130,7 +130,7 @@ export async function signin(formData: FormData) {
     console.log("Signin successful, redirecting to dashboard");
 
     // Redirect after successful signin
-    redirect("/cbo-inventory.azurewebsites.net/management-portal/dashboard");
+    redirect("/management-portal/dashboard");
   } catch (error: any) {
     console.error("Signin error:", error);
     return { error: "Failed to sign in: " + error.message };
