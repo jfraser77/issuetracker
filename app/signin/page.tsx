@@ -1,4 +1,3 @@
-
 "use client";
 
 import { signin } from "@/app/actions/auth";
@@ -69,105 +68,104 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Branding & Info */}
+    <div className="min-h-screen flex bg-white">
+     
       <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:justify-between bg-gradient-to-br from-blue-600 to-blue-800 p-12 text-white">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
             <Image
-              src="/nsn_revenue_resources_jpg"
+              src="/nsn_revenue_resources_logo.jpg"
               alt="NSN Revenue Resources"
-              width={40}
-              height={40}
+              width={48}
+              height={48}
               className="rounded-lg"
+              priority
             />
           </div>
           <div>
-            <h1 className="text-xl font-bold">NSN Revenue Resources</h1>
-            <p className="text-blue-100 text-sm">Management Portal</p>
+            <h1 className="text-2xl font-bold">NSN Revenue Resources</h1>
+            <p className="text-blue-100 text-sm">IT Management Portal</p>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div>
-            <h2 className="text-3xl font-bold mb-4">
-              Secure Employee Management
+            <h2 className="text-4xl font-bold mb-6">
+              NSN IT Management Portal
             </h2>
-            <p className="text-blue-100 text-lg leading-relaxed">
-              Access the centralized platform for employee onboarding, 
-              IT asset management, and HR operations.
+            <p className="text-blue-100 text-lg">
+              Secure access to management tools
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h3 className="font-semibold">Employee Onboarding</h3>
-              <p className="text-blue-100 text-sm">Streamlined new hire processes</p>
+              <span className="text-blue-100">Secure authentication</span>
             </div>
-            <div className="space-y-2">
+            <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
-              <h3 className="font-semibold">IT Assets</h3>
-              <p className="text-blue-100 text-sm">Laptop and equipment tracking</p>
+              <span className="text-blue-100">Enterprise security</span>
             </div>
           </div>
         </div>
 
         <div className="text-blue-100 text-sm">
-          <p>© 2024 NSN Revenue Resources. All rights reserved.</p>
+          <p>Secure • Professional</p>
         </div>
       </div>
 
       {/* Right Side - Login Form */}
       <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 lg:flex-none">
         <div className="mx-auto w-full max-w-sm lg:w-96">
-          {/* Mobile Logo */}
+          {/* Mobile Logo & Title */}
           <div className="lg:hidden flex flex-col items-center mb-8">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
               <Image
-                src="/nsn_revenue_resources_jpg"
+                src="/nsn_revenue_resources_logo.jpg"
                 alt="NSN Revenue Resources"
-                width={48}
-                height={48}
+                width={64}
+                height={64}
                 className="rounded-lg"
+                priority
               />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 text-center">
-              NSN IT-Management Portal
+            <h1 className="text-3xl font-bold text-gray-900 text-center mb-2">
+              NSN IT Management Portal
             </h1>
-            <p className="text-gray-600 text-center mt-2">
+            <p className="text-gray-600 text-center">
               Secure access to management tools
             </p>
           </div>
 
           {/* Desktop Header */}
-          <div className="hidden lg:block">
-            <h2 className="text-3xl font-bold text-gray-900">
-              Welcome back
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Sign in to your account to continue
+          <div className="hidden lg:block text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Sign In
+            </h1>
+            <p className="text-gray-600">
+              Access your account
             </p>
           </div>
 
-          <div className="mt-8">
+          <div className="bg-white lg:bg-transparent rounded-2xl lg:rounded-none p-6 lg:p-0 shadow-xl lg:shadow-none border border-gray-200 lg:border-none">
             {!showTwoFactor ? (
               // Email/Password Form
               <form className="space-y-6" onSubmit={handleEmailPasswordSubmit}>
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                      Email address
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address
                     </label>
-                    <div className="mt-1 relative">
+                    <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <EnvelopeIcon className="h-5 w-5 text-gray-400" />
                       </div>
@@ -179,17 +177,17 @@ export default function SigninPage() {
                         required
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                         placeholder="Enter your email"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                       Password
                     </label>
-                    <div className="mt-1 relative">
+                    <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <LockClosedIcon className="h-5 w-5 text-gray-400" />
                       </div>
@@ -201,7 +199,7 @@ export default function SigninPage() {
                         required
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                         placeholder="Enter your password"
                       />
                       <button
@@ -210,9 +208,9 @@ export default function SigninPage() {
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
-                          <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                          <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
                         ) : (
-                          <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                          <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
                         )}
                       </button>
                     </div>
@@ -248,27 +246,27 @@ export default function SigninPage() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     {isLoading ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                         Signing in...
                       </>
                     ) : (
-                      "Continue to Secure Sign In"
+                      "Sign In"
                     )}
                   </button>
                 </div>
 
-                <div className="text-center">
+                <div className="text-center pt-4 border-t border-gray-200">
                   <p className="text-sm text-gray-600">
-                    Don't have an account?{" "}
+                    Need access?{" "}
                     <Link
                       href="/signup"
                       className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
                     >
-                      Request access
+                      Request account
                     </Link>
                   </p>
                 </div>
@@ -286,15 +284,15 @@ export default function SigninPage() {
                         Check your email
                       </h3>
                       <p className="text-sm text-blue-700 mt-1">
-                        We sent a 6-digit verification code to <strong>{formData.email}</strong>
+                        Verification code sent to <strong>{formData.email}</strong>
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="twoFactorCode" className="block text-sm font-medium text-gray-700">
-                    Verification code
+                  <label htmlFor="twoFactorCode" className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter 6-digit code
                   </label>
                   <div className="mt-1">
                     <input
@@ -307,13 +305,10 @@ export default function SigninPage() {
                       required
                       value={formData.twoFactorCode}
                       onChange={(e) => setFormData({ ...formData, twoFactorCode: e.target.value.replace(/\D/g, '') })}
-                      className="block w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl font-mono tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="block w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-xl font-mono tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                       placeholder="000000"
                     />
                   </div>
-                  <p className="mt-2 text-sm text-gray-500 text-center">
-                    Enter the 6-digit code from your email
-                  </p>
                 </div>
 
                 <div className="flex items-center">
@@ -326,7 +321,7 @@ export default function SigninPage() {
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="rememberMe2fa" className="ml-2 block text-sm text-gray-900">
-                    Keep me signed in on this device
+                    Keep me signed in
                   </label>
                 </div>
 
@@ -334,17 +329,17 @@ export default function SigninPage() {
                   <button
                     type="button"
                     onClick={() => setShowTwoFactor(false)}
-                    className="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="flex-1 py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={isLoading || formData.twoFactorCode.length !== 6}
-                    className="flex-1 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     {isLoading ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mx-auto"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
                     ) : (
                       "Verify & Sign In"
                     )}
@@ -362,24 +357,24 @@ export default function SigninPage() {
                         body: JSON.stringify({ email: formData.email }),
                       });
                       setIsLoading(false);
-                      alert("New code sent to your email!");
+                      alert("New code sent!");
                     }}
                     className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors"
                   >
-                    Didn't receive a code? Send again
+                    Resend code
                   </button>
                 </div>
               </form>
             )}
           </div>
 
-          {/* Security Notice */}
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center text-sm text-gray-600">
+          {/* Security Footer */}
+          <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex items-center justify-center text-sm text-gray-600">
               <svg className="flex-shrink-0 mr-2 h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
-              <span>Your sign in is secured with two-factor authentication</span>
+              <span>Secure enterprise authentication</span>
             </div>
           </div>
         </div>
