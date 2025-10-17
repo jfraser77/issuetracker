@@ -127,6 +127,12 @@ export async function signin(formData: FormData) {
       path: "/",
     });
 
+        console.log("✅ Cookie set successfully");
+    console.log("🔄 Attempting redirect to /management-portal/dashboard");
+
+    // Add a small delay to ensure cookie is set
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     console.log("Signin successful, redirecting to dashboard");
 
     // Redirect after successful signin
