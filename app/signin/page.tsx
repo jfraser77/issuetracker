@@ -1,232 +1,387 @@
-'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+"use client";
+
+import { signin } from "@/app/actions/auth";
+import Link from "next/link";
+import { useState } from "react";
+import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 export default function SigninPage() {
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
-  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
-  const router = useRouter();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    twoFactorCode: "",
+    rememberMe: false
+  });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-
+    
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // Client-side redirect
-        console.log('Signin successful, redirecting to dashboard');
-        router.push('/management-portal/dashboard');
-        router.refresh(); // Refresh to update auth state
-      } else {
-        setError(result.error || 'Signin failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
+      await signin(formData);
+    } catch (error) {
+      console.error("Signin error:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setForgotPasswordLoading(true);
-    setForgotPasswordMessage('');
-
-    if (!forgotPasswordEmail) {
-      setForgotPasswordMessage('Please enter your email address');
-      setForgotPasswordLoading(false);
-      return;
-    }
-
+    setIsLoading(true);
+    
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: forgotPasswordEmail }),
+      // First, verify email/password
+      const response = await fetch("/api/auth/verify-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        }),
       });
 
-      const result = await response.json();
-
       if (response.ok) {
-        setForgotPasswordMessage('If an account with that email exists, a reset link has been sent.');
-        setForgotPasswordEmail('');
-        setTimeout(() => {
-          setShowForgotPassword(false);
-          setForgotPasswordMessage('');
-        }, 3000);
+        // If credentials are valid, send 2FA code
+        const twoFactorResponse = await fetch("/api/auth/send-2fa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: formData.email }),
+        });
+
+        if (twoFactorResponse.ok) {
+          setShowTwoFactor(true);
+        }
       } else {
-        setForgotPasswordMessage(result.error || 'Failed to send reset email');
+        alert("Invalid email or password");
       }
-    } catch (err) {
-      setForgotPasswordMessage('Network error. Please try again.');
+    } catch (error) {
+      console.error("Error:", error);
+      alert("An error occurred during sign in");
     } finally {
-      setForgotPasswordLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          
-        </div>
-        
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
+    <div className="min-h-screen flex">
+      {/* Left Side - Branding & Info */}
+      <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:justify-between bg-gradient-to-br from-blue-600 to-blue-800 p-12 text-white">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            <Image
+              src="/nsn_revenue_resources_jpg"
+              alt="NSN Revenue Resources"
+              width={40}
+              height={40}
+              className="rounded-lg"
+            />
           </div>
-        )}
+          <div>
+            <h1 className="text-xl font-bold">NSN Revenue Resources</h1>
+            <p className="text-blue-100 text-sm">Management Portal</p>
+          </div>
+        </div>
 
-        {/* Forgot Password Modal */}
-        {showForgotPassword && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-              <h3 className="text-lg font-semibold mb-4">Reset Your Password</h3>
-              
-              {forgotPasswordMessage && (
-                <div className={`mb-4 p-3 rounded ${
-                  forgotPasswordMessage.includes('sent') 
-                    ? 'bg-green-100 text-green-700 border border-green-300'
-                    : 'bg-red-100 text-red-700 border border-red-300'
-                }`}>
-                  {forgotPasswordMessage}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-3xl font-bold mb-4">
+              Secure Employee Management
+            </h2>
+            <p className="text-blue-100 text-lg leading-relaxed">
+              Access the centralized platform for employee onboarding, 
+              IT asset management, and HR operations.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+              </div>
+              <h3 className="font-semibold">Employee Onboarding</h3>
+              <p className="text-blue-100 text-sm">Streamlined new hire processes</p>
+            </div>
+            <div className="space-y-2">
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="font-semibold">IT Assets</h3>
+              <p className="text-blue-100 text-sm">Laptop and equipment tracking</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-blue-100 text-sm">
+          <p>© 2024 NSN Revenue Resources. All rights reserved.</p>
+        </div>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 lg:flex-none">
+        <div className="mx-auto w-full max-w-sm lg:w-96">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4">
+              <Image
+                src="/nsn_revenue_resources_jpg"
+                alt="NSN Revenue Resources"
+                width={48}
+                height={48}
+                className="rounded-lg"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 text-center">
+              NSN IT-Management Portal
+            </h1>
+            <p className="text-gray-600 text-center mt-2">
+              Secure access to management tools
+            </p>
+          </div>
+
+          {/* Desktop Header */}
+          <div className="hidden lg:block">
+            <h2 className="text-3xl font-bold text-gray-900">
+              Welcome back
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Sign in to your account to continue
+            </p>
+          </div>
+
+          <div className="mt-8">
+            {!showTwoFactor ? (
+              // Email/Password Form
+              <form className="space-y-6" onSubmit={handleEmailPasswordSubmit}>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                      Email address
+                    </label>
+                    <div className="mt-1 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        placeholder="Enter your email"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                      Password
+                    </label>
+                    <div className="mt-1 relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <LockClosedIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        required
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        placeholder="Enter your password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeSlashIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        ) : (
+                          <EyeIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              <form onSubmit={handleForgotPassword}>
-                <div className="mb-4">
-                  <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      id="rememberMe"
+                      name="rememberMe"
+                      type="checkbox"
+                      checked={formData.rememberMe}
+                      onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
+                      Keep me signed in
+                    </label>
+                  </div>
+
+                  <div className="text-sm">
+                    <Link
+                      href="/forgot-password"
+                      className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Signing in...
+                      </>
+                    ) : (
+                      "Continue to Secure Sign In"
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">
+                    Don't have an account?{" "}
+                    <Link
+                      href="/signup"
+                      className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                    >
+                      Request access
+                    </Link>
+                  </p>
+                </div>
+              </form>
+            ) : (
+              // 2FA Form
+              <form className="space-y-6" onSubmit={handleSubmit}>
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <EnvelopeIcon className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-blue-800">
+                        Check your email
+                      </h3>
+                      <p className="text-sm text-blue-700 mt-1">
+                        We sent a 6-digit verification code to <strong>{formData.email}</strong>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="twoFactorCode" className="block text-sm font-medium text-gray-700">
+                    Verification code
                   </label>
-                  <input
-                    id="forgot-email"
-                    type="email"
-                    value={forgotPasswordEmail}
-                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your email address"
-                  />
+                  <div className="mt-1">
+                    <input
+                      id="twoFactorCode"
+                      name="twoFactorCode"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      required
+                      value={formData.twoFactorCode}
+                      onChange={(e) => setFormData({ ...formData, twoFactorCode: e.target.value.replace(/\D/g, '') })}
+                      className="block w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl font-mono tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="000000"
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500 text-center">
+                    Enter the 6-digit code from your email
+                  </p>
                 </div>
-                
-                <div className="flex justify-end gap-3">
+
+                <div className="flex items-center">
+                  <input
+                    id="rememberMe2fa"
+                    name="rememberMe"
+                    type="checkbox"
+                    checked={formData.rememberMe}
+                    onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="rememberMe2fa" className="ml-2 block text-sm text-gray-900">
+                    Keep me signed in on this device
+                  </label>
+                </div>
+
+                <div className="flex space-x-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowForgotPassword(false);
-                      setForgotPasswordMessage('');
-                      setForgotPasswordEmail('');
-                    }}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    onClick={() => setShowTwoFactor(false)}
+                    className="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                   >
-                    Cancel
+                    Back
                   </button>
                   <button
                     type="submit"
-                    disabled={forgotPasswordLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    disabled={isLoading || formData.twoFactorCode.length !== 6}
+                    className="flex-1 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {forgotPasswordLoading ? 'Sending...' : 'Send Reset Link'}
+                    {isLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mx-auto"></div>
+                    ) : (
+                      "Verify & Sign In"
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setIsLoading(true);
+                      await fetch("/api/auth/send-2fa", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: formData.email }),
+                      });
+                      setIsLoading(false);
+                      alert("New code sent to your email!");
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors"
+                  >
+                    Didn't receive a code? Send again
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
-
-        {/* Main Signin Form */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-              />
-            </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="font-medium text-blue-600 hover:text-blue-500"
-              >
-                Forgot your password?
-              </button>
+          {/* Security Notice */}
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center text-sm text-gray-600">
+              <svg className="flex-shrink-0 mr-2 h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <span>Your sign in is secured with two-factor authentication</span>
             </div>
           </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {isLoading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </div>
-        </form>
-
-        {/* Additional Signup Prompt */}
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link
-              href="/signup"
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
-              Sign up here
-            </Link>
-          </p>
         </div>
       </div>
     </div>
