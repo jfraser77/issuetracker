@@ -86,59 +86,112 @@ export async function signup(formData: FormData) {
 export async function signin(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const twoFactorCode = formData.get("twoFactorCode") as string;
 
-  console.log("Signin attempt:", { email });
-
-  if (!email || !password) {
-    return { error: "Email and password are required" };
-  }
+  console.log("🔐 Signin attempt:", { 
+    email, 
+    hasPassword: !!password, 
+    has2FA: !!twoFactorCode 
+  });
 
   try {
-    const pool = await connectToDatabase();
-    console.log("Database connected for signin");
+    // If 2FA code is provided, we're in the second step (password not required)
+    if (twoFactorCode) {
+      console.log("🔄 Processing 2FA verification...");
+      
+      const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: twoFactorCode }),
+      });
 
-    const result = await pool
-      .request()
-      .input("email", sql.NVarChar, email)
-      .query("SELECT * FROM Users WHERE email = @email");
+      if (!twoFactorResponse.ok) {
+        const errorData = await twoFactorResponse.json();
+        console.log("❌ 2FA verification failed:", errorData);
+        return { error: errorData.error || "Invalid verification code" };
+      }
 
-    if (result.recordset.length === 0) {
-      console.log("No user found with email:", email);
-      return { error: "Invalid email or password" };
+      const twoFactorData = await twoFactorResponse.json();
+      console.log("✅ 2FA verification successful:", twoFactorData);
+      
+      // Set session cookie after successful 2FA verification
+      const cookieStore = await cookies();
+      cookieStore.set("auth-user", twoFactorData.user.email, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        path: "/",
+      });
+
+      console.log("✅ Session cookie set, redirecting to dashboard");
+      
+      // Add a small delay to ensure cookie is set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      redirect("/management-portal/dashboard");
     }
 
-    const user = result.recordset[0];
-    console.log("User found:", { id: user.id, email: user.email });
-
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log("Password valid:", isValidPassword);
-
-    if (!isValidPassword) {
-      console.log("Invalid password for user:", email);
-      return { error: "Invalid email or password" };
+    // If we get here, this is the first step (email/password verification)
+    if (!email || !password) {
+      console.log("❌ Email and password required for first step");
+      return { error: "Email and password are required" };
     }
 
-    // Set session cookie
+    console.log("🔄 Step 1: Verifying credentials...");
+    
+    // First verify credentials
+    const verifyResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-credentials`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.json();
+      console.log("❌ Credential verification failed:", errorData);
+      return { error: errorData.error || "Invalid email or password" };
+    }
+
+    const verifyData = await verifyResponse.json();
+    console.log("✅ Credentials valid:", verifyData);
+
+    // If 2FA is required, send code and show 2FA form
+    if (verifyData.requires2FA) {
+      console.log("🔄 2FA required, sending code...");
+      
+      const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/send-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (twoFactorResponse.ok) {
+        console.log("✅ 2FA code sent");
+        return { requires2FA: true, email };
+      } else {
+        console.log("❌ Failed to send 2FA code");
+        return { error: "Failed to send verification code" };
+      }
+    }
+
+    // If no 2FA required, set session and redirect
+    console.log("🔄 No 2FA required, setting session...");
+    
     const cookieStore = await cookies();
-    cookieStore.set("auth-user", user.email, {
+    cookieStore.set("auth-user", email, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 week
       path: "/",
     });
 
-        console.log("✅ Cookie set successfully");
-    console.log("🔄 Attempting redirect to /management-portal/dashboard");
-
-    // Add a small delay to ensure cookie is set
+    console.log("✅ Signin successful, redirecting to dashboard");
+    
     await new Promise(resolve => setTimeout(resolve, 100));
-
-    console.log("Signin successful, redirecting to dashboard");
-
-    // Redirect after successful signin
     redirect("/management-portal/dashboard");
+
   } catch (error: any) {
-    console.error("Signin error:", error);
+    console.error("🚨 Signin error:", error);
     return { error: "Failed to sign in: " + error.message };
   }
 }

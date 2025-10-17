@@ -22,6 +22,7 @@ export default function SigninPage() {
     rememberMe: false,
   });
 
+<<<<<<< HEAD
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -32,9 +33,34 @@ export default function SigninPage() {
       console.error("Signin error:", error);
     } finally {
       setIsLoading(false);
-    }
-  };
+=======
+  const handleTwoFactorSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
 
+  try {
+    console.log("🔄 Step 3: Starting 2FA verification");
+
+    // Verify the 2FA code via API
+    const verifyResponse = await fetch("/api/auth/verify-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        code: formData.twoFactorCode,
+      }),
+    });
+
+    console.log("🔐 2FA Verification - Status:", verifyResponse.status);
+
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.json();
+      alert(errorData.error || "Invalid verification code");
+      return;
+>>>>>>> 14bca9be15a5def4bac6f5ad70768280119e60fa
+    }
+
+<<<<<<< HEAD
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -49,28 +75,95 @@ export default function SigninPage() {
           password: formData.password,
         }),
       });
+=======
+    const verifyData = await verifyResponse.json();
+    console.log("✅ 2FA verification successful!", verifyData);
 
-      if (response.ok) {
-        // If credentials are valid, send 2FA code
-        const twoFactorResponse = await fetch("/api/auth/send-2fa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: formData.email }),
-        });
+    // Call server action with ONLY email and twoFactorCode
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append("email", formData.email);
+    formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
+    // NOTE: We DON'T append password here
+    
+    console.log("🔄 Calling server action for session creation...");
+    await signin(formDataToSubmit);
+    
+  } catch (error) {
+    console.error("🚨 2FA submission error:", error);
+    alert("An error occurred during verification");
+  } finally {
+    setIsLoading(false);
+  }
+};
+>>>>>>> 14bca9be15a5def4bac6f5ad70768280119e60fa
 
-        if (twoFactorResponse.ok) {
-          setShowTwoFactor(true);
-        }
-      } else {
-        alert("Invalid email or password");
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("An error occurred during sign in");
-    } finally {
-      setIsLoading(false);
+ const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    console.log("🔄 Step 1: Starting signin for", formData.email);
+    
+    const response = await fetch("/api/auth/verify-credentials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    console.log("📨 Credentials API - Status:", response.status, "OK:", response.ok);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.log("❌ Credential error:", errorData);
+      alert(errorData.error || "Invalid email or password");
+      return;
     }
-  };
+
+    const data = await response.json();
+    console.log("✅ Credentials valid! Data:", data);
+
+    // If credentials are valid, send 2FA code
+    console.log("🔄 Step 2: Sending 2FA code to", formData.email);
+    
+    const twoFactorResponse = await fetch("/api/auth/send-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formData.email }),
+    });
+
+    console.log("📧 2FA API - Status:", twoFactorResponse.status, "OK:", twoFactorResponse.ok);
+
+    // Check the raw response
+    const twoFactorText = await twoFactorResponse.text();
+    console.log("📄 2FA Raw response:", twoFactorText);
+
+    let twoFactorData;
+    try {
+      twoFactorData = twoFactorText ? JSON.parse(twoFactorText) : {};
+    } catch (parseError) {
+      console.error("❌ Failed to parse 2FA JSON:", parseError);
+    }
+
+    console.log("📊 2FA Parsed data:", twoFactorData);
+
+    if (twoFactorResponse.ok) {
+      console.log("✅ 2FA code sent successfully!");
+      console.log("🔢 Demo code (if available):", twoFactorData.demoCode);
+      setShowTwoFactor(true);
+    } else {
+      console.log("❌ 2FA failed:", twoFactorData.error);
+      alert(twoFactorData.error || "Failed to send verification code");
+    }
+  } catch (error) {
+    console.error("🚨 Signin error:", error);
+    alert("An error occurred during sign in");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex bg-white">
@@ -260,7 +353,7 @@ export default function SigninPage() {
               </form>
             ) : (
               // 2FA Form
-              <form className="space-y-6" onSubmit={handleSubmit}>
+              <form className="space-y-6" onSubmit={handleTwoFactorSubmit}>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">

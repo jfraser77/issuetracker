@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDownIcon, ChevronRightIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
-import SearchEmployees from "@/components/SearchEmployees";
+import SearchEmployees from "@/app/components/SearchEmployees";
 
 interface User {
   id: number;
