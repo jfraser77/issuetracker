@@ -3,7 +3,12 @@
 import { signin } from "@/app/actions/auth";
 import Link from "next/link";
 import { useState } from "react";
-import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+import {
+  EyeIcon,
+  EyeSlashIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+} from "@heroicons/react/24/outline";
 import Image from "next/image";
 
 export default function SigninPage() {
@@ -14,13 +19,13 @@ export default function SigninPage() {
     email: "",
     password: "",
     twoFactorCode: "",
-    rememberMe: false
+    rememberMe: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       await signin(formData);
     } catch (error) {
@@ -33,7 +38,7 @@ export default function SigninPage() {
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       // First, verify email/password
       const response = await fetch("/api/auth/verify-credentials", {
@@ -41,7 +46,7 @@ export default function SigninPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
-          password: formData.password
+          password: formData.password,
         }),
       });
 
@@ -69,7 +74,6 @@ export default function SigninPage() {
 
   return (
     <div className="min-h-screen flex bg-white">
-     
       <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:justify-between bg-gradient-to-br from-blue-600 to-blue-800 p-12 text-white">
         <div className="flex items-center space-x-4">
           <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
@@ -88,26 +92,21 @@ export default function SigninPage() {
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div>
-            <h2 className="text-4xl font-bold mb-6">
-              NSN IT Management Portal
-            </h2>
-            <p className="text-blue-100 text-lg">
-              Secure access to management tools
-            </p>
-          </div>
-
-         
+        {/* Moved text to bottom left */}
+        <div className="space-y-4">
+          <h2 className="text-3xl font-bold">NSN IT Management Portal</h2>
+          <p className="text-blue-100 text-lg">
+            Secure access to management tools
+          </p>
         </div>
 
-        
+        <div></div>
       </div>
 
-      {/* Right Side - Login Form */}
+      {/* Login Form */}
       <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 lg:flex-none">
         <div className="mx-auto w-full max-w-sm lg:w-96">
-          {/* Mobile Logo & Title */}
+          {/* Mobile Logo & Title  */}
           <div className="lg:hidden flex flex-col items-center mb-8">
             <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
               <Image
@@ -119,22 +118,11 @@ export default function SigninPage() {
                 priority
               />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 text-center mb-2">
-              NSN IT Management Portal
-            </h1>
-            <p className="text-gray-600 text-center">
-              Secure access to management tools
-            </p>
           </div>
 
           {/* Desktop Header */}
           <div className="hidden lg:block text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Sign In
-            </h1>
-            <p className="text-gray-600">
-              Access your account
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h1>
           </div>
 
           <div className="bg-white lg:bg-transparent rounded-2xl lg:rounded-none p-6 lg:p-0 shadow-xl lg:shadow-none border border-gray-200 lg:border-none">
@@ -143,7 +131,10 @@ export default function SigninPage() {
               <form className="space-y-6" onSubmit={handleEmailPasswordSubmit}>
                 <div className="space-y-5">
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
                       Email Address
                     </label>
                     <div className="relative">
@@ -157,7 +148,9 @@ export default function SigninPage() {
                         autoComplete="email"
                         required
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
                         className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                         placeholder="Enter your email"
                       />
@@ -165,7 +158,10 @@ export default function SigninPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
                       Password
                     </label>
                     <div className="relative">
@@ -179,7 +175,9 @@ export default function SigninPage() {
                         autoComplete="current-password"
                         required
                         value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
                         className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                         placeholder="Enter your password"
                       />
@@ -205,10 +203,18 @@ export default function SigninPage() {
                       name="rememberMe"
                       type="checkbox"
                       checked={formData.rememberMe}
-                      onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          rememberMe: e.target.checked,
+                        })
+                      }
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
+                    <label
+                      htmlFor="rememberMe"
+                      className="ml-2 block text-sm text-gray-900"
+                    >
                       Keep me signed in
                     </label>
                   </div>
@@ -265,14 +271,18 @@ export default function SigninPage() {
                         Check your email
                       </h3>
                       <p className="text-sm text-blue-700 mt-1">
-                        Verification code sent to <strong>{formData.email}</strong>
+                        Verification code sent to{" "}
+                        <strong>{formData.email}</strong>
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="twoFactorCode" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="twoFactorCode"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Enter 6-digit code
                   </label>
                   <div className="mt-1">
@@ -285,7 +295,12 @@ export default function SigninPage() {
                       maxLength={6}
                       required
                       value={formData.twoFactorCode}
-                      onChange={(e) => setFormData({ ...formData, twoFactorCode: e.target.value.replace(/\D/g, '') })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          twoFactorCode: e.target.value.replace(/\D/g, ""),
+                        })
+                      }
                       className="block w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-xl font-mono tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
                       placeholder="000000"
                     />
@@ -298,10 +313,15 @@ export default function SigninPage() {
                     name="rememberMe"
                     type="checkbox"
                     checked={formData.rememberMe}
-                    onChange={(e) => setFormData({ ...formData, rememberMe: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, rememberMe: e.target.checked })
+                    }
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="rememberMe2fa" className="ml-2 block text-sm text-gray-900">
+                  <label
+                    htmlFor="rememberMe2fa"
+                    className="ml-2 block text-sm text-gray-900"
+                  >
                     Keep me signed in
                   </label>
                 </div>
@@ -348,8 +368,6 @@ export default function SigninPage() {
               </form>
             )}
           </div>
-
-        
         </div>
       </div>
     </div>
