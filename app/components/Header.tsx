@@ -14,7 +14,7 @@ interface Employee {
   status: string;
 }
 
-export default function HeaderWithSearch() {
+export default function Header() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
   const handleEmployeeSelect = (employee: Employee) => {
