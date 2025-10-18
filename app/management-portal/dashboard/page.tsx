@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 "use client";
 
 import {
@@ -36,13 +35,10 @@ export default function Dashboard() {
   });
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [newEmployeesCount, setNewEmployeesCount] = useState(0);
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     fetchCurrentUser();
     fetchDashboardData();
     fetchNewEmployeesCount();
@@ -93,17 +89,25 @@ export default function Dashboard() {
     }
   };
 
+  // Prevent rendering until client-side
+  if (!isClient) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-lg">Loading dashboard...</div>
+      </div>
+    );
+  }
+
   const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
   const isHR = currentUser?.role === "HR";
 
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   const statCards: (StatItem & { link?: string })[] = [
-    // Total Employees card hidden but available in codebase
-    // {
-    //   icon: UsersIcon,
-    //   value: stats.totalEmployees,
-    //   label: "Total Employees",
-    //   color: "text-blue-500",
-    // },
     {
       icon: UserPlusIcon,
       value: stats.newThisMonth,
@@ -128,7 +132,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div>
+    <div suppressHydrationWarning>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Management Dashboard

@@ -57,9 +57,11 @@ export default function ITAssetsPage() {
     notes: "",
   });
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   // Fetch current user and data
   useEffect(() => {
+    setIsClient(true);
     fetchData();
   }, []);
 
@@ -404,13 +406,15 @@ export default function ITAssetsPage() {
     0
   );
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading IT Assets...</div>
-      </div>
-    );
-  }
+
+
+   if (!isClient || loading) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-lg">Loading...</div>
+    </div>
+  );
+}
 
   return (
     <div>

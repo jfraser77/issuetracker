@@ -47,6 +47,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itStaff, setItStaff] = useState<User[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
   const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
@@ -72,6 +73,7 @@ export default function OnboardingPage() {
   };
 
   useEffect(() => {
+    setIsClient(true);
     fetchCurrentUser();
     fetchEmployeesWithStatus();
     fetchITStaff();
@@ -261,14 +263,18 @@ export default function OnboardingPage() {
   };
 
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
+ 
+   if (!isClient || loading) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-lg">Loading...</div>
+    </div>
+  );
+}
 
+  
+
+  
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
