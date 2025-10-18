@@ -276,10 +276,7 @@ export default function OnboardingPage() {
           Employee Onboarding
         </h1>
         <div className="w-80">
-          <SearchEmployees
-            onEmployeeSelect={handleEmployeeSelect}
-            placeholder="Search to quickly access employee onboarding..."
-          />
+          <p className="text-gray-600 mt-1">Manage new employee onboarding processes</p>
         </div>
         <Link
           href="/management-portal/onboarding/new"

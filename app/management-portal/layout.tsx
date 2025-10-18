@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Sidebar from "@/app/components/Sidebar";
-import Header from "@/app/components/Header";
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
 import { getCurrentUser } from "@/app/actions/auth";
 
 export default function ManagementPortalLayout({
@@ -11,44 +10,56 @@ export default function ManagementPortalLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    async function checkAuth() {
+    const fetchUser = async () => {
       const user = await getCurrentUser();
-      if (!user) {
-        router.push("/signin");
-      } else {
-        setIsAuthenticated(true);
-      }
-    }
-
-    checkAuth();
-  }, [router]);
-
-  if (isAuthenticated === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
+      setCurrentUser(user);
+    };
+    fetchUser();
+  }, []);
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="hidden lg:flex lg:flex-shrink-0">
+        <Sidebar />
+      </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header setSidebarOpen={setSidebarOpen} />
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <div className="fixed inset-0 bg-gray-600 opacity-75"></div>
+        </div>
+      )}
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4">
-          {children}
+      {/* Mobile sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 transform lg:hidden ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } transition duration-300 ease-in-out`}>
+        <Sidebar onClose={() => setSidebarOpen(false)} />
+      </div>
+
+      {/* Main content */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden w-full">
+        {/* Single Header */}
+        <Header 
+          user={currentUser}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
+        
+        {/* Main content area */}
+        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none w-full">
+          <div className="py-6 w-full">
+            <div className="max-w-full mx-auto px-4 sm:px-6 md:px-8 w-full">
+              {children}
+            </div>
+          </div>
         </main>
       </div>
     </div>
