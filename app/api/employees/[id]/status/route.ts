@@ -48,6 +48,14 @@ export async function POST(
     const statusData = await request.json();
     const pool = await connectToDatabase();
 
+       // Validate that statusData is an object
+        if (typeof statusData !== 'object' || statusData === null) {
+      return NextResponse.json(
+        { error: "Invalid status data format" },
+        { status: 400 }
+      );
+    }
+
     // Create EmployeeStatus table if it doesn't exist
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'EmployeeStatus')

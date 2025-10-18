@@ -25,8 +25,19 @@ interface Employee {
   status: "active" | "completed" | "archived";
 }
 
+interface TaskNote {
+  content: string;
+  timestamp: string;
+  author?: string;
+}
+
+interface TaskWithNotes {
+  status: "not begun" | "in progress" | "completed";
+  notes: TaskNote[];
+}
+
 interface ApplicationStatus {
-  [key: string]: "not begun" | "in progress" | "completed";
+  [key: string]: TaskWithNotes;
 }
 
 interface ITStaffAssignment {
@@ -52,25 +63,25 @@ export default function OnboardingPage() {
   const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
   // System applications with initial status
-  const systemApplications = {
-    "E-Tenet ID #": "not begun",
-    "New User Network Access Request - tenetone.com": "not begun",
-    "Tenet Portal & TENET/USPI email - tenetone.com": "not begun",
-    "Citrix / Citrix Explorer": "not begun",
-    "USPI Billing drive": "not begun",
-    "CSO Public drive": "not begun",
-    "NSN1 Public drive": "not begun",
-    "Microsoft 365 license (Outlook and Teams)": "not begun",
-    "DDL - Digital Deposit Log": "not begun",
-    "Scan Chart - Req icon to be added to the user Citrix Explorer Account": "not begun",
-    "Patient Refund Portal - Role Specific": "not begun",
-    "Learn share - USPI university": "not begun",
-    "ProVation - Center Specific": "not begun",
-    "EOM Tool - Role Specific": "not begun",
-    "Bank Access - Role Specific Managers and above": "not begun",
-    "ENVI - Billing Dept": "not begun",
-    "Nimble - Billing Dept": "not begun",
-  };
+const systemApplications: ApplicationStatus = {
+  "E-Tenet ID #": { status: "not begun", notes: [] },
+  "New User Network Access Request - tenetone.com": { status: "not begun", notes: [] },
+  "Tenet Portal & TENET/USPI email - tenetone.com": { status: "not begun", notes: [] },
+  "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
+  "USPI Billing drive": { status: "not begun", notes: [] },
+  "CSO Public drive": { status: "not begun", notes: [] },
+  "NSN1 Public drive": { status: "not begun", notes: [] },
+  "Microsoft 365 license (Outlook and Teams)": { status: "not begun", notes: [] },
+  "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
+  "Scan Chart - Req icon to be added to the user Citrix Explorer Account": { status: "not begun", notes: [] },
+  "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
+  "Learn share - USPI university": { status: "not begun", notes: [] },
+  "ProVation - Center Specific": { status: "not begun", notes: [] },
+  "EOM Tool - Role Specific": { status: "not begun", notes: [] },
+  "Bank Access - Role Specific Managers and above": { status: "not begun", notes: [] },
+  "ENVI - Billing Dept": { status: "not begun", notes: [] },
+  "Nimble - Billing Dept": { status: "not begun", notes: [] },
+};
 
   useEffect(() => {
     setIsClient(true);
@@ -175,6 +186,48 @@ export default function OnboardingPage() {
     }
   };
 
+  const updateApplicationStatus = async (employeeId: number, appName: string, status: "not begun" | "in progress" | "completed") => {
+  try {
+    // Get current employee
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (!employee) return;
+
+    // Update local state
+    setEmployees(prev => prev.map(emp => 
+      emp.id === employeeId 
+        ? {
+            ...emp,
+            applicationStatus: {
+              ...emp.applicationStatus,
+              [appName]: {
+                ...emp.applicationStatus?.[appName],
+                status
+              }
+            }
+          }
+        : emp
+    ));
+
+    // Update in database
+    const updatedStatus = {
+      ...employee.applicationStatus,
+      [appName]: {
+        ...employee.applicationStatus?.[appName],
+        status
+      }
+    };
+
+    await fetch(`/api/employees/${employeeId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedStatus),
+    });
+
+  } catch (error) {
+    console.error("Error updating application status:", error);
+  }
+};
+
   const applyITAssignment = async (employeeId: number, assignment: ITStaffAssignment) => {
     if (assignment.status === "completed" && assignment.assignedToId) {
       // Reduce available laptops for the IT staff member
@@ -196,22 +249,32 @@ export default function OnboardingPage() {
   };
 
   const deleteEmployee = async (employeeId: number) => {
-    if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) {
-      return;
-    }
+  if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) {
+    return;
+  }
 
-    try {
-      const response = await fetch(`/api/employees/${employeeId}`, {
-        method: "DELETE",
-      });
+  try {
+    const response = await fetch(`/api/employees/${employeeId}`, {
+      method: "DELETE",
+    });
 
-      if (response.ok) {
-        setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-      }
-    } catch (error) {
-      console.error("Error deleting employee:", error);
+    if (response.ok) {
+      // Remove from local state immediately
+      setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+      
+      // Force refresh the data
+      await fetchEmployeesWithStatus();
+      
+      alert("Employee deleted successfully!");
+    } else {
+      const errorData = await response.json();
+      alert(`Failed to delete employee: ${errorData.error}`);
     }
-  };
+  } catch (error) {
+    console.error("Error deleting employee:", error);
+    alert("Failed to delete employee. Please try again.");
+  }
+};
 
   const checkCompletedEmployees = () => {
     const thirtyDaysAgo = new Date();
@@ -242,14 +305,15 @@ export default function OnboardingPage() {
   };
 
   const calculateOverallProgress = (employee: EmployeeWithStatus) => {
-    const totalApps = Object.keys(systemApplications).length;
-    if (!employee.applicationStatus) return 0;
-
-    const completedApps = Object.values(employee.applicationStatus).filter(
-      (status) => status === "completed"
-    ).length;
-    return Math.round((completedApps / totalApps) * 100);
-  };
+  if (!employee.applicationStatus) return 0;
+  
+  const totalApps = Object.keys(employee.applicationStatus).length;
+  const completedApps = Object.values(employee.applicationStatus).filter(
+    (task) => task.status === "completed"
+  ).length;
+  
+  return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
+};
 
   const getDaysSinceAdded = (timestamp: string) => {
     const addedDate = new Date(timestamp);
@@ -523,35 +587,52 @@ export default function OnboardingPage() {
                   <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                     {/* System Applications Section */}
                     <div>
-                      <h3 className="font-medium text-gray-900 mb-3">
-                        System Applications
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {Object.entries(systemApplications).map(
-                          ([app, defaultStatus]) => {
-                            const currentStatus =
-                              employee.applicationStatus?.[app] || defaultStatus;
-                            return (
-                              <div
-                                key={app}
-                                className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                              >
-                                <span className="text-sm text-gray-700 flex-1">
-                                  {app}
-                                </span>
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                                    currentStatus
-                                  )}`}
-                                >
-                                  {currentStatus}
-                                </span>
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-                    </div>
+  <h3 className="font-medium text-gray-900 mb-3">
+    System Applications
+  </h3>
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+    {Object.entries(systemApplications).map(
+      ([app, taskData]) => {
+        const currentStatus = employee.applicationStatus?.[app]?.status || taskData.status;
+        const noteCount = employee.applicationStatus?.[app]?.notes?.length || 0;
+        
+        return (
+          <div
+            key={app}
+            className="flex items-center justify-between p-2 bg-gray-50 rounded"
+          >
+            <div className="flex-1">
+              <span className="text-sm text-gray-700 block">{app}</span>
+              {noteCount > 0 && (
+                <span className="text-xs text-gray-500">
+                  {noteCount} note{noteCount !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={currentStatus}
+                onChange={(e) => updateApplicationStatus(employee.id, app, e.target.value as any)}
+                className="border border-gray-300 rounded px-2 py-1 text-xs"
+              >
+                <option value="not begun">Not Begun</option>
+                <option value="in progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+              <span
+                className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                  currentStatus
+                )}`}
+              >
+                {currentStatus}
+              </span>
+            </div>
+          </div>
+        );
+      }
+    )}
+  </div>
+</div>
 
                     {/* IT Staff Section - Only for Admin/IT */}
                     {isAdminOrIT && (
