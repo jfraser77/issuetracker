@@ -295,12 +295,7 @@ export default function TerminationsContent() {
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Terminations
         </h1>
-        <div className="w-80">
-          <SearchEmployees
-            onEmployeeSelect={handleEmployeeSelect}
-            placeholder="Search employees to initiate termination..."
-          />
-        </div>
+        
         {isAuthorized && (
           <button
             onClick={() => setShowTerminationForm(true)}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDownIcon, ChevronRightIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronRightIcon, PencilIcon, TrashIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import SearchEmployees from "@/app/components/SearchEmployees";
 
 interface User {
@@ -257,39 +257,169 @@ export default function OnboardingPage() {
     const diffTime = Math.abs(today.getTime() - addedDate.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
- const handleEmployeeSelect = (employee: any) => {
-    // Navigate to employee onboarding details
+
+  const handleEmployeeSelect = (employee: any) => {
     router.push(`/management-portal/onboarding/${employee.id}`);
   };
 
+  const generatePrintReport = (employee: EmployeeWithStatus) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
 
- 
-   if (!isClient || loading) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-lg">Loading...</div>
-    </div>
-  );
-}
+    const progress = calculateOverallProgress(employee);
+    const completedTasks = Object.entries(employee.applicationStatus || {})
+      .filter(([_, status]) => status === "completed")
+      .map(([task]) => task);
+    
+    const pendingTasks = Object.entries(employee.applicationStatus || {})
+      .filter(([_, status]) => status !== "completed")
+      .map(([task, status]) => ({ task, status }));
 
-  
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Onboarding Report - ${employee.firstName} ${employee.lastName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+          .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { color: #2563eb; margin: 0; }
+          .section { margin-bottom: 30px; }
+          .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+          .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .info-item { margin-bottom: 8px; }
+          .info-label { font-weight: bold; color: #6b7280; }
+          .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; }
+          .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; text-align: center; color: white; font-size: 12px; line-height: 20px; }
+          .task-list { margin: 15px 0; }
+          .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+          .completed { color: #059669; }
+          .pending { color: #d97706; }
+          .not-started { color: #6b7280; }
+          .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
+          .completed-badge { background: #d1fae5; color: #065f46; }
+          .in-progress-badge { background: #fef3c7; color: #92400e; }
+          .not-started-badge { background: #f3f4f6; color: #374151; }
+          .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
+          @media print {
+            body { margin: 20px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Employee Onboarding Report</h1>
+          <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
+        </div>
 
-  
+        <div class="section">
+          <h2>Employee Information</h2>
+          <div class="employee-info">
+            <div>
+              <div class="info-item"><span class="info-label">Name:</span> ${employee.firstName} ${employee.lastName}</div>
+              <div class="info-item"><span class="info-label">Job Title:</span> ${employee.jobTitle}</div>
+              <div class="info-item"><span class="info-label">Start Date:</span> ${new Date(employee.startDate).toLocaleDateString()}</div>
+            </div>
+            <div>
+              <div class="info-item"><span class="info-label">Manager:</span> ${employee.currentManager || 'Not specified'}</div>
+              <div class="info-item"><span class="info-label">Director:</span> ${employee.directorRegionalDirector || 'Not specified'}</div>
+              <div class="info-item"><span class="info-label">Onboarding Status:</span> ${employee.status}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Onboarding Progress</h2>
+          <div>Overall Completion: ${progress}%</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+          </div>
+          <div>Completed Tasks: ${completedTasks.length} of ${Object.keys(employee.applicationStatus || {}).length}</div>
+        </div>
+
+        <div class="section">
+          <h2>Completed Tasks</h2>
+          <div class="task-list">
+            ${completedTasks.length > 0 ? 
+              completedTasks.map(task => `<div class="task-item completed">✓ ${task}</div>`).join('') :
+              '<div class="task-item not-started">No tasks completed yet</div>'
+            }
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Pending Tasks</h2>
+          <div class="task-list">
+            ${pendingTasks.length > 0 ? 
+              pendingTasks.map(({task, status}) => `
+                <div class="task-item pending">
+                  ${task}
+                  <span class="status-badge ${status === 'in progress' ? 'in-progress-badge' : 'not-started-badge'}">
+                    ${status}
+                  </span>
+                </div>
+              `).join('') :
+              '<div class="task-item completed">All tasks completed!</div>'
+            }
+          </div>
+        </div>
+
+        ${employee.itStaffAssignment && employee.itStaffAssignment.assignedTo ? `
+        <div class="section">
+          <h2>IT Assignment</h2>
+          <div class="info-item"><span class="info-label">Assigned To:</span> ${employee.itStaffAssignment.assignedTo.name}</div>
+          <div class="info-item"><span class="info-label">Status:</span> ${employee.itStaffAssignment.status}</div>
+        </div>
+        ` : ''}
+
+        <div class="print-date">
+          Report generated by NSN IT Management Portal
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(() => window.close(), 500);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  };
+
+  if (!isClient || loading) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div>
+      {/* Header Section */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          Employee Onboarding
-        </h1>
-        <div className="w-80">
-          <p className="text-gray-600 mt-1">Manage new employee onboarding processes</p>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Employee Onboarding
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage and track new employee onboarding processes
+          </p>
         </div>
-        <Link
-          href="/management-portal/onboarding/new"
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
-        >
-          Add New Employee
-        </Link>
+        <div className="flex items-center space-x-4">
+  
+          <Link
+            href="/management-portal/onboarding/new"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+          >
+            Add New Employee
+          </Link>
+        </div>
       </div>
 
       {employees.length === 0 ? (
@@ -353,6 +483,13 @@ export default function OnboardingPage() {
                             title="Delete Employee"
                           >
                             <TrashIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => generatePrintReport(employee)}
+                            className="text-gray-400 hover:text-green-600"
+                            title="Print Report"
+                          >
+                            <PrinterIcon className="h-4 w-4" />
                           </button>
                         </div>
                         <p className="text-gray-600">{employee.jobTitle}</p>
@@ -422,8 +559,8 @@ export default function OnboardingPage() {
                         <h3 className="font-medium text-gray-900 mb-3">
                           IT Staff Assignment
                         </h3>
-                        <div className="flex items-center space-x-4">
-                          <div>
+                        <div className="flex items-end space-x-4">
+                          <div className="flex-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Assign to IT Staff
                             </label>
@@ -433,7 +570,7 @@ export default function OnboardingPage() {
                                 ...employee.itStaffAssignment!,
                                 assignedToId: e.target.value ? parseInt(e.target.value) : undefined
                               })}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm"
+                              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                             >
                               <option value="">Not Assigned</option>
                               {itStaff.map(staff => (
@@ -443,7 +580,7 @@ export default function OnboardingPage() {
                               ))}
                             </select>
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Status
                             </label>
@@ -453,7 +590,7 @@ export default function OnboardingPage() {
                                 ...employee.itStaffAssignment!,
                                 status: e.target.value as ITStaffAssignment["status"]
                               })}
-                              className="border border-gray-300 rounded px-3 py-2 text-sm"
+                              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                             >
                               <option value="not assigned">Not Assigned</option>
                               <option value="in progress">In Progress</option>
@@ -461,10 +598,10 @@ export default function OnboardingPage() {
                               <option value="completed">Completed</option>
                             </select>
                           </div>
-                          <div className="flex items-end">
+                          <div>
                             <button
                               onClick={() => applyITAssignment(employee.id, employee.itStaffAssignment!)}
-                              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
                             >
                               Apply
                             </button>
@@ -490,12 +627,16 @@ export default function OnboardingPage() {
                       <div className="flex gap-2">
                         <Link
                           href={`/management-portal/onboarding/${employee.id}`}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
                         >
                           Update Status
                         </Link>
-                        <button className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
-                          Mark Complete
+                        <button 
+                          onClick={() => generatePrintReport(employee)}
+                          className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
+                        >
+                          <PrinterIcon className="h-4 w-4 mr-1" />
+                          Print Report
                         </button>
                       </div>
                     </div>
