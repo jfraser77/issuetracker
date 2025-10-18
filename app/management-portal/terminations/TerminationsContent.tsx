@@ -67,12 +67,13 @@ export default function TerminationsContent() {
   const isAuthorized = currentUser?.role === "Admin" || currentUser?.role === "I.T." || currentUser?.role === "HR";
   const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
   const filter = searchParams.get('filter');
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     fetchCurrentUser();
     fetchTerminations();
     
-    // Check for overdue terminations daily
     const interval = setInterval(checkOverdueTerminations, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [filter]);
@@ -280,17 +281,17 @@ export default function TerminationsContent() {
     }));
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
+  if (!isClient || loading) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-lg">Loading...</div>
+    </div>
+  );
+}
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div  suppressHydrationWarning>
+      <div  className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Terminations
         </h1>
