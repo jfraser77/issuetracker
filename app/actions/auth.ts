@@ -95,28 +95,30 @@ export async function signin(formData: FormData) {
   });
 
   try {
-    // If 2FA code is provided, we're in the second step (password not required)
+    // If 2FA code is provided, we're in the second step
     if (twoFactorCode) {
-      console.log("🔄 Processing 2FA verification...");
+      console.log("🔄 Processing 2FA session creation...");
       
-      const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-2fa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: twoFactorCode }),
-      });
 
-      if (!twoFactorResponse.ok) {
-        const errorData = await twoFactorResponse.json();
-        console.log("❌ 2FA verification failed:", errorData);
-        return { error: errorData.error || "Invalid verification code" };
+      
+      // Get user info to set the session
+      const pool = await connectToDatabase();
+      const userResult = await pool
+        .request()
+        .input("email", sql.NVarChar, email)
+        .query("SELECT id, name, email, role FROM Users WHERE email = @email");
+
+      if (userResult.recordset.length === 0) {
+        console.log("❌ User not found during session creation:", email);
+        return { error: "User not found" };
       }
 
-      const twoFactorData = await twoFactorResponse.json();
-      console.log("✅ 2FA verification successful:", twoFactorData);
+      const user = userResult.recordset[0];
+      console.log("✅ User found for session:", user);
       
-      // Set session cookie after successful 2FA verification
+      // Set session cookie
       const cookieStore = await cookies();
-      cookieStore.set("auth-user", twoFactorData.user.email, {
+      cookieStore.set("auth-user", user.email, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -125,11 +127,9 @@ export async function signin(formData: FormData) {
 
       console.log("✅ Session cookie set");
       
-      // Return success instead of redirecting
       return { 
         success: true, 
         message: "Login successful",
-        redirectTo: "/management-portal/dashboard"
       };
     }
 
@@ -141,7 +141,7 @@ export async function signin(formData: FormData) {
 
     console.log("🔄 Step 1: Verifying credentials...");
     
-    // First verify credentials
+    //  verify credentials
     const verifyResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-credentials`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
