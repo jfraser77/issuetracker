@@ -36,12 +36,23 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [newEmployeesCount, setNewEmployeesCount] = useState(0);
   const [isClient, setIsClient] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
 
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
     fetchDashboardData();
     fetchNewEmployeesCount();
+
+      // Refresh data every 30 seconds
+  const interval = setInterval(() => {
+    fetchDashboardData();
+    fetchNewEmployeesCount();
+  }, 30000);
+
+  return () => clearInterval(interval);
+
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -54,28 +65,33 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error fetching user:", error);
     }
+
+
   };
 
   const fetchDashboardData = async () => {
-    try {
-      const [statsResponse, activitiesResponse] = await Promise.all([
-        fetch("/api/dashboard/stats"),
-        fetch("/api/dashboard/activities")
-      ]);
+  setRefreshing(true);
+  try {
+    const [statsResponse, activitiesResponse] = await Promise.all([
+      fetch("/api/dashboard/stats"),
+      fetch("/api/dashboard/activities")
+    ]);
 
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData);
-      }
-
-      if (activitiesResponse.ok) {
-        const activitiesData = await activitiesResponse.json();
-        setActivities(activitiesData);
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+    if (statsResponse.ok) {
+      const statsData = await statsResponse.json();
+      setStats(statsData);
     }
-  };
+
+    if (activitiesResponse.ok) {
+      const activitiesData = await activitiesResponse.json();
+      setActivities(activitiesData);
+    }
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+  } finally {
+    setRefreshing(false);
+  }
+};
 
   const fetchNewEmployeesCount = async () => {
     try {
@@ -122,13 +138,13 @@ export default function Dashboard() {
       color: "text-red-500",
       link: "/management-portal/terminations",
     },
-    {
-      icon: ComputerDesktopIcon,
-      value: stats.availableLaptops,
-      label: "Available Laptops",
-      color: "text-yellow-500",
-      link: isAdminOrIT ? "/management-portal/it-assets" : undefined,
-    },
+    ...(isAdminOrIT ? [{
+    icon: ComputerDesktopIcon,
+    value: stats.availableLaptops,
+    label: "Available Laptops",
+    color: "text-yellow-500",
+    link: "/management-portal/it-assets",
+  }] : [])
   ];
 
   return (
