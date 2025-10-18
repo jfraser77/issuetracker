@@ -1,5 +1,7 @@
-export const dynamic = 'force-dynamic';
 "use client";
+
+export const dynamic = 'force-dynamic';
+
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -293,9 +295,7 @@ export default function TerminationsPage() {
 
   return (
     <div>
-      <Suspense fallback={<div>Loading...</div>}>
-      <TerminationsContent />
-    </Suspense>
+   
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Terminations
