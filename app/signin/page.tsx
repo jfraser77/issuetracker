@@ -25,17 +25,11 @@ export default function SigninPage() {
   const handleTwoFactorSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   
-  // Prevent multiple submissions
-  if (isLoading) {
-    console.log("⏳ Already processing, skipping duplicate submission");
-    return;
-  }
+  if (isLoading) return;
   
   setIsLoading(true);
 
   try {
-    console.log("🔄 Step 3: Starting 2FA verification");
-
     // Verify the 2FA code via API
     const verifyResponse = await fetch("/api/auth/verify-2fa", {
       method: "POST",
@@ -46,42 +40,24 @@ export default function SigninPage() {
       }),
     });
 
-    console.log("🔐 2FA Verification - Status:", verifyResponse.status);
-
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.json();
       alert(errorData.error || "Invalid verification code");
       return;
     }
 
-    const verifyData = await verifyResponse.json();
-    console.log("✅ 2FA verification successful!", verifyData);
-
     // Call server action to create session
-    console.log("🔄 Calling server action for session creation...");
-    
     const formDataToSubmit = new FormData();
     formDataToSubmit.append("email", formData.email);
     formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
     
-    const signinResult = await signin(formDataToSubmit);
-    console.log("📊 Server action result:", signinResult);
-
-    // Handle the response from server action
-    if (signinResult?.success) {
-      console.log("✅ Login successful, redirecting to dashboard...");
-      window.location.href = "/management-portal/dashboard";
-    } else if (signinResult?.error) {
-      console.log("❌ Login failed:", signinResult.error);
-      alert(signinResult.error);
-    } else {
-      // Fallback redirect
-      console.log("🔄 No clear response, using fallback redirect...");
-      window.location.href = "/management-portal/dashboard";
-    }
+    await signin(formDataToSubmit);
+    
+    // Fallback redirect (in case server action doesn't redirect)
+    window.location.href = "/management-portal/dashboard";
     
   } catch (error) {
-    console.error("🚨 2FA submission error:", error);
+    console.error("2FA submission error:", error);
     alert("An error occurred during verification");
   } finally {
     setIsLoading(false);
@@ -89,88 +65,45 @@ export default function SigninPage() {
 };
 
   const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      console.log("🔄 Step 1: Starting signin for", formData.email);
+  try {
+    const response = await fetch("/api/auth/verify-credentials", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
 
-      const response = await fetch("/api/auth/verify-credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      console.log(
-        "📨 Credentials API - Status:",
-        response.status,
-        "OK:",
-        response.ok
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log("❌ Credential error:", errorData);
-        alert(errorData.error || "Invalid email or password");
-        return;
-      }
-
-      const data = await response.json();
-      console.log("✅ Credentials valid! Data:", data);
-
-      // If credentials are valid, send 2FA code
-      console.log("🔄 Step 2: Sending 2FA code to", formData.email);
-
-      const twoFactorResponse = await fetch("/api/auth/send-2fa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email }),
-      });
-
-      console.log(
-        "📧 2FA API - Status:",
-        twoFactorResponse.status,
-        "OK:",
-        twoFactorResponse.ok
-      );
-
-      if (twoFactorResponse.ok) {
-        const twoFactorData = await twoFactorResponse.json();
-        console.log("✅ 2FA code sent successfully!");
-        console.log("📧 Email response:", twoFactorData);
-
-        // Always show demo code until email delivery is confirmed
-        if (twoFactorData.demoCode) {
-          alert(
-            `🔐 YOUR VERIFICATION CODE: ${twoFactorData.demoCode}\n\nEnter this code to complete signin.`
-          );
-        } else {
-          alert(
-            "Verification code sent to your email. Please check your inbox."
-          );
-        }
-
-        // Log any email errors (for debugging)
-        if (twoFactorData.emailError) {
-          console.log("⚠️ Email sending had issues:", twoFactorData.emailError);
-        }
-
-        setShowTwoFactor(true);
-      } else {
-        const errorData = await twoFactorResponse.json();
-        console.log("❌ 2FA failed:", errorData);
-        alert(errorData.error || "Failed to send verification code");
-      }
-    } catch (error) {
-      console.error("🚨 Signin error:", error);
-      alert("An error occurred during sign in");
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      const errorData = await response.json();
+      alert(errorData.error || "Invalid email or password");
+      return;
     }
-  };
+
+    // If credentials are valid, send 2FA code
+    const twoFactorResponse = await fetch("/api/auth/send-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: formData.email }),
+    });
+
+    if (twoFactorResponse.ok) {
+      setShowTwoFactor(true);
+    } else {
+      const errorData = await twoFactorResponse.json();
+      alert(errorData.error || "Failed to send verification code");
+    }
+  } catch (error) {
+    console.error("Signin error:", error);
+    alert("An error occurred during sign in");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex bg-white">

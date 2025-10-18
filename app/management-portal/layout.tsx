@@ -27,10 +27,20 @@ export default function ManagementPortalLayout({
 
   const fetchCurrentUser = async () => {
     try {
+      console.log("Fetching current user...");
       const response = await fetch("/api/auth/user");
+      console.log("User response status:", response.status);
+      
       if (response.ok) {
         const userData = await response.json();
+        console.log("User data received:", userData);
         setCurrentUser(userData);
+      } else {
+        console.error("Failed to fetch user:", response.status);
+        // If unauthorized, redirect to signin
+        if (response.status === 401) {
+          window.location.href = "/signin";
+        }
       }
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -50,7 +60,7 @@ export default function ManagementPortalLayout({
     <div className="flex h-screen bg-gray-50" suppressHydrationWarning>
       {/* Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
-        <Sidebar />
+        <Sidebar user={currentUser} />
       </div>
 
       {/* Mobile sidebar backdrop */}
@@ -67,7 +77,7 @@ export default function ManagementPortalLayout({
       <div className={`fixed inset-y-0 left-0 z-50 w-64 transform lg:hidden ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } transition duration-300 ease-in-out`}>
-        <Sidebar onClose={() => setSidebarOpen(false)} />
+        <Sidebar user={currentUser} onClose={() => setSidebarOpen(false)} />
       </div>
 
       {/* Main content */}

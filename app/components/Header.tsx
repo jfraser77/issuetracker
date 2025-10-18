@@ -4,6 +4,13 @@ import { useState } from "react";
 import SearchEmployees from "./SearchEmployees";
 import { BellIcon, CogIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface Employee {
   id: number;
   firstName: string;
@@ -14,12 +21,16 @@ interface Employee {
   status: string;
 }
 
-export default function Header() {
+interface HeaderProps {
+  user: User | null;
+  onMenuClick: () => void;
+}
+
+export default function Header({ user, onMenuClick }: HeaderProps) {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
   const handleEmployeeSelect = (employee: Employee) => {
     setSelectedEmployee(employee);
-    // You can navigate to employee details or perform other actions
     console.log("Selected employee:", employee);
   };
 
@@ -27,8 +38,18 @@ export default function Header() {
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Left side - Search */}
-          <div className="flex-1 max-w-2xl">
+          {/* Left side - Menu button for mobile and Search */}
+          <div className="flex items-center flex-1 max-w-2xl">
+            {/* Mobile menu button */}
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden p-2 mr-4 text-gray-400 hover:text-gray-500"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
             <SearchEmployees
               onEmployeeSelect={handleEmployeeSelect}
               placeholder="Search employees, departments, job titles..."
@@ -54,8 +75,12 @@ export default function Header() {
             <div className="flex items-center space-x-3">
               <UserCircleIcon className="h-8 w-8 text-gray-400" />
               <div className="hidden md:block">
-                <div className="text-sm font-medium text-gray-700">Current User</div>
-                <div className="text-xs text-gray-500">Admin</div>
+                <div className="text-sm font-medium text-gray-700">
+                  {user ? user.name : "Loading..."}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {user ? user.role : "Loading..."}
+                </div>
               </div>
             </div>
           </div>

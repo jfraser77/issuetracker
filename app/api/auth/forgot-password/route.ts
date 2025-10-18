@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
+import sql from "mssql";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
@@ -15,9 +16,9 @@ export async function POST(request: NextRequest) {
 
     const pool = await connectToDatabase();
 
-    // Check if user exists
+    // Check if user exists - FIXED parameter binding
     const userResult = await pool.request()
-      .input('email', email)
+      .input('email', sql.NVarChar, email) // Add sql.NVarChar type
       .query('SELECT id, name FROM Users WHERE email = @email');
 
     // Always return success to prevent email enumeration
@@ -35,26 +36,29 @@ export async function POST(request: NextRequest) {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
-    // Store reset token in database
+    // Store reset token in database - FIXED parameter binding
     await pool.request()
-      .input('userId', user.id)
-      .input('resetToken', resetToken)
-      .input('resetTokenExpiry', resetTokenExpiry)
+      .input('userId', sql.Int, user.id) // Add sql.Int type
+      .input('resetToken', sql.NVarChar, resetToken) // Add sql.NVarChar type
+      .input('resetTokenExpiry', sql.DateTime, resetTokenExpiry) // Add sql.DateTime type
       .query(`
         UPDATE Users 
         SET resetToken = @resetToken, resetTokenExpiry = @resetTokenExpiry 
         WHERE id = @userId
       `);
 
-    // Create reset link (in production, you'd send an email)
+    // Create reset link
     const baseUrl = process.env.NEXTAUTH_URL || 'https://cbo-inventory.azurewebsites.net';
     const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
     
-    // Log the reset link (replace with actual email service in production)
+    // Log the reset link
     console.log(`Password reset link for ${email}: ${resetLink}`);
 
     return NextResponse.json(
-      { message: "If an account with that email exists, a reset link has been sent." },
+      { 
+        message: "If an account with that email exists, a reset link has been sent.",
+        demoResetLink: resetLink // Remove this in production
+      },
       { status: 200 }
     );
 
