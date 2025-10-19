@@ -50,17 +50,18 @@ export async function POST(request: NextRequest) {
       .input('initiatedBy', terminationData.initiatedBy)
       .input('equipmentDisposition', terminationData.equipmentDisposition)
       .query(`
-        INSERT INTO Terminations (
-          employeeName, employeeEmail, jobTitle, department, terminationDate, 
-          terminationReason, initiatedBy, equipmentDisposition, licensesRemoved
-        ) 
-        OUTPUT INSERTED.*
-        VALUES (
-          @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
-          @terminationReason, @initiatedBy, @equipmentDisposition,
-          '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}'
-        )
-      `);
+          INSERT INTO Terminations (
+    employeeName, employeeEmail, jobTitle, department, terminationDate, 
+    terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist
+  ) 
+  OUTPUT INSERTED.*
+  VALUES (
+    @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
+    @terminationReason, @initiatedBy, @equipmentDisposition,
+    '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
+    @checklist
+  )
+`);
 
     return NextResponse.json(result.recordset[0]);
   } catch (error) {

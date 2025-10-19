@@ -9,7 +9,9 @@ import {
   PencilIcon, 
   TrashIcon,
   ExclamationTriangleIcon,
-  CheckCircleIcon 
+  CheckCircleIcon,
+  PlusIcon,
+  MinusIcon
 } from "@heroicons/react/24/outline";
 import SearchEmployees from "@/app/components/SearchEmployees";
 
@@ -18,6 +20,16 @@ interface User {
   name: string;
   email: string;
   role: string;
+}
+
+interface ChecklistItem {
+  id: string;
+  category: string;
+  description: string;
+  completed: boolean;
+  completedBy?: string;
+  completedDate?: string;
+  notes?: string;
 }
 
 interface Termination {
@@ -43,6 +55,9 @@ interface Termination {
     fax: boolean;
     additionalRemovals?: string;
   };
+  checklist?: ChecklistItem[];
+  completedByUserId?: number;
+  completedByUser?: User;
   timestamp: string;
   isExpanded?: boolean;
 }
@@ -53,6 +68,7 @@ export default function TerminationsContent() {
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [itUsers, setItUsers] = useState<User[]>([]);
   const [showTerminationForm, setShowTerminationForm] = useState(false);
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
@@ -63,16 +79,133 @@ export default function TerminationsContent() {
     terminationReason: "",
     equipmentDisposition: "return_to_pool" as "return_to_pool" | "retire"
   });
+  const [newChecklistItem, setNewChecklistItem] = useState({
+    category: "",
+    description: ""
+  });
 
   const isAuthorized = currentUser?.role === "Admin" || currentUser?.role === "I.T." || currentUser?.role === "HR";
   const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
   const filter = searchParams.get('filter');
   const [isClient, setIsClient] = useState(false);
 
+  // Default IT checklist items
+  const defaultChecklist: ChecklistItem[] = [
+    {
+      id: "1",
+      category: "Active Directory",
+      description: "Disable Windows/AD account",
+      completed: false
+    },
+    {
+      id: "2",
+      category: "Active Directory",
+      description: 'Enter "disabled" and your initials and date in the Description field',
+      completed: false
+    },
+    {
+      id: "3",
+      category: "Active Directory",
+      description: "Remove all groups from Member Of tab",
+      completed: false
+    },
+    {
+      id: "4",
+      category: "Active Directory",
+      description: "Run Powershell script: Start-ADSyncSyncCycle -PolicyType Delta",
+      completed: false
+    },
+    {
+      id: "5",
+      category: "Active Directory",
+      description: "ScreenConnect and remove the computer from the domain",
+      completed: false
+    },
+    {
+      id: "6",
+      category: "Active Directory",
+      description: "ScreenConnect - General button > Machine Product/Serial#",
+      completed: false
+    },
+    {
+      id: "7",
+      category: "Microsoft 365",
+      description: "Active Users > (NOTE: do not remove license for 30 days)",
+      completed: false
+    },
+    {
+      id: "8",
+      category: "Microsoft 365",
+      description: "Account tab > Groups > Manage Groups – remove all groups",
+      completed: false
+    },
+    {
+      id: "9",
+      category: "Software Access",
+      description: "Navigator",
+      completed: false
+    },
+    {
+      id: "10",
+      category: "Software Access",
+      description: "SourceMed Analytics USPI",
+      completed: false
+    },
+    {
+      id: "11",
+      category: "Software Access",
+      description: "SourceMed Analytics NSN",
+      completed: false
+    },
+    {
+      id: "12",
+      category: "Software Access",
+      description: "SonicWall VPN Connect",
+      completed: false
+    },
+    {
+      id: "13",
+      category: "Software Access",
+      description: "Viirtue – Numbers and Devices. Change drop down to Available Number",
+      completed: false
+    },
+    {
+      id: "14",
+      category: "Phone/Fax",
+      description: "Phone #",
+      completed: false
+    },
+    {
+      id: "15",
+      category: "Phone/Fax",
+      description: "Fax #",
+      completed: false
+    },
+    {
+      id: "16",
+      category: "Software Access",
+      description: "Adobe – permanently delete",
+      completed: false
+    },
+    {
+      id: "17",
+      category: "Software Access",
+      description: "Set Ticket type = Access > Termination. Then Angie gets a notice and will disable Availity and Waystar",
+      completed: false
+    },
+    {
+      id: "18",
+      category: "Software Access",
+      description: "Automate - removed automate license",
+      completed: false
+    }
+  ];
+
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
     fetchTerminations();
+    fetchITUsers();
     
     const interval = setInterval(checkOverdueTerminations, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
@@ -90,16 +223,31 @@ export default function TerminationsContent() {
     }
   };
 
+  const fetchITUsers = async () => {
+    try {
+      const response = await fetch("/api/users?role=IT,Admin");
+      if (response.ok) {
+        const users = await response.json();
+        setItUsers(users);
+      }
+    } catch (error) {
+      console.error("Error fetching IT users:", error);
+    }
+  };
+
   const fetchTerminations = async () => {
     try {
       const url = filter ? `/api/terminations?filter=${filter}` : '/api/terminations';
       const response = await fetch(url);
       if (response.ok) {
         const terminationsData = await response.json();
-        setTerminations(terminationsData.map((t: Termination) => ({ 
+        // Ensure each termination has the checklist
+        const terminationsWithChecklist = terminationsData.map((t: Termination) => ({ 
           ...t, 
-          isExpanded: false 
-        })));
+          isExpanded: false,
+          checklist: t.checklist || defaultChecklist
+        }));
+        setTerminations(terminationsWithChecklist);
       }
     } catch (error) {
       console.error("Error fetching terminations:", error);
@@ -127,7 +275,8 @@ export default function TerminationsContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...terminationForm,
-          initiatedBy: currentUser?.name
+          initiatedBy: currentUser?.name,
+          checklist: defaultChecklist
         }),
       });
 
@@ -167,6 +316,59 @@ export default function TerminationsContent() {
     }
   };
 
+  const updateChecklistItem = async (terminationId: number, itemId: string, updates: Partial<ChecklistItem>) => {
+    try {
+      const termination = terminations.find(t => t.id === terminationId);
+      if (!termination?.checklist) return;
+
+      const updatedChecklist = termination.checklist.map(item =>
+        item.id === itemId ? { ...item, ...updates } : item
+      );
+
+      await updateTermination(terminationId, { checklist: updatedChecklist });
+    } catch (error) {
+      console.error("Error updating checklist item:", error);
+    }
+  };
+
+  const addChecklistItem = async (terminationId: number) => {
+    if (!newChecklistItem.category || !newChecklistItem.description) {
+      alert("Please enter both category and description");
+      return;
+    }
+
+    try {
+      const termination = terminations.find(t => t.id === terminationId);
+      if (!termination?.checklist) return;
+
+      const newItem: ChecklistItem = {
+        id: Date.now().toString(),
+        category: newChecklistItem.category,
+        description: newChecklistItem.description,
+        completed: false
+      };
+
+      const updatedChecklist = [...termination.checklist, newItem];
+      await updateTermination(terminationId, { checklist: updatedChecklist });
+      
+      setNewChecklistItem({ category: "", description: "" });
+    } catch (error) {
+      console.error("Error adding checklist item:", error);
+    }
+  };
+
+  const removeChecklistItem = async (terminationId: number, itemId: string) => {
+    try {
+      const termination = terminations.find(t => t.id === terminationId);
+      if (!termination?.checklist) return;
+
+      const updatedChecklist = termination.checklist.filter(item => item.id !== itemId);
+      await updateTermination(terminationId, { checklist: updatedChecklist });
+    } catch (error) {
+      console.error("Error removing checklist item:", error);
+    }
+  };
+
   const markEquipmentReturned = async (terminationId: number, trackingNumber: string, equipmentDisposition: string) => {
     try {
       const response = await fetch(`/api/terminations/${terminationId}/return`, {
@@ -177,7 +379,6 @@ export default function TerminationsContent() {
 
       if (response.ok) {
         if (equipmentDisposition === "return_to_pool" && isAdminOrIT) {
-          // Increase available laptops
           await fetch("/api/it-assets/inventory", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -271,7 +472,6 @@ export default function TerminationsContent() {
   };
 
   const handleEmployeeSelect = (employee: any) => {
-    // Pre-fill termination form with employee data
     setTerminationForm(prev => ({
       ...prev,
       employeeName: `${employee.firstName} ${employee.lastName}`,
@@ -281,17 +481,28 @@ export default function TerminationsContent() {
     }));
   };
 
+  const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
+    const grouped: { [key: string]: ChecklistItem[] } = {};
+    checklist.forEach(item => {
+      if (!grouped[item.category]) {
+        grouped[item.category] = [];
+      }
+      grouped[item.category].push(item);
+    });
+    return grouped;
+  };
+
   if (!isClient || loading) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-lg">Loading...</div>
-    </div>
-  );
-}
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div  suppressHydrationWarning>
-      <div  className="flex justify-between items-center mb-6">
+    <div suppressHydrationWarning>
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           Employee Terminations
         </h1>
@@ -306,7 +517,7 @@ export default function TerminationsContent() {
         )}
       </div>
 
-      {/* Termination Form Modal */}
+      {/* Termination Form Modal - Same as before */}
       {showTerminationForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -560,53 +771,214 @@ export default function TerminationsContent() {
                     )}
                   </div>
 
-                  {/* License Removal Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="font-medium text-gray-900 mb-3">
-                      License and Access Removal
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {Object.entries(termination.licensesRemoved).map(([license, removed]) => {
-                        if (license === 'additionalRemovals') return null;
-                        
-                        return (
-                          <div key={license} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={removed as boolean}
-                              onChange={(e) => updateTermination(termination.id, {
-                                licensesRemoved: {
-                                  ...termination.licensesRemoved,
-                                  [license]: e.target.checked
-                                }
-                              })}
-                              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                            />
-                            <label className="ml-2 text-sm text-gray-700 capitalize">
-                              {license.replace(/([A-Z])/g, ' $1').trim()}
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Additional Removals
-                      </label>
-                      <textarea
-                        value={termination.licensesRemoved.additionalRemovals || ""}
-                        onChange={(e) => updateTermination(termination.id, {
-                          licensesRemoved: {
-                            ...termination.licensesRemoved,
-                            additionalRemovals: e.target.value
-                          }
-                        })}
-                        placeholder="List any additional software or access that needs to be removed..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        rows={2}
-                      />
-                    </div>
-                  </div>
+{/* IT Checklist Section - Only for Admin/IT */}
+{isAdminOrIT && termination.checklist && (
+  <div className="border-t pt-4">
+    <h3 className="font-medium text-gray-900 mb-3">
+      IT Access Removal Checklist
+    </h3>
+    
+    {/* Completed By Dropdown */}
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Completed By
+      </label>
+      <select
+        value={termination.completedByUserId || ""}
+        onChange={(e) => updateTermination(termination.id, { 
+          completedByUserId: e.target.value ? parseInt(e.target.value) : undefined 
+        })}
+        className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm"
+      >
+        <option value="">Select IT Staff</option>
+        {itUsers.map(user => (
+          <option key={user.id} value={user.id}>
+            {user.name} ({user.role})
+          </option>
+        ))}
+      </select>
+    </div>
+
+    {/* Global Check All/Uncheck All Buttons */}
+    <div className="mb-4 flex gap-2">
+      <button
+        onClick={() => {
+          const updatedChecklist = termination.checklist!.map(item => ({
+            ...item,
+            completed: true,
+            completedBy: currentUser?.name,
+            completedDate: new Date().toISOString()
+          }));
+          updateTermination(termination.id, { checklist: updatedChecklist });
+        }}
+        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
+      >
+        <CheckCircleIcon className="h-4 w-4 mr-1" />
+        Check All
+      </button>
+      <button
+        onClick={() => {
+          const updatedChecklist = termination.checklist!.map(item => ({
+            ...item,
+            completed: false,
+            completedBy: undefined,
+            completedDate: undefined
+          }));
+          updateTermination(termination.id, { checklist: updatedChecklist });
+        }}
+        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
+      >
+        <MinusIcon className="h-4 w-4 mr-1" />
+        Uncheck All
+      </button>
+    </div>
+
+    {/* Checklist Items */}
+    {Object.entries(groupChecklistByCategory(termination.checklist)).map(([category, items]) => {
+      const allChecked = items.every(item => item.completed);
+      const someChecked = items.some(item => item.completed);
+      
+      return (
+        <div key={category} className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-800">{category}</h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(item =>
+                    item.category === category 
+                      ? { 
+                          ...item, 
+                          completed: true,
+                          completedBy: currentUser?.name,
+                          completedDate: new Date().toISOString()
+                        }
+                      : item
+                  );
+                  updateTermination(termination.id, { checklist: updatedChecklist });
+                }}
+                className="text-green-600 hover:text-green-800 text-xs flex items-center"
+              >
+                <CheckCircleIcon className="h-3 w-3 mr-1" />
+                Check All
+              </button>
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(item =>
+                    item.category === category 
+                      ? { 
+                          ...item, 
+                          completed: false,
+                          completedBy: undefined,
+                          completedDate: undefined
+                        }
+                      : item
+                  );
+                  updateTermination(termination.id, { checklist: updatedChecklist });
+                }}
+                className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
+              >
+                <MinusIcon className="h-3 w-3 mr-1" />
+                Uncheck All
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-start space-x-3 p-2 bg-gray-50 rounded">
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={(e) => updateChecklistItem(termination.id, item.id, { 
+                    completed: e.target.checked,
+                    completedBy: e.target.checked ? currentUser?.name : undefined,
+                    completedDate: e.target.checked ? new Date().toISOString() : undefined
+                  })}
+                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div className="flex-1">
+                  <label className={`text-sm ${item.completed ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                    {item.description}
+                  </label>
+                  {item.completed && item.completedBy && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Completed by {item.completedBy} on {item.completedDate ? new Date(item.completedDate).toLocaleDateString() : 'unknown date'}
+                    </p>
+                  )}
+                  {/* Notes Field */}
+                  <textarea
+                    placeholder="Add notes..."
+                    value={item.notes || ""}
+                    onChange={(e) => updateChecklistItem(termination.id, item.id, { notes: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                    rows={2}
+                  />
+                </div>
+                <button
+                  onClick={() => removeChecklistItem(termination.id, item.id)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Remove item"
+                >
+                  <MinusIcon className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    })}
+
+    {/* Progress Summary */}
+    {termination.checklist && (
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium text-blue-800">
+            Checklist Progress
+          </span>
+          <span className="text-sm text-blue-700">
+            {termination.checklist.filter(item => item.completed).length} of {termination.checklist.length} completed
+          </span>
+        </div>
+        <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+          <div 
+            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            style={{ 
+              width: `${(termination.checklist.filter(item => item.completed).length / termination.checklist.length) * 100}%` 
+            }}
+          ></div>
+        </div>
+      </div>
+    )}
+
+    {/* Add New Checklist Item */}
+    <div className="border-t pt-4">
+      <h4 className="font-medium text-gray-800 mb-2">Add New Checklist Item</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+        <input
+          type="text"
+          placeholder="Category (e.g., Software Access)"
+          value={newChecklistItem.category}
+          onChange={(e) => setNewChecklistItem({ ...newChecklistItem, category: e.target.value })}
+          className="px-3 py-2 border border-gray-300 rounded text-sm"
+        />
+        <input
+          type="text"
+          placeholder="Description"
+          value={newChecklistItem.description}
+          onChange={(e) => setNewChecklistItem({ ...newChecklistItem, description: e.target.value })}
+          className="px-3 py-2 border border-gray-300 rounded text-sm"
+        />
+      </div>
+      <button
+        onClick={() => addChecklistItem(termination.id)}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+      >
+        <PlusIcon className="h-4 w-4 mr-1" />
+        Add Item
+      </button>
+    </div>
+  </div>
+)}
 
                   {/* Action Buttons */}
                   <div className="border-t pt-4 flex justify-between items-center">

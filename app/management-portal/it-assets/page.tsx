@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   ComputerDesktopIcon,
-  // ArrowPathIcon,
+  ArrowPathIcon,
   PlusIcon,
   MinusIcon,
   ShoppingCartIcon,
@@ -14,6 +14,7 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface User {
   id: number;
@@ -43,11 +44,17 @@ interface LaptopOrder {
   isArchived?: boolean;
 }
 
+interface TerminationStats {
+  pendingReturns: number;
+}
+
 export default function ITAssetsPage() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itStaff, setItStaff] = useState<ITStaffInventory[]>([]);
   const [laptopOrders, setLaptopOrders] = useState<LaptopOrder[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [terminationStats, setTerminationStats] = useState<TerminationStats>({ pendingReturns: 0 });
   const [loading, setLoading] = useState(true);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [newOrder, setNewOrder] = useState({
@@ -59,13 +66,23 @@ export default function ITAssetsPage() {
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
   const [isClient, setIsClient] = useState(false);
 
+  // Check if user has access (Admin or I.T. roles only)
+  const hasAccess = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+
   // Fetch current user and data
   useEffect(() => {
     setIsClient(true);
     fetchData();
   }, []);
 
-  // Auto-archive old orders (Option 1)
+  // Redirect if no access
+  useEffect(() => {
+    if (isClient && currentUser && !hasAccess) {
+      router.push("/management-portal/dashboard");
+    }
+  }, [currentUser, hasAccess, isClient, router]);
+
+  // Auto-archive old orders
   useEffect(() => {
     const archiveOldOrders = async () => {
       try {
@@ -77,7 +94,6 @@ export default function ITAssetsPage() {
           const result = await response.json();
           if (result.archived > 0) {
             console.log(`Auto-archived ${result.archived} old orders`);
-            // Refresh data if any orders were archived
             fetchData();
           }
         }
@@ -86,10 +102,7 @@ export default function ITAssetsPage() {
       }
     };
 
-    // Run once when component loads
     archiveOldOrders();
-
-    // Run daily to check for orders to archive
     const interval = setInterval(archiveOldOrders, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -128,6 +141,13 @@ export default function ITAssetsPage() {
       if (ordersResponse.ok) {
         const ordersData = await ordersResponse.json();
         setLaptopOrders(ordersData);
+      }
+
+      // Fetch termination stats for pending returns
+      const statsResponse = await fetch("/api/terminations/stats");
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setTerminationStats(statsData);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -372,26 +392,19 @@ export default function ITAssetsPage() {
   );
 
   const dynamicStats = [
-    // {
-    //   icon: ComputerDesktopIcon,
-    //   value: activeOrders
-    //     .filter((order) => order.status === "received")
-    //     .reduce((sum, order) => sum + order.quantity, 0),
-    //   label: "Assigned Laptops",
-    //   color: "text-blue-500",
-    // },
     {
       icon: ComputerDesktopIcon,
       value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
       label: "Available Laptops",
       color: "text-green-500",
     },
-    // {
-    //   icon: ArrowPathIcon,
-    //   value: activeOrders.filter((order) => order.status === "ordered").length,
-    //   label: "Pending Return",
-    //   color: "text-red-500",
-    // },
+    {
+      icon: ArrowPathIcon,
+      value: terminationStats.pendingReturns,
+      label: "Pending Returns",
+      color: "text-red-500",
+      link: "/management-portal/terminations",
+    },
   ];
 
   // Separate current user's inventory from other users
@@ -406,15 +419,29 @@ export default function ITAssetsPage() {
     0
   );
 
+  if (!isClient || loading) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
-
-   if (!isClient || loading) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-lg">Loading...</div>
-    </div>
-  );
-}
+  // Show access denied message
+  if (!hasAccess) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Access Denied
+          </h2>
+          <p className="text-gray-600">
+            You don't have permission to access this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -428,8 +455,8 @@ export default function ITAssetsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {dynamicStats.map((stat, index) => {
           const IconComponent = stat.icon;
-          return (
-            <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+          const cardContent = (
+            <div className={`bg-white rounded-lg shadow-sm p-6 ${stat.link ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
               <IconComponent className={`h-8 w-8 ${stat.color} mb-4`} />
               <div className="text-3xl font-bold text-gray-900">
                 {stat.value}
@@ -437,9 +464,20 @@ export default function ITAssetsPage() {
               <div className="text-sm text-gray-500">{stat.label}</div>
             </div>
           );
+
+          return stat.link ? (
+            <Link key={index} href={stat.link}>
+              {cardContent}
+            </Link>
+          ) : (
+            <div key={index}>
+              {cardContent}
+            </div>
+          );
         })}
       </div>
 
+      {/* Rest of your existing component remains the same */}
       {/* IT Staff Inventory */}
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-xl font-semibold text-gray-900">
@@ -448,7 +486,7 @@ export default function ITAssetsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {/* Current User's Inventory Card (with adjustment buttons) */}
+        {/* Current User's Inventory Card */}
         {currentUserInventory && (
           <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border-2 border-blue-500">
             <div className="flex items-center mb-4 pb-4 border-b border-gray-100">
@@ -531,7 +569,7 @@ export default function ITAssetsPage() {
               </div>
             </div>
 
-            {/* Individual user breakdown (read-only) */}
+            {/* Individual user breakdown */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <h4 className="text-sm font-medium text-gray-700 mb-2">
                 Individual Breakdown:
@@ -793,7 +831,6 @@ export default function ITAssetsPage() {
                             Archive
                           </button>
                         )}
-                        {/* Delete Button - Available for all order statuses */}
                         <button
                           onClick={() => deleteOrder(order.id)}
                           disabled={deletingOrderId === order.id}
