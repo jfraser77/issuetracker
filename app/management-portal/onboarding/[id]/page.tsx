@@ -259,12 +259,18 @@ export default function EmployeeOnboardingDetail() {
   };
 
   const calculateProgress = () => {
-    const totalApps = Object.keys(applicationStatus).length;
-    const completedApps = Object.values(applicationStatus).filter(
-      (task) => task.status === "completed"
-    ).length;
-    return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
-  };
+  // Filter out "not applicable" tasks
+  const applicableTasks = Object.values(applicationStatus).filter(
+    task => task.status !== "not applicable"
+  );
+  
+  const totalApps = applicableTasks.length;
+  const completedApps = applicableTasks.filter(
+    (task) => task.status === "completed"
+  ).length;
+  
+  return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
+};
 
   const isCustomTask = (taskName: string) => {
     return !systemApplications.hasOwnProperty(taskName);
@@ -444,16 +450,17 @@ export default function EmployeeOnboardingDetail() {
                 </div>
                 <div className="flex items-center gap-3">
                   <select
-                    value={task.status}
-                    onChange={(e) =>
-                      updateApplicationStatus(app, e.target.value as any)
-                    }
-                    className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="not begun">Not Begun</option>
-                    <option value="in progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
+  value={task.status}
+  onChange={(e) =>
+    updateApplicationStatus(app, e.target.value as any)
+  }
+  className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+>
+  <option value="not begun">Not Begun</option>
+  <option value="in progress">In Progress</option>
+  <option value="completed">Completed</option>
+  <option value="not applicable">Not Applicable</option>
+</select>
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(
                       task.status

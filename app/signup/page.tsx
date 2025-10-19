@@ -8,20 +8,20 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordsMatch, setPasswordsMatch] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: ""
+    role: "User" // Default to User
   });
 
   const handlePasswordChange = (field: string, value: string) => {
     const newFormData = { ...formData, [field]: value };
     setFormData(newFormData);
     
-    // Check if passwords match
     if (field === 'password' || field === 'confirmPassword') {
       setPasswordsMatch(newFormData.password === newFormData.confirmPassword);
     }
@@ -29,18 +29,27 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords do not match");
+      setIsLoading(false);
       return;
     }
 
     if (formData.password.length < 8) {
       alert("Password must be at least 8 characters long");
+      setIsLoading(false);
       return;
     }
 
-    await signup(formData);
+    try {
+      await signup(formData);
+    } catch (error) {
+      console.error("Signup error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -48,8 +57,11 @@ export default function SignupPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
+            Request Account Access
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Submit a request for account access. Admin roles are assigned by system administrators only.
+          </p>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{" "}
             <Link
@@ -168,9 +180,10 @@ export default function SignupPage() {
               </div>
             )}
 
+            {/* Role Selection - Admin removed from options */}
             <div>
-              <label htmlFor="role" className="sr-only">
-                Role
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1 px-3 pt-2">
+                Requested Role
               </label>
               <select
                 id="role"
@@ -180,23 +193,31 @@ export default function SignupPage() {
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               >
-                <option value="">Select Role</option>
-                <option value="Admin">Admin</option>
-                <option value="I.T.">I.T.</option>
+                <option value="User">User (Default Access)</option>
+                <option value="I.T.">I.T. Staff</option>
                 <option value="Trainer">Trainer</option>
-                <option value="HR">HR</option>
-                <option value="User">User</option>
+                <option value="HR">HR Staff</option>
               </select>
+              <p className="text-xs text-gray-500 px-3 pb-2">
+                Note: All role requests require administrator approval
+              </p>
             </div>
           </div>
 
           <div>
             <button
               type="submit"
-              disabled={!passwordsMatch || formData.password.length < 8}
+              disabled={!passwordsMatch || formData.password.length < 8 || isLoading}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign Up
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Submitting Request...
+                </>
+              ) : (
+                "Submit Access Request"
+              )}
             </button>
           </div>
         </form>

@@ -32,7 +32,7 @@ interface TaskNote {
 }
 
 interface TaskWithNotes {
-  status: "not begun" | "in progress" | "completed";
+  status: "not begun" | "in progress" | "completed" | "not applicable";
   notes: TaskNote[];
 }
 
@@ -186,9 +186,8 @@ const systemApplications: ApplicationStatus = {
     }
   };
 
-  const updateApplicationStatus = async (employeeId: number, appName: string, status: "not begun" | "in progress" | "completed") => {
+  const updateApplicationStatus = async (employeeId: number, appName: string, status: "not begun" | "in progress" | "completed" | "not applicable") => {
   try {
-    // Get current employee
     const employee = employees.find(emp => emp.id === employeeId);
     if (!employee) return;
 
@@ -258,17 +257,15 @@ const systemApplications: ApplicationStatus = {
       method: "DELETE",
     });
 
+    const responseData = await response.json();
+
     if (response.ok) {
       // Remove from local state immediately
       setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-      
-      // Force refresh the data
-      await fetchEmployeesWithStatus();
-      
       alert("Employee deleted successfully!");
     } else {
-      const errorData = await response.json();
-      alert(`Failed to delete employee: ${errorData.error}`);
+      console.error("Delete failed:", responseData);
+      alert(`Failed to delete employee: ${responseData.error || 'Unknown error'}`);
     }
   } catch (error) {
     console.error("Error deleting employee:", error);
@@ -289,26 +286,33 @@ const systemApplications: ApplicationStatus = {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "not begun":
-      case "not assigned":
-        return "bg-gray-100 text-gray-800";
-      case "in progress":
-        return "bg-yellow-100 text-yellow-800";
-      case "on hold":
-        return "bg-orange-100 text-orange-800";
-      case "completed":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  switch (status) {
+    case "not begun":
+    case "not assigned":
+      return "bg-gray-100 text-gray-800";
+    case "in progress":
+      return "bg-yellow-100 text-yellow-800";
+    case "on hold":
+      return "bg-orange-100 text-orange-800";
+    case "completed":
+      return "bg-green-100 text-green-800";
+    case "not applicable":
+      return "bg-purple-100 text-purple-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
 
   const calculateOverallProgress = (employee: EmployeeWithStatus) => {
   if (!employee.applicationStatus) return 0;
   
-  const totalApps = Object.keys(employee.applicationStatus).length;
-  const completedApps = Object.values(employee.applicationStatus).filter(
+  // Filter out "not applicable" tasks from the calculation
+  const applicableTasks = Object.values(employee.applicationStatus).filter(
+    task => task.status !== "not applicable"
+  );
+  
+  const totalApps = applicableTasks.length;
+  const completedApps = applicableTasks.filter(
     (task) => task.status === "completed"
   ).length;
   
@@ -611,14 +615,15 @@ const systemApplications: ApplicationStatus = {
             </div>
             <div className="flex items-center gap-2">
               <select
-                value={currentStatus}
-                onChange={(e) => updateApplicationStatus(employee.id, app, e.target.value as any)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs"
-              >
-                <option value="not begun">Not Begun</option>
-                <option value="in progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
+  value={currentStatus}
+  onChange={(e) => updateApplicationStatus(employee.id, app, e.target.value as any)}
+  className="border border-gray-300 rounded px-2 py-1 text-xs"
+>
+  <option value="not begun">Not Begun</option>
+  <option value="in progress">In Progress</option>
+  <option value="completed">Completed</option>
+  <option value="not applicable">Not Applicable</option>
+</select>
               <span
                 className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
                   currentStatus
