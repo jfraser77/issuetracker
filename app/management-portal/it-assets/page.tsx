@@ -12,6 +12,9 @@ import {
   ArchiveBoxIcon,
   ClockIcon,
   TrashIcon,
+  PencilIcon,
+  CheckIcon as CheckSolidIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -66,11 +69,13 @@ export default function ITAssetsPage() {
   });
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
   
+  // State for direct input editing
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
 
   // Check if user has access (Admin or I.T. roles only)
- const hasAccess = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+  const hasAccess = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
- 
   // Fetch data only when user is loaded
   useEffect(() => {
     if (!userLoading && currentUser) {
@@ -112,9 +117,7 @@ export default function ITAssetsPage() {
     return () => clearInterval(interval);
   }, [currentUser, hasAccess]);
 
-
-
-    const fetchData = async () => {
+  const fetchData = async () => {
     if (!currentUser) return;
     
     try {
@@ -222,7 +225,71 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Function to create new laptop order
+  // Function to update available laptops by direct input
+  const updateAvailableByInput = async (userId: number, newValue: number) => {
+    if (newValue < 0) {
+      alert("Laptop count cannot be negative");
+      return;
+    }
+
+    try {
+      // Get current value to calculate the change needed
+      const currentStaff = itStaff.find(staff => staff.userId === userId);
+      if (!currentStaff) return;
+
+      const change = newValue - currentStaff.availableLaptops;
+
+      const response = await fetch("/api/it-assets/inventory", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId, change }),
+      });
+
+      if (response.ok) {
+        setEditingUserId(null);
+        setEditValue("");
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Error updating inventory by input:", error);
+      alert("Failed to update laptop count");
+    }
+  };
+
+  // Function to start editing
+  const startEditing = (userId: number, currentValue: number) => {
+    setEditingUserId(userId);
+    setEditValue(currentValue.toString());
+  };
+
+  // Function to cancel editing
+  const cancelEditing = () => {
+    setEditingUserId(null);
+    setEditValue("");
+  };
+
+  // Function to handle input submission
+  const handleInputSubmit = (userId: number) => {
+    const newValue = parseInt(editValue);
+    if (isNaN(newValue)) {
+      alert("Please enter a valid number");
+      return;
+    }
+    updateAvailableByInput(userId, newValue);
+  };
+
+  // Function to handle input key press
+  const handleInputKeyPress = (e: React.KeyboardEvent, userId: number) => {
+    if (e.key === 'Enter') {
+      handleInputSubmit(userId);
+    } else if (e.key === 'Escape') {
+      cancelEditing();
+    }
+  };
+
+  // Rest of your existing functions (createOrder, markOrderReceived, etc.) remain the same
   const createOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrder.orderedByUserId) {
@@ -269,7 +336,6 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Function to mark order as received
   const markOrderReceived = async (orderId: number) => {
     try {
       const response = await fetch(`/api/it-assets/orders/${orderId}`, {
@@ -293,7 +359,6 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Archive order function
   const archiveOrder = async (orderId: number) => {
     try {
       const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
@@ -316,7 +381,6 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Function to delete order (for orders made in error)
   const deleteOrder = async (orderId: number) => {
     if (
       !confirm(
@@ -414,7 +478,7 @@ export default function ITAssetsPage() {
     (order) => order.status !== "archived" && !order.isArchived
   );
 
-    const dynamicStats = [
+  const dynamicStats = [
     {
       icon: ComputerDesktopIcon,
       value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
@@ -443,44 +507,42 @@ export default function ITAssetsPage() {
   );
 
   if (userLoading || loading) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-lg">Loading IT Assets...</div>
-    </div>
-  );
-}
-
-// Check if user is authenticated
-if (!currentUser) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Authentication Required
-        </h2>
-        <p className="text-gray-600">
-          Please log in to access this page.
-        </p>
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-lg">Loading IT Assets...</div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-// Show access denied message
-if (!hasAccess) {
-  return (
-    <div className="flex justify-center items-center min-h-64">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Access Denied
-        </h2>
-        <p className="text-gray-600">
-          You don't have permission to access this page.
-        </p>
+  if (!currentUser) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Authentication Required
+          </h2>
+          <p className="text-gray-600">
+            Please log in to access this page.
+          </p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="flex justify-center items-center min-h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            Access Denied
+          </h2>
+          <p className="text-gray-600">
+            You don't have permission to access this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -516,7 +578,6 @@ if (!hasAccess) {
         })}
       </div>
 
-      {/* Rest of your existing component remains the same */}
       {/* IT Staff Inventory */}
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-xl font-semibold text-gray-900">
@@ -546,16 +607,53 @@ if (!hasAccess) {
 
             <div className="flex justify-around text-center mb-4">
               <div className="px-4 py-2">
-                <span className="block text-2xl font-bold text-gray-900">
-                  {currentUserInventory.availableLaptops}
-                </span>
+                {editingUserId === currentUserInventory.userId ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => handleInputKeyPress(e, currentUserInventory.userId)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-2xl font-bold text-gray-900"
+                      autoFocus
+                    />
+                    <div className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => handleInputSubmit(currentUserInventory.userId)}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        <CheckSolidIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <span className="block text-2xl font-bold text-gray-900">
+                      {currentUserInventory.availableLaptops}
+                    </span>
+                    <button
+                      onClick={() => startEditing(currentUserInventory.userId, currentUserInventory.availableLaptops)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Edit count"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
                 <span className="text-xs text-gray-500">Available</span>
               </div>
             </div>
 
             {/* Buttons to adjust available inventory */}
             <div className="flex justify-center items-center">
-              <div className="flex justify-center mt-4">
+              <div className="flex justify-center mt-4 space-x-2">
                 <button
                   onClick={() =>
                     decreaseAvailable(
@@ -564,73 +662,119 @@ if (!hasAccess) {
                     )
                   }
                   disabled={currentUserInventory.availableLaptops <= 0}
-                  className={`flex items-center mr-2 px-3 py-2 rounded-md font-medium ${
+                  className={`flex items-center px-3 py-2 rounded-md font-medium ${
                     currentUserInventory.availableLaptops <= 0
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                       : "bg-blue-500 text-white hover:bg-blue-600"
                   }`}
                 >
-                  <MinusIcon className="h-4 w-4 mr-1" />
+                  <MinusIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => increaseAvailable(currentUserInventory.userId)}
-                  className="flex items-center ml-2 px-3 py-2 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600"
+                  className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600"
                 >
-                  <PlusIcon className="h-4 w-4 mr-1" />
+                  <PlusIcon className="h-4 w-4" />
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Other Users Summary Card */}
-        {otherUsersInventory.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+        {/* Other Users Inventory Cards */}
+        {otherUsersInventory.map((staff) => (
+          <div key={staff.userId} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center mb-4 pb-4 border-b border-gray-100">
-              <div className="w-14 h-14 rounded-full bg-gray-400 flex items-center justify-center mr-4">
-                <UserGroupIcon className="h-6 w-6 text-white" />
+              <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center mr-4">
+                <span className="text-white font-semibold text-lg">
+                  {getUserInitial(staff)}
+                </span>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Other IT Staff</h3>
-                <p className="text-sm text-gray-500">
-                  {otherUsersInventory.length} team member
-                  {otherUsersInventory.length !== 1 ? "s" : ""}
+                <h3 className="font-semibold text-gray-900">
+                  {getUserDisplayName(staff)}
+                </h3>
+                <p className="text-sm text-gray-500 capitalize">
+                  {getUserRole(staff)}
                 </p>
               </div>
             </div>
 
             <div className="flex justify-around text-center mb-4">
               <div className="px-4 py-2">
-                <span className="block text-2xl font-bold text-gray-900">
-                  {totalOtherUsersLaptops}
-                </span>
-                <span className="text-xs text-gray-500">Total Available</span>
+                {editingUserId === staff.userId ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => handleInputKeyPress(e, staff.userId)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-2xl font-bold text-gray-900"
+                      autoFocus
+                    />
+                    <div className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => handleInputSubmit(staff.userId)}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        <CheckSolidIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <span className="block text-2xl font-bold text-gray-900">
+                      {staff.availableLaptops}
+                    </span>
+                    <button
+                      onClick={() => startEditing(staff.userId, staff.availableLaptops)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Edit count"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+                <span className="text-xs text-gray-500">Available</span>
               </div>
             </div>
 
-            {/* Individual user breakdown */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">
-                Individual Breakdown:
-              </h4>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {otherUsersInventory.map((staff) => (
-                  <div
-                    key={staff.userId}
-                    className="flex justify-between items-center text-sm"
-                  >
-                    <span className="text-gray-600 truncate">
-                      {getUserDisplayName(staff)}
-                    </span>
-                    <span className="font-medium text-gray-900">
-                      {staff.availableLaptops}
-                    </span>
-                  </div>
-                ))}
+            {/* Buttons to adjust available inventory */}
+            <div className="flex justify-center items-center">
+              <div className="flex justify-center mt-4 space-x-2">
+                <button
+                  onClick={() =>
+                    decreaseAvailable(
+                      staff.userId,
+                      staff.availableLaptops
+                    )
+                  }
+                  disabled={staff.availableLaptops <= 0}
+                  className={`flex items-center px-3 py-2 rounded-md font-medium ${
+                    staff.availableLaptops <= 0
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-500 text-white hover:bg-blue-600"
+                  }`}
+                >
+                  <MinusIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => increaseAvailable(staff.userId)}
+                  className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
-        )}
+        ))}
 
         {/* Empty state if no inventory */}
         {itStaff.length === 0 && (
