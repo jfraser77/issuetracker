@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../lib/db";
-import { CreateNewEmployee } from "../../types/index";
+import { CreateNewEmployee } from "../../../types/employee";
 
 export async function GET() {
   try {
@@ -10,7 +10,14 @@ export async function GET() {
       ORDER BY timestamp DESC
     `);
 
-    return NextResponse.json(result.recordset);
+    // Transform the data to match your frontend expectations
+    const employees = result.recordset.map(employee => ({
+      ...employee,
+      firstName: employee.name.split(' ')[0] || '', // Extract first name
+      lastName: employee.name.split(' ').slice(1).join(' ') || '', // Extract last name
+    }));
+
+    return NextResponse.json(employees);
   } catch (error: any) {
     console.error("Error fetching employees:", error);
     return NextResponse.json(
@@ -27,19 +34,11 @@ export async function POST(request: NextRequest) {
     const employeeData: CreateNewEmployee = await request.json();
     console.log("Received employee data:", employeeData);
 
-    // Validate required fields
-    if (
-      !employeeData.firstName ||
-      !employeeData.lastName ||
-      !employeeData.jobTitle ||
-      !employeeData.startDate
-    ) {
+    // Validate required fields - updated to match your form
+    if (!employeeData.name || !employeeData.jobTitle || !employeeData.startDate) {
       console.log("❌ Validation failed: Missing required fields");
       return NextResponse.json(
-        {
-          error:
-            "First Name, Last Name, Job Title, and Start Date are required",
-        },
+        { error: "Name, Job Title, and Start Date are required" },
         { status: 400 }
       );
     }
@@ -50,22 +49,28 @@ export async function POST(request: NextRequest) {
 
     const result = await pool
       .request()
-      .input("firstName", employeeData.firstName)
-      .input("lastName", employeeData.lastName)
+      .input("name", employeeData.name)
       .input("jobTitle", employeeData.jobTitle)
       .input("startDate", employeeData.startDate)
       .input("currentManager", employeeData.currentManager || "")
-      .input(
-        "directorRegionalDirector",
-        employeeData.directorRegionalDirector || ""
-      ).query(`
-        INSERT INTO Employees (firstName, lastName, jobTitle, startDate, currentManager, directorRegionalDirector)
+      .input("directorRegionalDirector", employeeData.directorRegionalDirector || "")
+      .query(`
+        INSERT INTO Employees (name, jobTitle, startDate, currentManager, directorRegionalDirector)
         OUTPUT INSERTED.*
-        VALUES (@firstName, @lastName, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
+        VALUES (@name, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
       `);
 
     console.log("✅ Employee created successfully:", result.recordset[0]);
-    return NextResponse.json(result.recordset[0], { status: 201 });
+    
+    // Transform the response to include firstName and lastName
+    const createdEmployee = result.recordset[0];
+    const responseEmployee = {
+      ...createdEmployee,
+      firstName: createdEmployee.name.split(' ')[0] || '',
+      lastName: createdEmployee.name.split(' ').slice(1).join(' ') || '',
+    };
+
+    return NextResponse.json(responseEmployee, { status: 201 });
   } catch (error: any) {
     console.error("❌ Error creating employee:", error);
     return NextResponse.json(

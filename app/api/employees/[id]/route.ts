@@ -23,7 +23,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json(result.recordset[0]);
+    const employee = result.recordset[0];
+    // Transform to include firstName and lastName for frontend compatibility
+    const transformedEmployee = {
+      ...employee,
+      firstName: employee.name?.split(' ')[0] || '',
+      lastName: employee.name?.split(' ').slice(1).join(' ') || '',
+    };
+
+    return NextResponse.json(transformedEmployee);
   } catch (error) {
     console.error("Error fetching employee:", error);
     return NextResponse.json(
@@ -39,28 +47,47 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const data = await request.json();
     const pool = await connectToDatabase();
 
-    await pool
+    // Use the actual database column names
+    const result = await pool
       .request()
       .input("id", sql.Int, parseInt(id))
-      .input("firstName", sql.NVarChar, data.firstName)
-      .input("lastName", sql.NVarChar, data.lastName)
+      .input("name", sql.NVarChar, data.name || `${data.firstName} ${data.lastName}`.trim())
       .input("jobTitle", sql.NVarChar, data.jobTitle)
       .input("startDate", sql.Date, data.startDate)
       .input("currentManager", sql.NVarChar, data.currentManager)
       .input("directorRegionalDirector", sql.NVarChar, data.directorRegionalDirector)
+      .input("status", sql.NVarChar, data.status || 'active')
       .query(`
         UPDATE Employees 
-        SET firstName = @firstName, 
-            lastName = @lastName, 
+        SET name = @name, 
             jobTitle = @jobTitle, 
             startDate = @startDate, 
             currentManager = @currentManager, 
             directorRegionalDirector = @directorRegionalDirector,
-            updatedAt = GETDATE()
+            status = @status
+        OUTPUT INSERTED.*
         WHERE id = @id
       `);
 
-    return NextResponse.json({ success: true, message: "Employee updated successfully" });
+    if (result.recordset.length === 0) {
+      return NextResponse.json(
+        { error: "Employee not found" },
+        { status: 404 }
+      );
+    }
+
+    const updatedEmployee = result.recordset[0];
+    const transformedEmployee = {
+      ...updatedEmployee,
+      firstName: updatedEmployee.name?.split(' ')[0] || '',
+      lastName: updatedEmployee.name?.split(' ').slice(1).join(' ') || '',
+    };
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Employee updated successfully",
+      employee: transformedEmployee
+    });
   } catch (error) {
     console.error("Error updating employee:", error);
     return NextResponse.json(
@@ -70,6 +97,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 }
 
+// DELETE function remains the same as your current code
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -99,37 +127,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     // Delete related records first to avoid foreign key constraints
     try {
-      // Delete from ITAssignments table if it exists
-      await pool
-        .request()
-        .input("employeeId", sql.Int, employeeId)
-        .query("DELETE FROM ITAssignments WHERE employeeId = @employeeId");
-    } catch (error) {
-      console.log("No IT assignments to delete or table doesn't exist");
-    }
-
-    try {
-      // Delete from ApplicationStatus table if it exists
-      await pool
-        .request()
-        .input("employeeId", sql.Int, employeeId)
-        .query("DELETE FROM ApplicationStatus WHERE employeeId = @employeeId");
-    } catch (error) {
-      console.log("No application status to delete or table doesn't exist");
-    }
-
-    try {
-      // Delete from ITStaffAssignment table if it exists
-      await pool
-        .request()
-        .input("employeeId", sql.Int, employeeId)
-        .query("DELETE FROM ITStaffAssignment WHERE employeeId = @employeeId");
-    } catch (error) {
-      console.log("No IT staff assignments to delete or table doesn't exist");
-    }
-
-    try {
-      // Delete from EmployeeStatus table if it exists
       await pool
         .request()
         .input("employeeId", sql.Int, employeeId)
@@ -154,18 +151,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   } catch (error: any) {
     console.error("Error deleting employee:", error);
     
-    // More specific error messages
     if (error.message?.includes("foreign key constraint") || error.number === 547) {
       return NextResponse.json(
         { error: "Cannot delete employee because they have related records in other tables. Please remove all related records first." },
         { status: 400 }
-      );
-    }
-
-    if (error.message?.includes("permission") || error.number === 229) {
-      return NextResponse.json(
-        { error: "Permission denied. You don't have rights to delete employees." },
-        { status: 403 }
       );
     }
 

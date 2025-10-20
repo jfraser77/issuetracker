@@ -392,20 +392,23 @@ export default function ITAssetsPage() {
   );
 
   const dynamicStats = [
-    {
-      icon: ComputerDesktopIcon,
-      value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
-      label: "Available Laptops",
-      color: "text-green-500",
-    },
-    {
-      icon: ArrowPathIcon,
-      value: terminationStats.pendingReturns,
-      label: "Pending Returns",
-      color: "text-red-500",
-      link: "/management-portal/terminations",
-    },
-  ];
+  {
+    icon: ComputerDesktopIcon,
+    value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
+    label: "Available Laptops",
+    color: "text-green-500",
+  },
+  {
+    icon: ArrowPathIcon,
+    value: terminationStats.pendingReturns,
+    label: "Pending Returns",
+    color: "text-red-500",
+    link: "/management-portal/terminations",
+    subtitle: terminationStats.overdueReturns > 0 
+      ? `${terminationStats.overdueReturns} overdue` 
+      : undefined
+  },
+];
 
   // Separate current user's inventory from other users
   const currentUserInventory = itStaff.find(

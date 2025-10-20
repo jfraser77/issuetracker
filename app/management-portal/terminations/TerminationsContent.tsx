@@ -301,73 +301,115 @@ export default function TerminationsContent() {
   };
 
   const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
-    try {
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
+  try {
+    const response = await fetch(`/api/terminations/${terminationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
 
-      if (response.ok) {
-        fetchTerminations();
-      }
-    } catch (error) {
-      console.error("Error updating termination:", error);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || "Failed to update termination");
+    }
+
+    // Only refresh if the update was successful
+    fetchTerminations();
+  } catch (error) {
+    console.error("Error updating termination:", error);
+    alert("Failed to update termination. Please try again.");
+    // Refresh to get the correct state from server
+    fetchTerminations();
+  }
+};
 
   const updateChecklistItem = async (terminationId: number, itemId: string, updates: Partial<ChecklistItem>) => {
-    try {
-      const termination = terminations.find(t => t.id === terminationId);
-      if (!termination?.checklist) return;
+  try {
+    const termination = terminations.find(t => t.id === terminationId);
+    if (!termination?.checklist) return;
 
-      const updatedChecklist = termination.checklist.map(item =>
-        item.id === itemId ? { ...item, ...updates } : item
-      );
+    const updatedChecklist = termination.checklist.map(item =>
+      item.id === itemId ? { ...item, ...updates } : item
+    );
 
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error updating checklist item:", error);
-    }
-  };
+    // Update local state immediately for better UX
+    setTerminations(prev => prev.map(t => 
+      t.id === terminationId ? { ...t, checklist: updatedChecklist } : t
+    ));
+
+    // Update in database
+    await updateTermination(terminationId, { checklist: updatedChecklist });
+  } catch (error) {
+    console.error("Error updating checklist item:", error);
+    // Revert local state on error
+    fetchTerminations();
+  }
+};
 
   const addChecklistItem = async (terminationId: number) => {
-    if (!newChecklistItem.category || !newChecklistItem.description) {
-      alert("Please enter both category and description");
-      return;
-    }
+  if (!newChecklistItem.category.trim() || !newChecklistItem.description.trim()) {
+    alert("Please enter both category and description");
+    return;
+  }
 
-    try {
-      const termination = terminations.find(t => t.id === terminationId);
-      if (!termination?.checklist) return;
+  try {
+    const termination = terminations.find(t => t.id === terminationId);
+    if (!termination?.checklist) return;
 
-      const newItem: ChecklistItem = {
-        id: Date.now().toString(),
-        category: newChecklistItem.category,
-        description: newChecklistItem.description,
-        completed: false
-      };
+    const newItem: ChecklistItem = {
+      id: `custom-${Date.now()}`,
+      category: newChecklistItem.category.trim(),
+      description: newChecklistItem.description.trim(),
+      completed: false
+    };
 
-      const updatedChecklist = [...termination.checklist, newItem];
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-      
-      setNewChecklistItem({ category: "", description: "" });
-    } catch (error) {
-      console.error("Error adding checklist item:", error);
-    }
-  };
+    const updatedChecklist = [...termination.checklist, newItem];
+    
+    // Update local state immediately
+    setTerminations(prev => prev.map(t => 
+      t.id === terminationId ? { ...t, checklist: updatedChecklist } : t
+    ));
+    
+    // Update in database
+    await updateTermination(terminationId, { checklist: updatedChecklist });
+    
+    // Clear the form
+    setNewChecklistItem({ category: "", description: "" });
+  } catch (error) {
+    console.error("Error adding checklist item:", error);
+    fetchTerminations(); // Refresh on error
+  }
+};
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
-    try {
-      const termination = terminations.find(t => t.id === terminationId);
-      if (!termination?.checklist) return;
+  if (!confirm("Are you sure you want to remove this checklist item?")) {
+    return;
+  }
 
-      const updatedChecklist = termination.checklist.filter(item => item.id !== itemId);
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error removing checklist item:", error);
-    }
+  try {
+    const termination = terminations.find(t => t.id === terminationId);
+    if (!termination?.checklist) return;
+
+    const updatedChecklist = termination.checklist.filter(item => item.id !== itemId);
+    
+    // Update local state immediately
+    setTerminations(prev => prev.map(t => 
+      t.id === terminationId ? { ...t, checklist: updatedChecklist } : t
+    ));
+    
+    // Update in database
+    await updateTermination(terminationId, { checklist: updatedChecklist });
+  } catch (error) {
+    console.error("Error removing checklist item:", error);
+    fetchTerminations(); // Refresh on error
   };
+};
+
 
   const markEquipmentReturned = async (terminationId: number, trackingNumber: string, equipmentDisposition: string) => {
     try {

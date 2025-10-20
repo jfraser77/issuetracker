@@ -6,18 +6,21 @@ export async function GET() {
   try {
     const pool = await connectToDatabase();
     
-    // Count pending terminations (status = 'pending' and not overdue)
+    // Get both total pending and overdue counts
     const result = await pool.request().query(`
-      SELECT COUNT(*) as pendingReturns 
+      SELECT 
+        COUNT(*) as pendingReturns,
+        SUM(CASE WHEN DATEDIFF(day, terminationDate, GETDATE()) > 30 THEN 1 ELSE 0 END) as overdueReturns
       FROM Terminations 
-      WHERE status = 'pending' 
-      AND DATEDIFF(day, terminationDate, GETDATE()) <= 30
+      WHERE status = 'pending'
     `);
 
     const pendingReturns = result.recordset[0]?.pendingReturns || 0;
+    const overdueReturns = result.recordset[0]?.overdueReturns || 0;
 
     return NextResponse.json({
-      pendingReturns
+      pendingReturns,
+      overdueReturns
     });
   } catch (error) {
     console.error("Error fetching termination stats:", error);

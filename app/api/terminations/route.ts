@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../lib/db";
+import sql from "mssql";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,14 @@ export async function GET(request: NextRequest) {
     query += " ORDER BY t.terminationDate DESC";
 
     const result = await pool.request().query(query);
-    return NextResponse.json(result.recordset);
+    
+    // Parse checklist JSON if it exists
+    const terminations = result.recordset.map(termination => ({
+      ...termination,
+      checklist: termination.checklist ? JSON.parse(termination.checklist) : []
+    }));
+
+    return NextResponse.json(terminations);
   } catch (error) {
     console.error("Error fetching terminations:", error);
     return NextResponse.json({ error: "Failed to fetch terminations" }, { status: 500 });
@@ -49,21 +57,29 @@ export async function POST(request: NextRequest) {
       .input('terminationReason', terminationData.terminationReason)
       .input('initiatedBy', terminationData.initiatedBy)
       .input('equipmentDisposition', terminationData.equipmentDisposition)
+      .input('checklist', sql.NVarChar, JSON.stringify(terminationData.checklist || []))
       .query(`
-          INSERT INTO Terminations (
-    employeeName, employeeEmail, jobTitle, department, terminationDate, 
-    terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist
-  ) 
-  OUTPUT INSERTED.*
-  VALUES (
-    @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
-    @terminationReason, @initiatedBy, @equipmentDisposition,
-    '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
-    @checklist
-  )
-`);
+        INSERT INTO Terminations (
+          employeeName, employeeEmail, jobTitle, department, terminationDate, 
+          terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist
+        ) 
+        OUTPUT INSERTED.*
+        VALUES (
+          @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
+          @terminationReason, @initiatedBy, @equipmentDisposition,
+          '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
+          @checklist
+        )
+      `);
 
-    return NextResponse.json(result.recordset[0]);
+    const createdTermination = result.recordset[0];
+    // Parse the checklist back to JSON for the response
+    const responseTermination = {
+      ...createdTermination,
+      checklist: createdTermination.checklist ? JSON.parse(createdTermination.checklist) : []
+    };
+
+    return NextResponse.json(responseTermination);
   } catch (error) {
     console.error("Error creating termination:", error);
     return NextResponse.json({ error: "Failed to create termination" }, { status: 500 });

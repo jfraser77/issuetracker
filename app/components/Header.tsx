@@ -50,26 +50,26 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
               </svg>
             </button>
             
-            <SearchEmployees
+            {/* <SearchEmployees
               onEmployeeSelect={handleEmployeeSelect}
               placeholder="Search employees, departments, job titles..."
               className="max-w-2xl"
               showStatus={true}
-            />
+            /> */}
           </div>
 
           {/* Right side - User actions */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            <button className="p-2 text-gray-400 hover:text-gray-500 relative">
+            {/* <button className="p-2 text-gray-400 hover:text-gray-500 relative">
               <BellIcon className="h-6 w-6" />
               <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            </button>
+            </button> */}
 
             {/* Settings */}
-            <button className="p-2 text-gray-400 hover:text-gray-500">
+            {/* <button className="p-2 text-gray-400 hover:text-gray-500">
               <CogIcon className="h-6 w-6" />
-            </button>
+            </button> */}
 
             {/* User profile */}
             <div className="flex items-center space-x-3">
