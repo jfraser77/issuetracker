@@ -1,41 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "../../../../lib/db";
-import sql from "mssql";
+import { connectToDatabase } from "../../../lib/db";
+import { CreateNewEmployee } from "../../../types/employee";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
+export async function GET() {
+  try {
+    const pool = await connectToDatabase();
+    const result = await pool.request().query(`
+      SELECT * FROM Employees 
+      ORDER BY timestamp DESC
+    `);
+
+    // Transform the data to match your frontend expectations
+    const employees = result.recordset.map(employee => ({
+      ...employee,
+      firstName: employee.name.split(' ')[0] || '', // Extract first name
+      lastName: employee.name.split(' ').slice(1).join(' ') || '', // Extract last name
+    }));
+
+    return NextResponse.json(employees);
+  } catch (error: any) {
+    console.error("Error fetching employees:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch employees", details: error.message },
+      { status: 500 }
+    );
+  }
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest) {
+  console.log("🔵 POST /api/employees called");
+
   try {
-    const { id } = await context.params;
-    const pool = await connectToDatabase();
+    const employeeData = await request.json();
+    console.log("Received employee data:", employeeData);
 
-    const result = await pool
-      .request()
-      .input("id", sql.Int, parseInt(id))
-      .query("SELECT * FROM Employees WHERE id = @id");
-
-    if (result.recordset.length === 0) {
+    // Validate required fields - accept both firstName/lastName and name
+    const hasFirstNameLastName = employeeData.firstName && employeeData.lastName;
+    const hasFullName = employeeData.name;
+    
+    if ((!hasFirstNameLastName && !hasFullName) || !employeeData.jobTitle || !employeeData.startDate) {
+      console.log("❌ Validation failed: Missing required fields");
       return NextResponse.json(
-        { error: "Employee not found" },
-        { status: 404 }
+        { error: "Name (or First/Last Name), Job Title, and Start Date are required" },
+        { status: 400 }
       );
     }
 
-    const employee = result.recordset[0];
-    // Transform to include firstName and lastName for frontend compatibility
-    const transformedEmployee = {
-      ...employee,
-      firstName: employee.name?.split(' ')[0] || '',
-      lastName: employee.name?.split(' ').slice(1).join(' ') || '',
+    // Build the name field from firstName/lastName or use the name field
+    const name = hasFirstNameLastName 
+      ? `${employeeData.firstName} ${employeeData.lastName}`.trim()
+      : employeeData.name;
+
+    console.log("🔄 Attempting database connection...");
+    const pool = await connectToDatabase();
+    console.log("✅ Database connected, executing query...");
+
+    const result = await pool
+      .request()
+      .input("name", name)
+      .input("jobTitle", employeeData.jobTitle)
+      .input("startDate", employeeData.startDate)
+      .input("currentManager", employeeData.currentManager || "")
+      .input("directorRegionalDirector", employeeData.directorRegionalDirector || "")
+      .query(`
+        INSERT INTO Employees (name, jobTitle, startDate, currentManager, directorRegionalDirector)
+        OUTPUT INSERTED.*
+        VALUES (@name, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
+      `);
+
+    console.log("✅ Employee created successfully:", result.recordset[0]);
+    
+    // Transform the response to include firstName and lastName
+    const createdEmployee = result.recordset[0];
+    const responseEmployee = {
+      ...createdEmployee,
+      firstName: createdEmployee.name.split(' ')[0] || '',
+      lastName: createdEmployee.name.split(' ').slice(1).join(' ') || '',
     };
 
-    return NextResponse.json(transformedEmployee);
-  } catch (error) {
-    console.error("Error fetching employee:", error);
+    return NextResponse.json(responseEmployee, { status: 201 });
+  } catch (error: any) {
+    console.error("❌ Error creating employee:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to create employee", details: error.message },
       { status: 500 }
     );
   }
@@ -97,7 +144,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 }
 
-// DELETE function remains the same as your current code
+// DELETE function
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;

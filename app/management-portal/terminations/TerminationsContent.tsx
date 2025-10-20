@@ -236,25 +236,26 @@ export default function TerminationsContent() {
   };
 
   const fetchTerminations = async () => {
-    try {
-      const url = filter ? `/api/terminations?filter=${filter}` : '/api/terminations';
-      const response = await fetch(url);
-      if (response.ok) {
-        const terminationsData = await response.json();
-        // Ensure each termination has the checklist
-        const terminationsWithChecklist = terminationsData.map((t: Termination) => ({ 
-          ...t, 
-          isExpanded: false,
-          checklist: t.checklist || defaultChecklist
-        }));
-        setTerminations(terminationsWithChecklist);
-      }
-    } catch (error) {
-      console.error("Error fetching terminations:", error);
-    } finally {
-      setLoading(false);
+  try {
+    const url = filter ? `/api/terminations?filter=${filter}` : '/api/terminations';
+    const response = await fetch(url);
+    if (response.ok) {
+      const terminationsData = await response.json();
+      // Ensure each termination has the checklist - FIXED
+      const terminationsWithChecklist = terminationsData.map((t: Termination) => ({ 
+        ...t, 
+        isExpanded: false,
+        // Use default checklist if no checklist exists OR if checklist is empty
+        checklist: (t.checklist && t.checklist.length > 0) ? t.checklist : [...defaultChecklist]
+      }));
+      setTerminations(terminationsWithChecklist);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching terminations:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const toggleTerminationExpanded = (terminationId: number) => {
     setTerminations(prev => prev.map(t => 

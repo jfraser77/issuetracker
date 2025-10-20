@@ -28,17 +28,22 @@ export interface OnboardingItem {
 }
 
 export interface CreateNewEmployee {
-  firstName: string;
-  lastName: string;
+  // Support both formats
+  name?: string;
+  firstName?: string;
+  lastName?: string;
   jobTitle: string;
   startDate: string;
-  currentManager: string;
-  directorRegionalDirector: string;
+  currentManager?: string;
+  directorRegionalDirector?: string;
 }
 
 export interface NewEmployee extends CreateNewEmployee {
   id: number;
   timestamp: string;
+  // Ensure these are always present in responses
+  firstName: string;
+  lastName: string;
 }
 
 export interface TerminationItem {
