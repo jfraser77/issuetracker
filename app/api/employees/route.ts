@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "../../../lib/db";
-import { CreateNewEmployee } from "../../../types/employee";
+import { connectToDatabase } from "@/lib/db";
+import { CreateNewEmployee } from "@/app/types/index";
 
 export async function GET() {
   try {
