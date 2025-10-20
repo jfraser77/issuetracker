@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/app/hooks/useUser"; 
 
 interface User {
   id: number;
@@ -50,7 +51,7 @@ interface TerminationStats {
 
 export default function ITAssetsPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user: currentUser, loading: userLoading } = useUser(); 
   const [itStaff, setItStaff] = useState<ITStaffInventory[]>([]);
   const [laptopOrders, setLaptopOrders] = useState<LaptopOrder[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -64,26 +65,30 @@ export default function ITAssetsPage() {
     notes: "",
   });
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
-  const [isClient, setIsClient] = useState(false);
+  
 
   // Check if user has access (Admin or I.T. roles only)
-  const hasAccess = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+ const hasAccess = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
-  // Fetch current user and data
+ 
+  // Fetch data only when user is loaded
   useEffect(() => {
-    setIsClient(true);
-    fetchData();
-  }, []);
+    if (!userLoading && currentUser) {
+      fetchData();
+    }
+  }, [userLoading, currentUser]);
 
-  // Redirect if no access
+  // Redirect if no access - only when we have user data
   useEffect(() => {
-    if (isClient && currentUser && !hasAccess) {
+    if (currentUser && !hasAccess) {
       router.push("/management-portal/dashboard");
     }
-  }, [currentUser, hasAccess, isClient, router]);
+  }, [currentUser, hasAccess, router]);
 
-  // Auto-archive old orders
+  // Auto-archive old orders - only when component is ready
   useEffect(() => {
+    if (!currentUser || !hasAccess) return;
+
     const archiveOldOrders = async () => {
       try {
         const response = await fetch("/api/it-assets/orders/archive", {
@@ -105,52 +110,70 @@ export default function ITAssetsPage() {
     archiveOldOrders();
     const interval = setInterval(archiveOldOrders, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUser, hasAccess]);
 
-  const fetchData = async () => {
+
+
+    const fetchData = async () => {
+    if (!currentUser) return;
+    
     try {
       setLoading(true);
 
-      // Fetch current user
-      const userResponse = await fetch("/api/auth/user");
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        setCurrentUser(userData);
-        setNewOrder((prev) => ({
-          ...prev,
-          orderedByUserId: userData.id.toString(),
-        }));
-      }
+      // Set new order user ID safely
+      setNewOrder((prev) => ({
+        ...prev,
+        orderedByUserId: currentUser.id.toString(),
+      }));
 
       // Fetch all users for the dropdown
-      const usersResponse = await fetch("/api/users");
-      if (usersResponse.ok) {
-        const usersData = await usersResponse.json();
-        setAllUsers(usersData);
+      try {
+        const usersResponse = await fetch("/api/users");
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          setAllUsers(usersData);
+        } else if (usersResponse.status === 401) {
+          console.warn("Unauthorized access to /api/users");
+          // Continue without users data
+        }
+      } catch (error) {
+        console.error("Error fetching users:", error);
       }
 
       // Fetch IT staff inventory
-      const inventoryResponse = await fetch("/api/it-assets/inventory");
-      if (inventoryResponse.ok) {
-        const inventoryData = await inventoryResponse.json();
-        setItStaff(inventoryData);
+      try {
+        const inventoryResponse = await fetch("/api/it-assets/inventory");
+        if (inventoryResponse.ok) {
+          const inventoryData = await inventoryResponse.json();
+          setItStaff(inventoryData);
+        }
+      } catch (error) {
+        console.error("Error fetching inventory:", error);
       }
 
       // Fetch active laptop orders (non-archived)
-      const ordersResponse = await fetch("/api/it-assets/orders?active=true");
-      if (ordersResponse.ok) {
-        const ordersData = await ordersResponse.json();
-        setLaptopOrders(ordersData);
+      try {
+        const ordersResponse = await fetch("/api/it-assets/orders?active=true");
+        if (ordersResponse.ok) {
+          const ordersData = await ordersResponse.json();
+          setLaptopOrders(ordersData);
+        }
+      } catch (error) {
+        console.error("Error fetching orders:", error);
       }
 
       // Fetch termination stats for pending returns
-      const statsResponse = await fetch("/api/terminations/stats");
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setTerminationStats(statsData);
+      try {
+        const statsResponse = await fetch("/api/terminations/stats");
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setTerminationStats(statsData);
+        }
+      } catch (error) {
+        console.error("Error fetching termination stats:", error);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error in fetchData:", error);
     } finally {
       setLoading(false);
     }
@@ -391,29 +414,26 @@ export default function ITAssetsPage() {
     (order) => order.status !== "archived" && !order.isArchived
   );
 
-  const dynamicStats = [
-  {
-    icon: ComputerDesktopIcon,
-    value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
-    label: "Available Laptops",
-    color: "text-green-500",
-  },
-  {
-    icon: ArrowPathIcon,
-    value: terminationStats.pendingReturns,
-    label: "Pending Returns",
-    color: "text-red-500",
-    link: "/management-portal/terminations",
-    subtitle: terminationStats.overdueReturns > 0 
-      ? `${terminationStats.overdueReturns} overdue` 
-      : undefined
-  },
-];
+    const dynamicStats = [
+    {
+      icon: ComputerDesktopIcon,
+      value: itStaff.reduce((sum, staff) => sum + staff.availableLaptops, 0),
+      label: "Available Laptops",
+      color: "text-green-500",
+    },
+    {
+      icon: ArrowPathIcon,
+      value: terminationStats.pendingReturns,
+      label: "Pending Returns",
+      color: "text-red-500",
+      link: "/management-portal/terminations",
+    },
+  ];
 
   // Separate current user's inventory from other users
-  const currentUserInventory = itStaff.find(
-    (staff) => staff.userId === currentUser?.id
-  );
+  const currentUserInventory = currentUser 
+    ? itStaff.find((staff) => staff.userId === currentUser.id)
+    : null;
   const otherUsersInventory = itStaff.filter(
     (staff) => staff.userId !== currentUser?.id
   );
@@ -422,29 +442,45 @@ export default function ITAssetsPage() {
     0
   );
 
-  if (!isClient || loading) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
+  if (userLoading || loading) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-lg">Loading IT Assets...</div>
+    </div>
+  );
+}
 
-  // Show access denied message
-  if (!hasAccess) {
-    return (
-      <div className="flex justify-center items-center min-h-64">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Access Denied
-          </h2>
-          <p className="text-gray-600">
-            You don't have permission to access this page.
-          </p>
-        </div>
+// Check if user is authenticated
+if (!currentUser) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Authentication Required
+        </h2>
+        <p className="text-gray-600">
+          Please log in to access this page.
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+// Show access denied message
+if (!hasAccess) {
+  return (
+    <div className="flex justify-center items-center min-h-64">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          Access Denied
+        </h2>
+        <p className="text-gray-600">
+          You don't have permission to access this page.
+        </p>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div>

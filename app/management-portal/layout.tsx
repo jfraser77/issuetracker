@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import Sidebar from "@/app/components/Sidebar";
 import Header from "@/app/components/Header";
+
 
 interface User {
   id: number;
@@ -57,7 +59,8 @@ export default function ManagementPortalLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50" suppressHydrationWarning>
+    <ErrorBoundary>
+      <div className="flex h-screen bg-gray-50" suppressHydrationWarning>
       {/* Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <Sidebar user={currentUser} />
@@ -98,5 +101,8 @@ export default function ManagementPortalLayout({
         </main>
       </div>
     </div>
+
+    </ErrorBoundary>
+    
   );
 }
