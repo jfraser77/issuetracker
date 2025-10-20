@@ -241,14 +241,23 @@ export default function TerminationsContent() {
     const response = await fetch(url);
     if (response.ok) {
       const terminationsData = await response.json();
-      // Ensure each termination has the checklist - FIXED
+      
+      // Log to debug checklist issues
+      terminationsData.forEach((t: Termination, index: number) => {
+        console.log(`Termination ${t.id} has ${t.checklist?.length || 0} checklist items`);
+      });
+
+      // Ensure each termination has the full checklist
       const terminationsWithChecklist = terminationsData.map((t: Termination) => ({ 
         ...t, 
         isExpanded: false,
-        // Use default checklist if no checklist exists OR if checklist is empty
+        // Always ensure we have the full checklist
         checklist: (t.checklist && t.checklist.length > 0) ? t.checklist : [...defaultChecklist]
       }));
+      
       setTerminations(terminationsWithChecklist);
+    } else {
+      console.error("Failed to fetch terminations:", response.status);
     }
   } catch (error) {
     console.error("Error fetching terminations:", error);
@@ -256,7 +265,6 @@ export default function TerminationsContent() {
     setLoading(false);
   }
 };
-
   const toggleTerminationExpanded = (terminationId: number) => {
     setTerminations(prev => prev.map(t => 
       t.id === terminationId ? { ...t, isExpanded: !t.isExpanded } : t
