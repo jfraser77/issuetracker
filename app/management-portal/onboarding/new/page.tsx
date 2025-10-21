@@ -45,6 +45,9 @@ const NewEmployeePage = () => {
         return;
       }
 
+      // Debug: Log what we're about to send
+      console.log("📤 Sending data:", formData);
+
       // Send the data as-is (firstName, lastName, etc.)
       const response = await fetch("/api/employees", {
         method: "POST",
@@ -53,6 +56,9 @@ const NewEmployeePage = () => {
         },
         body: JSON.stringify(formData),
       });
+
+      // Debug: Log the response
+      console.log("📥 Response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json();

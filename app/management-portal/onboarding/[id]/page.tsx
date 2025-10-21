@@ -3,7 +3,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { PlusIcon, TrashIcon, ArrowLeftIcon, ChatBubbleLeftRightIcon, ChevronDownIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  TrashIcon,
+  ArrowLeftIcon,
+  ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
 
 interface TaskNote {
   content: string;
@@ -12,7 +19,7 @@ interface TaskNote {
 }
 
 interface TaskWithNotes {
-  status: "not begun" | "in progress" | "completed";
+  status: "not begun" | "in progress" | "completed" | "not applicable";
   notes: TaskNote[];
 }
 
@@ -36,32 +43,50 @@ export default function EmployeeOnboardingDetail() {
   const params = useParams();
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>({});
+  const [applicationStatus, setApplicationStatus] = useState<ApplicationStatus>(
+    {}
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-  const [newNotes, setNewNotes] = useState<{[key: string]: string}>({});
+  const [newNotes, setNewNotes] = useState<{ [key: string]: string }>({});
 
-  const systemApplications = {
-    "E-Tenet ID #": "not begun",
-    "New User Network Access Request - tenetone.com": "not begun",
-    "Tenet Portal & TENET/USPI email - tenetone.com": "not begun",
-    "Citrix / Citrix Explorer": "not begun",
-    "USPI Billing drive": "not begun",
-    "CSO Public drive": "not begun",
-    "NSN1 Public drive": "not begun",
-    "Microsoft 365 license (Outlook and Teams)": "not begun",
-    "DDL - Digital Deposit Log": "not begun",
-    "Scan Chart - Req icon to be added to the user Citrix Explorer Account": "not begun",
-    "Patient Refund Portal - Role Specific": "not begun",
-    "Learn share - USPI university": "not begun",
-    "ProVation - Center Specific": "not begun",
-    "EOM Tool - Role Specific": "not begun",
-    "Bank Access - Role Specific Managers and above": "not begun",
-    "ENVI - Billing Dept": "not begun",
-    "Nimble - Billing Dept": "not begun",
+  // System applications with proper TaskWithNotes structure
+  const systemApplications: ApplicationStatus = {
+    "E-Tenet ID #": { status: "not begun", notes: [] },
+    "New User Network Access Request - tenetone.com": {
+      status: "not begun",
+      notes: [],
+    },
+    "Tenet Portal & TENET/USPI email - tenetone.com": {
+      status: "not begun",
+      notes: [],
+    },
+    "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
+    "USPI Billing drive": { status: "not begun", notes: [] },
+    "CSO Public drive": { status: "not begun", notes: [] },
+    "NSN1 Public drive": { status: "not begun", notes: [] },
+    "Microsoft 365 license (Outlook and Teams)": {
+      status: "not begun",
+      notes: [],
+    },
+    "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
+    "Scan Chart - Req icon to be added to the user Citrix Explorer Account": {
+      status: "not begun",
+      notes: [],
+    },
+    "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
+    "Learn share - USPI university": { status: "not begun", notes: [] },
+    "ProVation - Center Specific": { status: "not begun", notes: [] },
+    "EOM Tool - Role Specific": { status: "not begun", notes: [] },
+    "Bank Access - Role Specific Managers and above": {
+      status: "not begun",
+      notes: [],
+    },
+    "ENVI - Billing Dept": { status: "not begun", notes: [] },
+    "Nimble - Billing Dept": { status: "not begun", notes: [] },
   };
 
   useEffect(() => {
@@ -81,20 +106,27 @@ export default function EmployeeOnboardingDetail() {
       const statusResponse = await fetch(`/api/employees/${params.id}/status`);
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-        setApplicationStatus(statusData);
+
+        // Merge system applications with saved status data
+        // This ensures custom tasks are preserved
+        const mergedStatus: ApplicationStatus = { ...systemApplications };
+
+        // Override with saved data (including custom tasks)
+        if (statusData && typeof statusData === "object") {
+          Object.keys(statusData).forEach((key) => {
+            mergedStatus[key] = statusData[key];
+          });
+        }
+
+        setApplicationStatus(mergedStatus);
       } else {
-        // Initialize with default statuses if no status exists
-        const initialStatus: ApplicationStatus = {};
-        Object.entries(systemApplications).forEach(([app, status]) => {
-          initialStatus[app] = {
-            status: status as "not begun" | "in progress" | "completed",
-            notes: []
-          };
-        });
-        setApplicationStatus(initialStatus);
+        // Use system applications as default
+        setApplicationStatus(systemApplications);
       }
     } catch (error) {
       console.error("Error fetching employee data:", error);
+      // Fallback to system applications
+      setApplicationStatus(systemApplications);
     } finally {
       setLoading(false);
     }
@@ -102,41 +134,80 @@ export default function EmployeeOnboardingDetail() {
 
   const updateApplicationStatus = (
     appName: string,
-    status: "not begun" | "in progress" | "completed"
+    status: "not begun" | "in progress" | "completed" | "not applicable"
   ) => {
     setApplicationStatus((prev) => ({
       ...prev,
       [appName]: {
         ...prev[appName],
-        status
+        status,
       },
     }));
   };
 
-  const addCustomTask = () => {
+  const addCustomTask = async () => {
     if (newTaskName.trim()) {
+      const taskName = newTaskName.trim();
+
+      // Update local state immediately
       setApplicationStatus((prev) => ({
         ...prev,
-        [newTaskName.trim()]: {
+        [taskName]: {
           status: "not begun",
-          notes: []
+          notes: [],
         },
       }));
+
+      // Save to database
+      await saveStatusToDatabase({
+        ...applicationStatus,
+        [taskName]: {
+          status: "not begun",
+          notes: [],
+        },
+      });
+
       setNewTaskName("");
       setShowAddTask(false);
     }
   };
 
-  const removeCustomTask = (taskName: string) => {
+  const removeCustomTask = async (taskName: string) => {
+    // Update local state
     setApplicationStatus((prev) => {
       const newStatus = { ...prev };
       delete newStatus[taskName];
       return newStatus;
     });
+
+    // Save to database
+    const updatedStatus = { ...applicationStatus };
+    delete updatedStatus[taskName];
+    await saveStatusToDatabase(updatedStatus);
+  };
+
+  // Helper function to save status to database
+  const saveStatusToDatabase = async (statusData: ApplicationStatus) => {
+    try {
+      const response = await fetch(`/api/employees/${params.id}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(statusData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save status");
+      }
+    } catch (error) {
+      console.error("Error saving status:", error);
+      throw error;
+    }
   };
 
   const toggleTaskExpanded = (taskName: string) => {
-    setExpandedTasks(prev => {
+    setExpandedTasks((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(taskName)) {
         newSet.delete(taskName);
@@ -147,71 +218,79 @@ export default function EmployeeOnboardingDetail() {
     });
   };
 
-  const addNoteToTask = (taskName: string) => {
+  const addNoteToTask = async (taskName: string) => {
     const noteContent = newNotes[taskName]?.trim();
     if (!noteContent) return;
 
     const newNote: TaskNote = {
       content: noteContent,
       timestamp: new Date().toISOString(),
-      author: "Current User" // In a real app, this would come from auth context
+      author: "Current User",
     };
 
-    setApplicationStatus(prev => ({
-      ...prev,
+    // Update local state
+    const updatedStatus = {
+      ...applicationStatus,
       [taskName]: {
-        ...prev[taskName],
-        notes: [...(prev[taskName]?.notes || []), newNote]
-      }
-    }));
+        ...applicationStatus[taskName],
+        notes: [...(applicationStatus[taskName]?.notes || []), newNote],
+      },
+    };
+
+    setApplicationStatus(updatedStatus);
+
+    // Save to database
+    await saveStatusToDatabase(updatedStatus);
 
     // Clear the input
-    setNewNotes(prev => ({
+    setNewNotes((prev) => ({
       ...prev,
-      [taskName]: ""
+      [taskName]: "",
     }));
   };
 
-  const removeNoteFromTask = (taskName: string, noteIndex: number) => {
-    setApplicationStatus(prev => ({
-      ...prev,
+  const removeNoteFromTask = async (taskName: string, noteIndex: number) => {
+    // Update local state
+    const updatedStatus = {
+      ...applicationStatus,
       [taskName]: {
-        ...prev[taskName],
-        notes: prev[taskName].notes.filter((_, index) => index !== noteIndex)
-      }
-    }));
+        ...applicationStatus[taskName],
+        notes: applicationStatus[taskName].notes.filter(
+          (_, index) => index !== noteIndex
+        ),
+      },
+    };
+
+    setApplicationStatus(updatedStatus);
+
+    // Save to database
+    await saveStatusToDatabase(updatedStatus);
   };
 
   const markOnboardingComplete = async () => {
-    if (!confirm("Mark this employee's onboarding as complete? This will archive their onboarding process.")) {
+    if (
+      !confirm(
+        "Mark this employee's onboarding as complete? This will archive their onboarding process."
+      )
+    ) {
       return;
     }
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/employees/${params.id}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...applicationStatus,
-          _employeeStatus: "completed"
-        }),
+      // First save the current status
+      await saveStatusToDatabase(applicationStatus);
+
+      // Then update employee status to completed
+      await fetch(`/api/employees/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
       });
 
-      if (response.ok) {
-        // Update employee status to completed
-        await fetch(`/api/employees/${params.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed" }),
-        });
-
-        alert("Onboarding marked as complete!");
-        router.push("/management-portal/onboarding");
-        router.refresh();
-      }
+      alert("Onboarding marked as complete!");
+      router.push("/management-portal/onboarding");
+      router.refresh();
     } catch (error) {
       console.error("Error completing onboarding:", error);
       alert("Failed to mark as complete. Please try again.");
@@ -223,20 +302,9 @@ export default function EmployeeOnboardingDetail() {
   const saveAllChanges = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`/api/employees/${params.id}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(applicationStatus),
-      });
-
-      if (response.ok) {
-        alert("Status and notes updated successfully!");
-        router.refresh();
-      } else {
-        throw new Error("Failed to save status");
-      }
+      await saveStatusToDatabase(applicationStatus);
+      alert("Status and notes updated successfully!");
+      router.refresh();
     } catch (error) {
       console.error("Error saving status:", error);
       alert("Failed to save changes. Please try again.");
@@ -253,24 +321,26 @@ export default function EmployeeOnboardingDetail() {
         return "bg-yellow-100 text-yellow-800";
       case "completed":
         return "bg-green-100 text-green-800";
+      case "not applicable":
+        return "bg-purple-100 text-purple-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
   };
 
   const calculateProgress = () => {
-  // Filter out "not applicable" tasks
-  const applicableTasks = Object.values(applicationStatus).filter(
-    task => task.status !== "not applicable"
-  );
-  
-  const totalApps = applicableTasks.length;
-  const completedApps = applicableTasks.filter(
-    (task) => task.status === "completed"
-  ).length;
-  
-  return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
-};
+    // Filter out "not applicable" tasks
+    const applicableTasks = Object.values(applicationStatus).filter(
+      (task) => task.status !== "not applicable"
+    );
+
+    const totalApps = applicableTasks.length;
+    const completedApps = applicableTasks.filter(
+      (task) => task.status === "completed"
+    ).length;
+
+    return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
+  };
 
   const isCustomTask = (taskName: string) => {
     return !systemApplications.hasOwnProperty(taskName);
@@ -336,12 +406,12 @@ export default function EmployeeOnboardingDetail() {
             </h1>
             <p className="text-gray-600">{employee.jobTitle}</p>
             <p className="text-sm text-gray-500">
-              Start Date: {new Date(employee.startDate).toLocaleDateString()} | 
-              Added: {daysSinceAdded} day{daysSinceAdded !== 1 ? 's' : ''} ago
+              Start Date: {new Date(employee.startDate).toLocaleDateString()} |
+              Added: {daysSinceAdded} day{daysSinceAdded !== 1 ? "s" : ""} ago
             </p>
           </div>
         </div>
-        
+
         {employee.status === "active" && (
           <button
             onClick={markOnboardingComplete}
@@ -356,8 +426,12 @@ export default function EmployeeOnboardingDetail() {
       {/* Progress Card */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Onboarding Progress</h2>
-          <span className="text-sm font-medium text-gray-700">{progress}% Complete</span>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Onboarding Progress
+          </h2>
+          <span className="text-sm font-medium text-gray-700">
+            {progress}% Complete
+          </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
@@ -367,10 +441,19 @@ export default function EmployeeOnboardingDetail() {
         </div>
         <div className="flex justify-between text-sm text-gray-600 mt-2">
           <span>
-            {Object.values(applicationStatus).filter(task => task.status === "completed").length} of {Object.keys(applicationStatus).length} tasks completed
+            {
+              Object.values(applicationStatus).filter(
+                (task) => task.status === "completed"
+              ).length
+            }{" "}
+            of {Object.keys(applicationStatus).length} tasks completed
           </span>
-          <span className={daysSinceAdded >= 25 ? "text-amber-600 font-medium" : ""}>
-            {daysSinceAdded >= 25 ? `Will auto-archive in ${30 - daysSinceAdded} days` : ""}
+          <span
+            className={daysSinceAdded >= 25 ? "text-amber-600 font-medium" : ""}
+          >
+            {daysSinceAdded >= 25
+              ? `Will auto-archive in ${30 - daysSinceAdded} days`
+              : ""}
           </span>
         </div>
       </div>
@@ -393,7 +476,9 @@ export default function EmployeeOnboardingDetail() {
         {/* Add Task Form */}
         {showAddTask && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">Add Custom Task</h3>
+            <h3 className="text-sm font-medium text-blue-800 mb-2">
+              Add Custom Task
+            </h3>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -401,7 +486,7 @@ export default function EmployeeOnboardingDetail() {
                 onChange={(e) => setNewTaskName(e.target.value)}
                 placeholder="Enter task name..."
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                onKeyPress={(e) => e.key === 'Enter' && addCustomTask()}
+                onKeyPress={(e) => e.key === "Enter" && addCustomTask()}
               />
               <button
                 onClick={addCustomTask}
@@ -441,7 +526,7 @@ export default function EmployeeOnboardingDetail() {
                   </button>
                   <span className="text-sm text-gray-700 flex-1">{app}</span>
                   {isCustomTask(app) && (
-                    <TrashIcon 
+                    <TrashIcon
                       className="h-4 w-4 text-red-400 hover:text-red-600 cursor-pointer"
                       onClick={() => removeCustomTask(app)}
                       title="Remove custom task"
@@ -450,17 +535,17 @@ export default function EmployeeOnboardingDetail() {
                 </div>
                 <div className="flex items-center gap-3">
                   <select
-  value={task.status}
-  onChange={(e) =>
-    updateApplicationStatus(app, e.target.value as any)
-  }
-  className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
->
-  <option value="not begun">Not Begun</option>
-  <option value="in progress">In Progress</option>
-  <option value="completed">Completed</option>
-  <option value="not applicable">Not Applicable</option>
-</select>
+                    value={task.status}
+                    onChange={(e) =>
+                      updateApplicationStatus(app, e.target.value as any)
+                    }
+                    className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="not begun">Not Begun</option>
+                    <option value="in progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="not applicable">Not Applicable</option>
+                  </select>
                   <span
                     className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(
                       task.status
@@ -486,9 +571,14 @@ export default function EmployeeOnboardingDetail() {
                   {task.notes && task.notes.length > 0 ? (
                     <div className="space-y-2 mb-4">
                       {task.notes.map((note, index) => (
-                        <div key={index} className="bg-gray-50 rounded-lg p-3 text-sm">
+                        <div
+                          key={index}
+                          className="bg-gray-50 rounded-lg p-3 text-sm"
+                        >
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-gray-700">{note.content}</span>
+                            <span className="text-gray-700">
+                              {note.content}
+                            </span>
                             <button
                               onClick={() => removeNoteFromTask(app, index)}
                               className="text-red-400 hover:text-red-600 text-xs"
@@ -497,13 +587,16 @@ export default function EmployeeOnboardingDetail() {
                             </button>
                           </div>
                           <div className="text-xs text-gray-500">
-                            {note.author} • {formatNoteTimestamp(note.timestamp)}
+                            {note.author} •{" "}
+                            {formatNoteTimestamp(note.timestamp)}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 mb-4">No notes yet. Add the first note below.</p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      No notes yet. Add the first note below.
+                    </p>
                   )}
 
                   {/* Add Note Form */}
@@ -511,13 +604,17 @@ export default function EmployeeOnboardingDetail() {
                     <input
                       type="text"
                       value={newNotes[app] || ""}
-                      onChange={(e) => setNewNotes(prev => ({
-                        ...prev,
-                        [app]: e.target.value
-                      }))}
+                      onChange={(e) =>
+                        setNewNotes((prev) => ({
+                          ...prev,
+                          [app]: e.target.value,
+                        }))
+                      }
                       placeholder="Add a note..."
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      onKeyPress={(e) => e.key === 'Enter' && addNoteToTask(app)}
+                      onKeyPress={(e) =>
+                        e.key === "Enter" && addNoteToTask(app)
+                      }
                     />
                     <button
                       onClick={() => addNoteToTask(app)}
@@ -537,7 +634,9 @@ export default function EmployeeOnboardingDetail() {
         <div className="flex justify-between items-center pt-6 mt-6 border-t border-gray-200">
           <div className="text-sm text-gray-500">
             {employee.status === "completed" && (
-              <span className="text-green-600 font-medium">✓ Onboarding Completed</span>
+              <span className="text-green-600 font-medium">
+                ✓ Onboarding Completed
+              </span>
             )}
           </div>
           <div className="flex gap-3">

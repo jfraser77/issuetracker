@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDownIcon, ChevronRightIcon, PencilIcon, TrashIcon, PrinterIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  PencilIcon,
+  TrashIcon,
+  PrinterIcon,
+} from "@heroicons/react/24/outline";
 import SearchEmployees from "@/app/components/SearchEmployees";
 
 interface User {
@@ -60,28 +66,44 @@ export default function OnboardingPage() {
   const [itStaff, setItStaff] = useState<User[]>([]);
   const [isClient, setIsClient] = useState(false);
 
-  const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+  const isAdminOrIT =
+    currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
-  // System applications with initial status
-const systemApplications: ApplicationStatus = {
-  "E-Tenet ID #": { status: "not begun", notes: [] },
-  "New User Network Access Request - tenetone.com": { status: "not begun", notes: [] },
-  "Tenet Portal & TENET/USPI email - tenetone.com": { status: "not begun", notes: [] },
-  "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
-  "USPI Billing drive": { status: "not begun", notes: [] },
-  "CSO Public drive": { status: "not begun", notes: [] },
-  "NSN1 Public drive": { status: "not begun", notes: [] },
-  "Microsoft 365 license (Outlook and Teams)": { status: "not begun", notes: [] },
-  "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
-  "Scan Chart - Req icon to be added to the user Citrix Explorer Account": { status: "not begun", notes: [] },
-  "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
-  "Learn share - USPI university": { status: "not begun", notes: [] },
-  "ProVation - Center Specific": { status: "not begun", notes: [] },
-  "EOM Tool - Role Specific": { status: "not begun", notes: [] },
-  "Bank Access - Role Specific Managers and above": { status: "not begun", notes: [] },
-  "ENVI - Billing Dept": { status: "not begun", notes: [] },
-  "Nimble - Billing Dept": { status: "not begun", notes: [] },
-};
+  // System applications with initial status - used as fallback only
+  const systemApplications: ApplicationStatus = {
+    "E-Tenet ID #": { status: "not begun", notes: [] },
+    "New User Network Access Request - tenetone.com": {
+      status: "not begun",
+      notes: [],
+    },
+    "Tenet Portal & TENET/USPI email - tenetone.com": {
+      status: "not begun",
+      notes: [],
+    },
+    "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
+    "USPI Billing drive": { status: "not begun", notes: [] },
+    "CSO Public drive": { status: "not begun", notes: [] },
+    "NSN1 Public drive": { status: "not begun", notes: [] },
+    "Microsoft 365 license (Outlook and Teams)": {
+      status: "not begun",
+      notes: [],
+    },
+    "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
+    "Scan Chart - Req icon to be added to the user Citrix Explorer Account": {
+      status: "not begun",
+      notes: [],
+    },
+    "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
+    "Learn share - USPI university": { status: "not begun", notes: [] },
+    "ProVation - Center Specific": { status: "not begun", notes: [] },
+    "EOM Tool - Role Specific": { status: "not begun", notes: [] },
+    "Bank Access - Role Specific Managers and above": {
+      status: "not begun",
+      notes: [],
+    },
+    "ENVI - Billing Dept": { status: "not begun", notes: [] },
+    "Nimble - Billing Dept": { status: "not begun", notes: [] },
+  };
 
   useEffect(() => {
     setIsClient(true);
@@ -134,24 +156,42 @@ const systemApplications: ApplicationStatus = {
                 `/api/employees/${employee.id}/it-assignment`
               );
 
-              const applicationStatus = statusResponse.ok ? await statusResponse.json() : systemApplications;
-              const itStaffAssignment = itStaffResponse.ok ? await itStaffResponse.json() : { status: "not assigned" };
+              // Use the actual status data from API, don't fallback to systemApplications
+              let applicationStatus: ApplicationStatus = {};
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                // Only use the data if it's a valid object with content
+                if (
+                  statusData &&
+                  typeof statusData === "object" &&
+                  Object.keys(statusData).length > 0
+                ) {
+                  applicationStatus = statusData;
+                }
+              }
 
-              return { 
-                ...employee, 
+              const itStaffAssignment = itStaffResponse.ok
+                ? await itStaffResponse.json()
+                : { status: "not assigned" };
+
+              return {
+                ...employee,
                 applicationStatus,
                 itStaffAssignment,
-                isExpanded: false
+                isExpanded: false,
               };
             } catch (error) {
-              console.error(`Error fetching data for employee ${employee.id}:`, error);
+              console.error(
+                `Error fetching data for employee ${employee.id}:`,
+                error
+              );
+              return {
+                ...employee,
+                applicationStatus: {},
+                itStaffAssignment: { status: "not assigned" },
+                isExpanded: false,
+              };
             }
-            return { 
-              ...employee, 
-              applicationStatus: systemApplications,
-              itStaffAssignment: { status: "not assigned" },
-              isExpanded: false
-            };
           })
         );
 
@@ -165,18 +205,26 @@ const systemApplications: ApplicationStatus = {
   };
 
   const toggleEmployeeExpanded = (employeeId: number) => {
-    setEmployees(prev => prev.map(emp => 
-      emp.id === employeeId ? { ...emp, isExpanded: !emp.isExpanded } : emp
-    ));
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId ? { ...emp, isExpanded: !emp.isExpanded } : emp
+      )
+    );
   };
 
-  const updateITAssignment = async (employeeId: number, assignment: ITStaffAssignment) => {
+  const updateITAssignment = async (
+    employeeId: number,
+    assignment: ITStaffAssignment
+  ) => {
     try {
-      const response = await fetch(`/api/employees/${employeeId}/it-assignment`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(assignment),
-      });
+      const response = await fetch(
+        `/api/employees/${employeeId}/it-assignment`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(assignment),
+        }
+      );
 
       if (response.ok) {
         fetchEmployeesWithStatus(); // Refresh data
@@ -186,92 +234,114 @@ const systemApplications: ApplicationStatus = {
     }
   };
 
-  const updateApplicationStatus = async (employeeId: number, appName: string, status: "not begun" | "in progress" | "completed" | "not applicable") => {
-  try {
-    const employee = employees.find(emp => emp.id === employeeId);
-    if (!employee) return;
+  const updateApplicationStatus = async (
+    employeeId: number,
+    appName: string,
+    status: "not begun" | "in progress" | "completed" | "not applicable"
+  ) => {
+    try {
+      const employee = employees.find((emp) => emp.id === employeeId);
+      if (!employee) return;
 
-    // Update local state
-    setEmployees(prev => prev.map(emp => 
-      emp.id === employeeId 
-        ? {
-            ...emp,
-            applicationStatus: {
-              ...emp.applicationStatus,
-              [appName]: {
-                ...emp.applicationStatus?.[appName],
-                status
-              }
-            }
-          }
-        : emp
-    ));
+      // Get current application status from database to ensure we have all custom tasks
+      const currentStatusResponse = await fetch(
+        `/api/employees/${employeeId}/status`
+      );
+      let currentApplicationStatus: ApplicationStatus = {};
 
-    // Update in database
-    const updatedStatus = {
-      ...employee.applicationStatus,
-      [appName]: {
-        ...employee.applicationStatus?.[appName],
-        status
+      if (currentStatusResponse.ok) {
+        const statusData = await currentStatusResponse.json();
+        if (statusData && typeof statusData === "object") {
+          currentApplicationStatus = statusData;
+        }
       }
-    };
 
-    await fetch(`/api/employees/${employeeId}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedStatus),
-    });
+      // Update the specific application status
+      const updatedStatus = {
+        ...currentApplicationStatus,
+        [appName]: {
+          ...currentApplicationStatus[appName],
+          status,
+        },
+      };
 
-  } catch (error) {
-    console.error("Error updating application status:", error);
-  }
-};
+      // Update in database
+      await fetch(`/api/employees/${employeeId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedStatus),
+      });
 
-  const applyITAssignment = async (employeeId: number, assignment: ITStaffAssignment) => {
+      // Update local state
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === employeeId
+            ? {
+                ...emp,
+                applicationStatus: updatedStatus,
+              }
+            : emp
+        )
+      );
+    } catch (error) {
+      console.error("Error updating application status:", error);
+    }
+  };
+
+  const applyITAssignment = async (
+    employeeId: number,
+    assignment: ITStaffAssignment
+  ) => {
     if (assignment.status === "completed" && assignment.assignedToId) {
       // Reduce available laptops for the IT staff member
       try {
         await fetch("/api/it-assets/inventory", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            userId: assignment.assignedToId, 
-            change: -1 
+          body: JSON.stringify({
+            userId: assignment.assignedToId,
+            change: -1,
           }),
         });
       } catch (error) {
         console.error("Error updating inventory:", error);
       }
     }
-    
+
     await updateITAssignment(employeeId, assignment);
   };
 
   const deleteEmployee = async (employeeId: number) => {
-  if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/employees/${employeeId}`, {
-      method: "DELETE",
-    });
-
-    const responseData = await response.json();
-
-    if (response.ok) {
-      // Remove from local state immediately
-      setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
-      alert("Employee deleted successfully!");
-    } else {
-      console.error("Delete failed:", responseData);
-      alert(`Failed to delete employee: ${responseData.error || 'Unknown error'}`);
+    if (
+      !confirm(
+        "Are you sure you want to delete this employee? This action cannot be undone."
+      )
+    ) {
+      return;
     }
-  } catch (error) {
-    console.error("Error deleting employee:", error);
-    alert("Failed to delete employee. Please try again.");
-  }
-};
+
+    try {
+      const response = await fetch(`/api/employees/${employeeId}`, {
+        method: "DELETE",
+      });
+
+      const responseData = await response.json();
+
+      if (response.ok) {
+        // Remove from local state immediately
+        setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
+        alert("Employee deleted successfully!");
+      } else {
+        console.error("Delete failed:", responseData);
+        alert(
+          `Failed to delete employee: ${responseData.error || "Unknown error"}`
+        );
+      }
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      alert("Failed to delete employee. Please try again.");
+    }
+  };
 
   const checkCompletedEmployees = () => {
     const thirtyDaysAgo = new Date();
@@ -286,38 +356,42 @@ const systemApplications: ApplicationStatus = {
   };
 
   const getStatusColor = (status: string) => {
-  switch (status) {
-    case "not begun":
-    case "not assigned":
-      return "bg-gray-100 text-gray-800";
-    case "in progress":
-      return "bg-yellow-100 text-yellow-800";
-    case "on hold":
-      return "bg-orange-100 text-orange-800";
-    case "completed":
-      return "bg-green-100 text-green-800";
-    case "not applicable":
-      return "bg-purple-100 text-purple-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
+    switch (status) {
+      case "not begun":
+      case "not assigned":
+        return "bg-gray-100 text-gray-800";
+      case "in progress":
+        return "bg-yellow-100 text-yellow-800";
+      case "on hold":
+        return "bg-orange-100 text-orange-800";
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "not applicable":
+        return "bg-purple-100 text-purple-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
 
   const calculateOverallProgress = (employee: EmployeeWithStatus) => {
-  if (!employee.applicationStatus) return 0;
-  
-  // Filter out "not applicable" tasks from the calculation
-  const applicableTasks = Object.values(employee.applicationStatus).filter(
-    task => task.status !== "not applicable"
-  );
-  
-  const totalApps = applicableTasks.length;
-  const completedApps = applicableTasks.filter(
-    (task) => task.status === "completed"
-  ).length;
-  
-  return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
-};
+    if (
+      !employee.applicationStatus ||
+      Object.keys(employee.applicationStatus).length === 0
+    )
+      return 0;
+
+    // Filter out "not applicable" tasks from the calculation
+    const applicableTasks = Object.values(employee.applicationStatus).filter(
+      (task) => task.status !== "not applicable"
+    );
+
+    const totalApps = applicableTasks.length;
+    const completedApps = applicableTasks.filter(
+      (task) => task.status === "completed"
+    ).length;
+
+    return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
+  };
 
   const getDaysSinceAdded = (timestamp: string) => {
     const addedDate = new Date(timestamp);
@@ -331,129 +405,444 @@ const systemApplications: ApplicationStatus = {
   };
 
   const generatePrintReport = (employee: EmployeeWithStatus) => {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     const progress = calculateOverallProgress(employee);
-    const completedTasks = Object.entries(employee.applicationStatus || {})
-      .filter(([_, status]) => status === "completed")
+
+    // Get all tasks including custom ones
+    const allTasks = Object.entries(employee.applicationStatus || {});
+
+    const completedTasks = allTasks
+      .filter(([_, task]) => task.status === "completed")
       .map(([task]) => task);
-    
-    const pendingTasks = Object.entries(employee.applicationStatus || {})
-      .filter(([_, status]) => status !== "completed")
-      .map(([task, status]) => ({ task, status }));
+
+    const pendingTasks = allTasks
+      .filter(([_, task]) => task.status !== "completed")
+      .map(([task, taskData]) => ({
+        task,
+        status: taskData.status,
+        isCustom: !systemApplications.hasOwnProperty(task),
+      }));
+
+    const totalTasks = allTasks.length;
+    const completedCount = completedTasks.length;
+    const pendingCount = pendingTasks.length;
 
     const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Onboarding Report - ${employee.firstName} ${employee.lastName}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-          .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-          .header h1 { color: #2563eb; margin: 0; }
-          .section { margin-bottom: 30px; }
-          .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
-          .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-          .info-item { margin-bottom: 8px; }
-          .info-label { font-weight: bold; color: #6b7280; }
-          .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; }
-          .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; text-align: center; color: white; font-size: 12px; line-height: 20px; }
-          .task-list { margin: 15px 0; }
-          .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-          .completed { color: #059669; }
-          .pending { color: #d97706; }
-          .not-started { color: #6b7280; }
-          .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px; }
-          .completed-badge { background: #d1fae5; color: #065f46; }
-          .in-progress-badge { background: #fef3c7; color: #92400e; }
-          .not-started-badge { background: #f3f4f6; color: #374151; }
-          .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
-          @media print {
-            body { margin: 20px; }
-            .no-print { display: none; }
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Onboarding Report - ${employee.firstName} ${
+      employee.lastName
+    }</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          margin: 40px; 
+          color: #333; 
+          line-height: 1.4;
+        }
+        .header { 
+          border-bottom: 2px solid #2563eb; 
+          padding-bottom: 20px; 
+          margin-bottom: 30px; 
+        }
+        .header h1 { 
+          color: #2563eb; 
+          margin: 0; 
+          font-size: 28px;
+        }
+        .section { 
+          margin-bottom: 30px; 
+        }
+        .section h2 { 
+          color: #374151; 
+          border-bottom: 1px solid #e5e7eb; 
+          padding-bottom: 8px;
+          margin-bottom: 16px;
+        }
+        .employee-info { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          gap: 20px; 
+        }
+        .info-item { 
+          margin-bottom: 8px; 
+        }
+        .info-label { 
+          font-weight: bold; 
+          color: #6b7280; 
+          display: inline-block;
+          width: 180px;
+        }
+        .progress-bar { 
+          background: #e5e7eb; 
+          height: 24px; 
+          border-radius: 12px; 
+          margin: 15px 0; 
+          overflow: hidden;
+        }
+        .progress-fill { 
+          background: #2563eb; 
+          height: 100%; 
+          border-radius: 12px; 
+          text-align: center; 
+          color: white; 
+          font-size: 14px; 
+          line-height: 24px;
+          font-weight: bold;
+          transition: width 0.3s ease;
+        }
+        .task-list { 
+          margin: 15px 0; 
+        }
+        .task-item { 
+          padding: 10px 0; 
+          border-bottom: 1px solid #f3f4f6; 
+        }
+        .completed { 
+          color: #059669; 
+        }
+        .pending { 
+          color: #6b7280; 
+        }
+        .in-progress { 
+          color: #d97706; 
+        }
+        .not-applicable {
+          color: #7c3aed;
+        }
+        .status-badge { 
+          display: inline-block; 
+          padding: 4px 12px; 
+          border-radius: 12px; 
+          font-size: 12px; 
+          margin-left: 10px;
+          font-weight: 500;
+        }
+        .completed-badge { 
+          background: #d1fae5; 
+          color: #065f46; 
+        }
+        .in-progress-badge { 
+          background: #fef3c7; 
+          color: #92400e; 
+        }
+        .not-started-badge { 
+          background: #f3f4f6; 
+          color: #374151; 
+        }
+        .not-applicable-badge {
+          background: #e9d5ff;
+          color: #7c3aed;
+        }
+        .custom-task-indicator {
+          background: #dbeafe;
+          color: #1e40af;
+          padding: 2px 6px;
+          border-radius: 6px;
+          font-size: 10px;
+          margin-left: 8px;
+          font-weight: 500;
+        }
+        .print-date { 
+          text-align: right; 
+          color: #6b7280; 
+          font-size: 14px; 
+          margin-top: 30px; 
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin: 20px 0;
+        }
+        .stat-card {
+          background: #f8fafc;
+          padding: 16px;
+          border-radius: 8px;
+          text-align: center;
+          border: 1px solid #e2e8f0;
+        }
+        .stat-number {
+          font-size: 24px;
+          font-weight: bold;
+          color: #1e40af;
+          margin-bottom: 4px;
+        }
+        .stat-label {
+          font-size: 12px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .task-count {
+          font-size: 14px;
+          color: #6b7280;
+          margin: 10px 0;
+        }
+        .custom-task-section {
+          background: #f0f9ff;
+          padding: 15px;
+          border-radius: 8px;
+          margin: 20px 0;
+          border-left: 4px solid #3b82f6;
+        }
+        .custom-task-section h3 {
+          color: #1e40af;
+          margin: 0 0 10px 0;
+          font-size: 16px;
+        }
+        @media print {
+          body { 
+            margin: 20px; 
           }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Employee Onboarding Report</h1>
-          <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
-        </div>
+          .no-print { 
+            display: none; 
+          }
+          .section {
+            break-inside: avoid;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Employee Onboarding Report</h1>
+        <div class="print-date">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+      </div>
 
-        <div class="section">
-          <h2>Employee Information</h2>
-          <div class="employee-info">
-            <div>
-              <div class="info-item"><span class="info-label">Name:</span> ${employee.firstName} ${employee.lastName}</div>
-              <div class="info-item"><span class="info-label">Job Title:</span> ${employee.jobTitle}</div>
-              <div class="info-item"><span class="info-label">Start Date:</span> ${new Date(employee.startDate).toLocaleDateString()}</div>
+      <div class="section">
+        <h2>Employee Information</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Full Name:</span> ${
+              employee.firstName
+            } ${employee.lastName}</div>
+            <div class="info-item"><span class="info-label">Job Title:</span> ${
+              employee.jobTitle
+            }</div>
+            <div class="info-item"><span class="info-label">Start Date:</span> ${new Date(
+              employee.startDate
+            ).toLocaleDateString()}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Manager:</span> ${
+              employee.currentManager || "Not specified"
+            }</div>
+            <div class="info-item"><span class="info-label">Director:</span> ${
+              employee.directorRegionalDirector || "Not specified"
+            }</div>
+            <div class="info-item"><span class="info-label">Onboarding Status:</span> 
+              <span style="color: ${
+                employee.status === "completed"
+                  ? "#059669"
+                  : employee.status === "archived"
+                  ? "#6b7280"
+                  : "#3b82f6"
+              }; font-weight: 500; text-transform: capitalize;">
+                ${employee.status}
+              </span>
             </div>
-            <div>
-              <div class="info-item"><span class="info-label">Manager:</span> ${employee.currentManager || 'Not specified'}</div>
-              <div class="info-item"><span class="info-label">Director:</span> ${employee.directorRegionalDirector || 'Not specified'}</div>
-              <div class="info-item"><span class="info-label">Onboarding Status:</span> ${employee.status}</div>
-            </div>
           </div>
         </div>
+      </div>
 
-        <div class="section">
-          <h2>Onboarding Progress</h2>
-          <div>Overall Completion: ${progress}%</div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+      <div class="section">
+        <h2>Onboarding Progress</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${progress}%</div>
+            <div class="stat-label">Overall Progress</div>
           </div>
-          <div>Completed Tasks: ${completedTasks.length} of ${Object.keys(employee.applicationStatus || {}).length}</div>
-        </div>
-
-        <div class="section">
-          <h2>Completed Tasks</h2>
-          <div class="task-list">
-            ${completedTasks.length > 0 ? 
-              completedTasks.map(task => `<div class="task-item completed">✓ ${task}</div>`).join('') :
-              '<div class="task-item not-started">No tasks completed yet</div>'
-            }
+          <div class="stat-card">
+            <div class="stat-number">${completedCount}</div>
+            <div class="stat-label">Completed Tasks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalTasks}</div>
+            <div class="stat-label">Total Tasks</div>
           </div>
         </div>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+        </div>
+        
+        <div class="task-count">
+          ${completedCount} of ${totalTasks} tasks completed
+          ${pendingCount > 0 ? `(${pendingCount} pending)` : ""}
+        </div>
+      </div>
 
-        <div class="section">
-          <h2>Pending Tasks</h2>
-          <div class="task-list">
-            ${pendingTasks.length > 0 ? 
-              pendingTasks.map(({task, status}) => `
-                <div class="task-item pending">
+      ${
+        completedTasks.length > 0
+          ? `
+      <div class="section">
+        <h2>Completed Tasks</h2>
+        <div class="task-list">
+          ${completedTasks
+            .map(
+              (task) => `
+            <div class="task-item completed">
+              ✓ ${task}
+              ${
+                !systemApplications.hasOwnProperty(task)
+                  ? '<span class="custom-task-indicator">Custom</span>'
+                  : ""
+              }
+              <span class="status-badge completed-badge">Completed</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </div>
+      `
+          : ""
+      }
+
+      ${
+        pendingTasks.length > 0
+          ? `
+      <div class="section">
+        <h2>Pending Tasks</h2>
+        <div class="task-list">
+          ${pendingTasks
+            .map(({ task, status, isCustom }) => {
+              const statusBadgeClass =
+                status === "in progress"
+                  ? "in-progress-badge"
+                  : status === "not applicable"
+                  ? "not-applicable-badge"
+                  : "not-started-badge";
+
+              const statusText =
+                status === "in progress"
+                  ? "In Progress"
+                  : status === "not applicable"
+                  ? "Not Applicable"
+                  : "Not Started";
+
+              return `
+                <div class="task-item ${
+                  status === "in progress"
+                    ? "in-progress"
+                    : status === "not applicable"
+                    ? "not-applicable"
+                    : "pending"
+                }">
                   ${task}
-                  <span class="status-badge ${status === 'in progress' ? 'in-progress-badge' : 'not-started-badge'}">
-                    ${status}
-                  </span>
-                </div>
-              `).join('') :
-              '<div class="task-item completed">All tasks completed!</div>'
-            }
+                  ${
+                    isCustom
+                      ? '<span class="custom-task-indicator">Custom</span>'
+                      : ""
+                  }
+                  <span class="status-badge ${statusBadgeClass}">${statusText}</span>
+                </div>`;
+            })
+            .join("")}
+        </div>
+      </div>
+      `
+          : `
+      <div class="section">
+        <h2>Pending Tasks</h2>
+        <div class="task-list">
+          <div class="task-item completed" style="color: #059669; font-weight: 500;">
+            ✓ All tasks completed! Onboarding process is finished.
           </div>
         </div>
+      </div>
+      `
+      }
 
-        ${employee.itStaffAssignment && employee.itStaffAssignment.assignedTo ? `
-        <div class="section">
-          <h2>IT Assignment</h2>
-          <div class="info-item"><span class="info-label">Assigned To:</span> ${employee.itStaffAssignment.assignedTo.name}</div>
-          <div class="info-item"><span class="info-label">Status:</span> ${employee.itStaffAssignment.status}</div>
+      ${
+        pendingTasks.filter((task) => task.isCustom).length > 0
+          ? `
+      <div class="custom-task-section">
+        <h3>📝 Custom Tasks Summary</h3>
+        <p style="margin: 0; color: #475569; font-size: 14px;">
+          This onboarding includes ${
+            pendingTasks.filter((task) => task.isCustom).length
+          } custom task${
+              pendingTasks.filter((task) => task.isCustom).length !== 1
+                ? "s"
+                : ""
+            } 
+          that were added specifically for this employee.
+        </p>
+      </div>
+      `
+          : ""
+      }
+
+      ${
+        employee.itStaffAssignment && employee.itStaffAssignment.assignedTo
+          ? `
+      <div class="section">
+        <h2>IT Assignment</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Assigned To:</span> ${
+              employee.itStaffAssignment.assignedTo.name
+            }</div>
+            <div class="info-item"><span class="info-label">IT Staff Role:</span> ${
+              employee.itStaffAssignment.assignedTo.role
+            }</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Assignment Status:</span> 
+              <span style="color: ${
+                employee.itStaffAssignment.status === "completed"
+                  ? "#059669"
+                  : employee.itStaffAssignment.status === "in progress"
+                  ? "#d97706"
+                  : employee.itStaffAssignment.status === "on hold"
+                  ? "#dc2626"
+                  : "#6b7280"
+              }; font-weight: 500; text-transform: capitalize;">
+                ${employee.itStaffAssignment.status}
+              </span>
+            </div>
+            <div class="info-item"><span class="info-label">IT Staff Email:</span> ${
+              employee.itStaffAssignment.assignedTo.email
+            }</div>
+          </div>
         </div>
-        ` : ''}
+      </div>
+      `
+          : ""
+      }
 
+      <div class="section">
         <div class="print-date">
-          Report generated by NSN IT Management Portal
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
+          Report generated by NSN IT Management Portal<br>
+          Employee ID: ${employee.id} | Report ID: ${Date.now()}
         </div>
+      </div>
 
-        <script>
-          window.onload = function() {
-            window.print();
-            setTimeout(() => window.close(), 500);
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(() => {
+            if (!window.closed) {
+              window.close();
+            }
+          }, 1000);
+        }
+        
+        // Fallback for browsers that block window.close()
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            window.close();
           }
-        </script>
-      </body>
-      </html>
-    `;
+        });
+      </script>
+    </body>
+    </html>
+  `;
 
     printWindow.document.write(printContent);
     printWindow.document.close();
@@ -480,7 +869,6 @@ const systemApplications: ApplicationStatus = {
           </p>
         </div>
         <div className="flex items-center space-x-4">
-  
           <Link
             href="/management-portal/onboarding/new"
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
@@ -496,7 +884,8 @@ const systemApplications: ApplicationStatus = {
             No Active Onboarding Processes
           </h2>
           <p className="text-gray-500 mb-4">
-            Get started by adding a new employee to begin the onboarding process.
+            Get started by adding a new employee to begin the onboarding
+            process.
           </p>
           <Link
             href="/management-portal/onboarding/new"
@@ -539,7 +928,11 @@ const systemApplications: ApplicationStatus = {
                             {employee.firstName} {employee.lastName}
                           </Link>
                           <button
-                            onClick={() => router.push(`/management-portal/onboarding/${employee.id}/edit`)}
+                            onClick={() =>
+                              router.push(
+                                `/management-portal/onboarding/${employee.id}/edit`
+                              )
+                            }
                             className="text-gray-400 hover:text-blue-600"
                             title="Edit Employee"
                           >
@@ -589,55 +982,74 @@ const systemApplications: ApplicationStatus = {
                 {/* Collapsible Content */}
                 {employee.isExpanded && (
                   <div className="border-t border-gray-200 px-6 py-4 space-y-4">
-                    {/* System Applications Section */}
+                    {/* System Applications Section - Now shows ALL tasks including custom ones */}
                     <div>
-  <h3 className="font-medium text-gray-900 mb-3">
-    System Applications
-  </h3>
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-    {Object.entries(systemApplications).map(
-      ([app, taskData]) => {
-        const currentStatus = employee.applicationStatus?.[app]?.status || taskData.status;
-        const noteCount = employee.applicationStatus?.[app]?.notes?.length || 0;
-        
-        return (
-          <div
-            key={app}
-            className="flex items-center justify-between p-2 bg-gray-50 rounded"
-          >
-            <div className="flex-1">
-              <span className="text-sm text-gray-700 block">{app}</span>
-              {noteCount > 0 && (
-                <span className="text-xs text-gray-500">
-                  {noteCount} note{noteCount !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-  value={currentStatus}
-  onChange={(e) => updateApplicationStatus(employee.id, app, e.target.value as any)}
-  className="border border-gray-300 rounded px-2 py-1 text-xs"
->
-  <option value="not begun">Not Begun</option>
-  <option value="in progress">In Progress</option>
-  <option value="completed">Completed</option>
-  <option value="not applicable">Not Applicable</option>
-</select>
-              <span
-                className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                  currentStatus
-                )}`}
-              >
-                {currentStatus}
-              </span>
-            </div>
-          </div>
-        );
-      }
-    )}
-  </div>
-</div>
+                      <h3 className="font-medium text-gray-900 mb-3">
+                        Onboarding Tasks
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {Object.entries(employee.applicationStatus || {}).map(
+                          ([app, taskData]) => {
+                            const currentStatus =
+                              taskData.status || "not begun";
+                            const noteCount = taskData.notes?.length || 0;
+                            const isCustomTask =
+                              !systemApplications.hasOwnProperty(app);
+
+                            return (
+                              <div
+                                key={app}
+                                className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                              >
+                                <div className="flex-1">
+                                  <span className="text-sm text-gray-700 block">
+                                    {app}
+                                    {isCustomTask && (
+                                      <span className="ml-1 text-xs text-blue-600"></span>
+                                    )}
+                                  </span>
+                                  {noteCount > 0 && (
+                                    <span className="text-xs text-gray-500">
+                                      {noteCount} note
+                                      {noteCount !== 1 ? "s" : ""}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={currentStatus}
+                                    onChange={(e) =>
+                                      updateApplicationStatus(
+                                        employee.id,
+                                        app,
+                                        e.target.value as any
+                                      )
+                                    }
+                                    className="border border-gray-300 rounded px-2 py-1 text-xs"
+                                  >
+                                    <option value="not begun">Not Begun</option>
+                                    <option value="in progress">
+                                      In Progress
+                                    </option>
+                                    <option value="completed">Completed</option>
+                                    <option value="not applicable">
+                                      Not Applicable
+                                    </option>
+                                  </select>
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                                      currentStatus
+                                    )}`}
+                                  >
+                                    {currentStatus}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
 
                     {/* IT Staff Section - Only for Admin/IT */}
                     {isAdminOrIT && (
@@ -651,15 +1063,21 @@ const systemApplications: ApplicationStatus = {
                               Assign to IT Staff
                             </label>
                             <select
-                              value={employee.itStaffAssignment?.assignedToId || ""}
-                              onChange={(e) => updateITAssignment(employee.id, {
-                                ...employee.itStaffAssignment!,
-                                assignedToId: e.target.value ? parseInt(e.target.value) : undefined
-                              })}
+                              value={
+                                employee.itStaffAssignment?.assignedToId || ""
+                              }
+                              onChange={(e) =>
+                                updateITAssignment(employee.id, {
+                                  ...employee.itStaffAssignment!,
+                                  assignedToId: e.target.value
+                                    ? parseInt(e.target.value)
+                                    : undefined,
+                                })
+                              }
                               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                             >
                               <option value="">Not Assigned</option>
-                              {itStaff.map(staff => (
+                              {itStaff.map((staff) => (
                                 <option key={staff.id} value={staff.id}>
                                   {staff.name} ({staff.role})
                                 </option>
@@ -671,11 +1089,17 @@ const systemApplications: ApplicationStatus = {
                               Status
                             </label>
                             <select
-                              value={employee.itStaffAssignment?.status || "not assigned"}
-                              onChange={(e) => updateITAssignment(employee.id, {
-                                ...employee.itStaffAssignment!,
-                                status: e.target.value as ITStaffAssignment["status"]
-                              })}
+                              value={
+                                employee.itStaffAssignment?.status ||
+                                "not assigned"
+                              }
+                              onChange={(e) =>
+                                updateITAssignment(employee.id, {
+                                  ...employee.itStaffAssignment!,
+                                  status: e.target
+                                    .value as ITStaffAssignment["status"],
+                                })
+                              }
                               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                             >
                               <option value="not assigned">Not Assigned</option>
@@ -686,7 +1110,12 @@ const systemApplications: ApplicationStatus = {
                           </div>
                           <div>
                             <button
-                              onClick={() => applyITAssignment(employee.id, employee.itStaffAssignment!)}
+                              onClick={() =>
+                                applyITAssignment(
+                                  employee.id,
+                                  employee.itStaffAssignment!
+                                )
+                              }
                               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
                             >
                               Apply
@@ -695,7 +1124,8 @@ const systemApplications: ApplicationStatus = {
                         </div>
                         {employee.itStaffAssignment?.assignedTo && (
                           <div className="mt-2 text-sm text-gray-600">
-                            Currently assigned to: {employee.itStaffAssignment.assignedTo.name}
+                            Currently assigned to:{" "}
+                            {employee.itStaffAssignment.assignedTo.name}
                           </div>
                         )}
                       </div>
@@ -717,7 +1147,7 @@ const systemApplications: ApplicationStatus = {
                         >
                           Update Status
                         </Link>
-                        <button 
+                        <button
                           onClick={() => generatePrintReport(employee)}
                           className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
                         >
