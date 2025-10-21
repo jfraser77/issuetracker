@@ -32,8 +32,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const currentPath = usePathname();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
 
-  const navItems: NavItem[] = [
+  // Base navigation items (always visible)
+  const baseNavItems: NavItem[] = [
     { name: "Dashboard", href: "/", icon: HomeIcon },
     {
       name: "Onboarding",
@@ -51,13 +53,6 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       icon: ComputerDesktopIcon,
     },
     { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
-    // Admin section - will be conditionally shown based on user role
-    {
-      name: "Role Approvals",
-      href: "/management-portal/admin/approvals",
-      icon: UserGroupIcon,
-      adminOnly: true,
-    },
     {
       name: "Settings",
       href: "/management-portal/settings",
@@ -65,7 +60,23 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     },
   ];
 
+  // Admin-only navigation items
+  const adminNavItems: NavItem[] = [
+    {
+      name: "Role Approvals",
+      href: "/management-portal/admin/approvals",
+      icon: UserGroupIcon,
+      adminOnly: true,
+    },
+  ];
+
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
     // Fetch current user role
     const fetchUserRole = async () => {
       try {
@@ -81,20 +92,33 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       }
     };
     fetchUserRole();
-  }, []);
-
-  // Filter nav items based on user role
-  const filteredNavItems = navItems.filter(item => {
-    if (item.adminOnly && !isAdminUser(userRole)) {
-      return false; // Hide admin items for non-admin users
-    }
-    return true;
-  });
+  }, [isClient]);
 
   const isAdminUser = (role: string | null): boolean => {
     if (!role) return false;
     return role === 'Admin' || role === 'I.T.';
   };
+
+  // Combine navigation items based on user role
+  const getNavItems = () => {
+    if (!isClient || loading) {
+      return baseNavItems; // Return base items during SSR and initial loading
+    }
+    
+    if (isAdminUser(userRole)) {
+      // Insert admin items before Settings
+      const settingsIndex = baseNavItems.findIndex(item => item.name === "Settings");
+      return [
+        ...baseNavItems.slice(0, settingsIndex),
+        ...adminNavItems,
+        ...baseNavItems.slice(settingsIndex)
+      ];
+    }
+    
+    return baseNavItems;
+  };
+
+  const navItems = getNavItems();
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -108,7 +132,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   };
 
   // Show loading state
-  if (loading) {
+  if (!isClient) {
     return (
       <>
         {/* Mobile overlay */}
@@ -145,13 +169,13 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
           <nav className="mt-9 px-2">
             {/* Loading skeleton */}
-            {[1, 2, 3, 4, 5, 6].map((item) => (
+            {baseNavItems.map((item, index) => (
               <div
-                key={item}
+                key={item.href}
                 className="flex items-center px-4 py-3 rounded-md w-full mb-1"
               >
-                <div className="h-6 w-6 bg-blue-600 rounded animate-pulse"></div>
-                <div className="ml-3 h-4 bg-blue-600 rounded w-24 animate-pulse"></div>
+                <div className="h-6 w-6 bg-blue-600 rounded"></div>
+                <div className="ml-3 h-4 bg-blue-600 rounded w-24"></div>
               </div>
             ))}
           </nav>
@@ -195,7 +219,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         </div>
 
         {/* User role badge */}
-        {userRole && (
+        {userRole && !loading && (
           <div className="px-4 py-2">
             <div className="bg-blue-700 rounded-md px-3 py-1 text-center">
               <span className="text-xs text-blue-200 font-medium">
@@ -206,7 +230,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         )}
 
         <nav className="mt-4 px-2">
-          {filteredNavItems.map((item) => {
+          {navItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <Link
