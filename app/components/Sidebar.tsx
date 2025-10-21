@@ -9,6 +9,7 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   UserGroupIcon,
+  ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,6 +42,11 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       name: "Onboarding",
       href: "/management-portal/onboarding",
       icon: UserIcon,
+    },
+    {
+      name: "Archived Onboarding",
+      href: "/management-portal/onboarding/archived",
+      icon: ArchiveBoxIcon,
     },
     {
       name: "Terminations",
@@ -80,13 +86,13 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     // Fetch current user role
     const fetchUserRole = async () => {
       try {
-        const response = await fetch('/api/auth/current-user');
+        const response = await fetch("/api/auth/current-user");
         if (response.ok) {
           const userData = await response.json();
           setUserRole(userData.role);
         }
       } catch (error) {
-        console.error('Failed to fetch user role:', error);
+        console.error("Failed to fetch user role:", error);
       } finally {
         setLoading(false);
       }
@@ -96,7 +102,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   const isAdminUser = (role: string | null): boolean => {
     if (!role) return false;
-    return role === 'Admin' || role === 'I.T.';
+    return role === "Admin" || role === "I.T.";
   };
 
   // Combine navigation items based on user role
@@ -104,17 +110,19 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     if (!isClient || loading) {
       return baseNavItems; // Return base items during SSR and initial loading
     }
-    
+
     if (isAdminUser(userRole)) {
       // Insert admin items before Settings
-      const settingsIndex = baseNavItems.findIndex(item => item.name === "Settings");
+      const settingsIndex = baseNavItems.findIndex(
+        (item) => item.name === "Settings"
+      );
       return [
         ...baseNavItems.slice(0, settingsIndex),
         ...adminNavItems,
-        ...baseNavItems.slice(settingsIndex)
+        ...baseNavItems.slice(settingsIndex),
       ];
     }
-    
+
     return baseNavItems;
   };
 
@@ -223,7 +231,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           <div className="px-4 py-2">
             <div className="bg-blue-700 rounded-md px-3 py-1 text-center">
               <span className="text-xs text-blue-200 font-medium">
-                {isAdminUser(userRole) ? 'Administrator' : 'User'} Access
+                {isAdminUser(userRole) ? "Administrator" : "User"} Access
               </span>
             </div>
           </div>

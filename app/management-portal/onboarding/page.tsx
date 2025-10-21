@@ -9,8 +9,8 @@ import {
   PencilIcon,
   TrashIcon,
   PrinterIcon,
+  ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
-import SearchEmployees from "@/app/components/SearchEmployees";
 
 interface User {
   id: number;
@@ -69,7 +69,7 @@ export default function OnboardingPage() {
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
-  // System applications with initial status - used as fallback only
+  // System applications with initial status
   const systemApplications: ApplicationStatus = {
     "E-Tenet ID #": { status: "not begun", notes: [] },
     "New User Network Access Request - tenetone.com": {
@@ -110,9 +110,6 @@ export default function OnboardingPage() {
     fetchCurrentUser();
     fetchEmployeesWithStatus();
     fetchITStaff();
-    // Check for completed employees every day
-    const interval = setInterval(checkCompletedEmployees, 24 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchCurrentUser = async () => {
@@ -141,11 +138,10 @@ export default function OnboardingPage() {
 
   const fetchEmployeesWithStatus = async () => {
     try {
-      const response = await fetch("/api/employees");
+      const response = await fetch("/api/employees?status=active");
       if (response.ok) {
         const employeesData = await response.json();
 
-        // Fetch status for each employee
         const employeesWithStatus = await Promise.all(
           employeesData.map(async (employee: Employee) => {
             try {
@@ -156,11 +152,9 @@ export default function OnboardingPage() {
                 `/api/employees/${employee.id}/it-assignment`
               );
 
-              // Use the actual status data from API, don't fallback to systemApplications
               let applicationStatus: ApplicationStatus = {};
               if (statusResponse.ok) {
                 const statusData = await statusResponse.json();
-                // Only use the data if it's a valid object with content
                 if (
                   statusData &&
                   typeof statusData === "object" &&
@@ -204,6 +198,36 @@ export default function OnboardingPage() {
     }
   };
 
+  // Manual archive function
+  const archiveEmployee = async (employeeId: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to archive this employee? They will be moved to the archived section."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/employees/${employeeId}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archivedBy: currentUser?.name || "user" }),
+      });
+
+      if (response.ok) {
+        setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
+        alert("Employee archived successfully!");
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to archive employee: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error("Error archiving employee:", error);
+      alert("Failed to archive employee. Please try again.");
+    }
+  };
+
   const toggleEmployeeExpanded = (employeeId: number) => {
     setEmployees((prev) =>
       prev.map((emp) =>
@@ -227,7 +251,7 @@ export default function OnboardingPage() {
       );
 
       if (response.ok) {
-        fetchEmployeesWithStatus(); // Refresh data
+        fetchEmployeesWithStatus();
       }
     } catch (error) {
       console.error("Error updating IT assignment:", error);
@@ -243,7 +267,6 @@ export default function OnboardingPage() {
       const employee = employees.find((emp) => emp.id === employeeId);
       if (!employee) return;
 
-      // Get current application status from database to ensure we have all custom tasks
       const currentStatusResponse = await fetch(
         `/api/employees/${employeeId}/status`
       );
@@ -256,7 +279,6 @@ export default function OnboardingPage() {
         }
       }
 
-      // Update the specific application status
       const updatedStatus = {
         ...currentApplicationStatus,
         [appName]: {
@@ -265,14 +287,12 @@ export default function OnboardingPage() {
         },
       };
 
-      // Update in database
       await fetch(`/api/employees/${employeeId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedStatus),
       });
 
-      // Update local state
       setEmployees((prev) =>
         prev.map((emp) =>
           emp.id === employeeId
@@ -293,7 +313,6 @@ export default function OnboardingPage() {
     assignment: ITStaffAssignment
   ) => {
     if (assignment.status === "completed" && assignment.assignedToId) {
-      // Reduce available laptops for the IT staff member
       try {
         await fetch("/api/it-assets/inventory", {
           method: "PUT",
@@ -328,7 +347,6 @@ export default function OnboardingPage() {
       const responseData = await response.json();
 
       if (response.ok) {
-        // Remove from local state immediately
         setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
         alert("Employee deleted successfully!");
       } else {
@@ -341,18 +359,6 @@ export default function OnboardingPage() {
       console.error("Error deleting employee:", error);
       alert("Failed to delete employee. Please try again.");
     }
-  };
-
-  const checkCompletedEmployees = () => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    setEmployees((prev) =>
-      prev.filter((emp) => {
-        const empDate = new Date(emp.timestamp);
-        return empDate > thirtyDaysAgo || emp.status !== "completed";
-      })
-    );
   };
 
   const getStatusColor = (status: string) => {
@@ -380,7 +386,6 @@ export default function OnboardingPage() {
     )
       return 0;
 
-    // Filter out "not applicable" tasks from the calculation
     const applicableTasks = Object.values(employee.applicationStatus).filter(
       (task) => task.status !== "not applicable"
     );
@@ -400,23 +405,15 @@ export default function OnboardingPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const handleEmployeeSelect = (employee: any) => {
-    router.push(`/management-portal/onboarding/${employee.id}`);
-  };
-
   const generatePrintReport = (employee: EmployeeWithStatus) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     const progress = calculateOverallProgress(employee);
-
-    // Get all tasks including custom ones
     const allTasks = Object.entries(employee.applicationStatus || {});
-
     const completedTasks = allTasks
       .filter(([_, task]) => task.status === "completed")
       .map(([task]) => task);
-
     const pendingTasks = allTasks
       .filter(([_, task]) => task.status !== "completed")
       .map(([task, taskData]) => ({
@@ -437,174 +434,35 @@ export default function OnboardingPage() {
       employee.lastName
     }</title>
       <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          margin: 40px; 
-          color: #333; 
-          line-height: 1.4;
-        }
-        .header { 
-          border-bottom: 2px solid #2563eb; 
-          padding-bottom: 20px; 
-          margin-bottom: 30px; 
-        }
-        .header h1 { 
-          color: #2563eb; 
-          margin: 0; 
-          font-size: 28px;
-        }
-        .section { 
-          margin-bottom: 30px; 
-        }
-        .section h2 { 
-          color: #374151; 
-          border-bottom: 1px solid #e5e7eb; 
-          padding-bottom: 8px;
-          margin-bottom: 16px;
-        }
-        .employee-info { 
-          display: grid; 
-          grid-template-columns: 1fr 1fr; 
-          gap: 20px; 
-        }
-        .info-item { 
-          margin-bottom: 8px; 
-        }
-        .info-label { 
-          font-weight: bold; 
-          color: #6b7280; 
-          display: inline-block;
-          width: 180px;
-        }
-        .progress-bar { 
-          background: #e5e7eb; 
-          height: 24px; 
-          border-radius: 12px; 
-          margin: 15px 0; 
-          overflow: hidden;
-        }
-        .progress-fill { 
-          background: #2563eb; 
-          height: 100%; 
-          border-radius: 12px; 
-          text-align: center; 
-          color: white; 
-          font-size: 14px; 
-          line-height: 24px;
-          font-weight: bold;
-          transition: width 0.3s ease;
-        }
-        .task-list { 
-          margin: 15px 0; 
-        }
-        .task-item { 
-          padding: 10px 0; 
-          border-bottom: 1px solid #f3f4f6; 
-        }
-        .completed { 
-          color: #059669; 
-        }
-        .pending { 
-          color: #6b7280; 
-        }
-        .in-progress { 
-          color: #d97706; 
-        }
-        .not-applicable {
-          color: #7c3aed;
-        }
-        .status-badge { 
-          display: inline-block; 
-          padding: 4px 12px; 
-          border-radius: 12px; 
-          font-size: 12px; 
-          margin-left: 10px;
-          font-weight: 500;
-        }
-        .completed-badge { 
-          background: #d1fae5; 
-          color: #065f46; 
-        }
-        .in-progress-badge { 
-          background: #fef3c7; 
-          color: #92400e; 
-        }
-        .not-started-badge { 
-          background: #f3f4f6; 
-          color: #374151; 
-        }
-        .not-applicable-badge {
-          background: #e9d5ff;
-          color: #7c3aed;
-        }
-        .custom-task-indicator {
-          background: #dbeafe;
-          color: #1e40af;
-          padding: 2px 6px;
-          border-radius: 6px;
-          font-size: 10px;
-          margin-left: 8px;
-          font-weight: 500;
-        }
-        .print-date { 
-          text-align: right; 
-          color: #6b7280; 
-          font-size: 14px; 
-          margin-top: 30px; 
-        }
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin: 20px 0;
-        }
-        .stat-card {
-          background: #f8fafc;
-          padding: 16px;
-          border-radius: 8px;
-          text-align: center;
-          border: 1px solid #e2e8f0;
-        }
-        .stat-number {
-          font-size: 24px;
-          font-weight: bold;
-          color: #1e40af;
-          margin-bottom: 4px;
-        }
-        .stat-label {
-          font-size: 12px;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .task-count {
-          font-size: 14px;
-          color: #6b7280;
-          margin: 10px 0;
-        }
-        .custom-task-section {
-          background: #f0f9ff;
-          padding: 15px;
-          border-radius: 8px;
-          margin: 20px 0;
-          border-left: 4px solid #3b82f6;
-        }
-        .custom-task-section h3 {
-          color: #1e40af;
-          margin: 0 0 10px 0;
-          font-size: 16px;
-        }
-        @media print {
-          body { 
-            margin: 20px; 
-          }
-          .no-print { 
-            display: none; 
-          }
-          .section {
-            break-inside: avoid;
-          }
-        }
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.4; }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #2563eb; margin: 0; font-size: 28px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
+        .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .info-item { margin-bottom: 8px; }
+        .info-label { font-weight: bold; color: #6b7280; display: inline-block; width: 180px; }
+        .progress-bar { background: #e5e7eb; height: 24px; border-radius: 12px; margin: 15px 0; overflow: hidden; }
+        .progress-fill { background: #2563eb; height: 100%; border-radius: 12px; text-align: center; color: white; font-size: 14px; line-height: 24px; font-weight: bold; }
+        .task-list { margin: 15px 0; }
+        .task-item { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+        .completed { color: #059669; }
+        .pending { color: #6b7280; }
+        .in-progress { color: #d97706; }
+        .not-applicable { color: #7c3aed; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 10px; font-weight: 500; }
+        .completed-badge { background: #d1fae5; color: #065f46; }
+        .in-progress-badge { background: #fef3c7; color: #92400e; }
+        .not-started-badge { background: #f3f4f6; color: #374151; }
+        .not-applicable-badge { background: #e9d5ff; color: #7c3aed; }
+        .custom-task-indicator { background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; font-weight: 500; }
+        .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+        .stat-card { background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #1e40af; margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .task-count { font-size: 14px; color: #6b7280; margin: 10px 0; }
+        @media print { body { margin: 20px; } .no-print { display: none; } .section { break-inside: avoid; } }
       </style>
     </head>
     <body>
@@ -634,17 +492,9 @@ export default function OnboardingPage() {
             <div class="info-item"><span class="info-label">Director:</span> ${
               employee.directorRegionalDirector || "Not specified"
             }</div>
-            <div class="info-item"><span class="info-label">Onboarding Status:</span> 
-              <span style="color: ${
-                employee.status === "completed"
-                  ? "#059669"
-                  : employee.status === "archived"
-                  ? "#6b7280"
-                  : "#3b82f6"
-              }; font-weight: 500; text-transform: capitalize;">
-                ${employee.status}
-              </span>
-            </div>
+            <div class="info-item"><span class="info-label">Status:</span> ${
+              employee.status
+            }</div>
           </div>
         </div>
       </div>
@@ -697,8 +547,7 @@ export default function OnboardingPage() {
             )
             .join("")}
         </div>
-      </div>
-      `
+      </div>`
           : ""
       }
 
@@ -716,35 +565,32 @@ export default function OnboardingPage() {
                   : status === "not applicable"
                   ? "not-applicable-badge"
                   : "not-started-badge";
-
               const statusText =
                 status === "in progress"
                   ? "In Progress"
                   : status === "not applicable"
                   ? "Not Applicable"
                   : "Not Started";
-
               return `
-                <div class="task-item ${
-                  status === "in progress"
-                    ? "in-progress"
-                    : status === "not applicable"
-                    ? "not-applicable"
-                    : "pending"
-                }">
-                  ${task}
-                  ${
-                    isCustom
-                      ? '<span class="custom-task-indicator">Custom</span>'
-                      : ""
-                  }
-                  <span class="status-badge ${statusBadgeClass}">${statusText}</span>
-                </div>`;
+              <div class="task-item ${
+                status === "in progress"
+                  ? "in-progress"
+                  : status === "not applicable"
+                  ? "not-applicable"
+                  : "pending"
+              }">
+                ${task}
+                ${
+                  isCustom
+                    ? '<span class="custom-task-indicator">Custom</span>'
+                    : ""
+                }
+                <span class="status-badge ${statusBadgeClass}">${statusText}</span>
+              </div>`;
             })
             .join("")}
         </div>
-      </div>
-      `
+      </div>`
           : `
       <div class="section">
         <h2>Pending Tasks</h2>
@@ -753,66 +599,7 @@ export default function OnboardingPage() {
             ✓ All tasks completed! Onboarding process is finished.
           </div>
         </div>
-      </div>
-      `
-      }
-
-      ${
-        pendingTasks.filter((task) => task.isCustom).length > 0
-          ? `
-      <div class="custom-task-section">
-        <h3>📝 Custom Tasks Summary</h3>
-        <p style="margin: 0; color: #475569; font-size: 14px;">
-          This onboarding includes ${
-            pendingTasks.filter((task) => task.isCustom).length
-          } custom task${
-              pendingTasks.filter((task) => task.isCustom).length !== 1
-                ? "s"
-                : ""
-            } 
-          that were added specifically for this employee.
-        </p>
-      </div>
-      `
-          : ""
-      }
-
-      ${
-        employee.itStaffAssignment && employee.itStaffAssignment.assignedTo
-          ? `
-      <div class="section">
-        <h2>IT Assignment</h2>
-        <div class="employee-info">
-          <div>
-            <div class="info-item"><span class="info-label">Assigned To:</span> ${
-              employee.itStaffAssignment.assignedTo.name
-            }</div>
-            <div class="info-item"><span class="info-label">IT Staff Role:</span> ${
-              employee.itStaffAssignment.assignedTo.role
-            }</div>
-          </div>
-          <div>
-            <div class="info-item"><span class="info-label">Assignment Status:</span> 
-              <span style="color: ${
-                employee.itStaffAssignment.status === "completed"
-                  ? "#059669"
-                  : employee.itStaffAssignment.status === "in progress"
-                  ? "#d97706"
-                  : employee.itStaffAssignment.status === "on hold"
-                  ? "#dc2626"
-                  : "#6b7280"
-              }; font-weight: 500; text-transform: capitalize;">
-                ${employee.itStaffAssignment.status}
-              </span>
-            </div>
-            <div class="info-item"><span class="info-label">IT Staff Email:</span> ${
-              employee.itStaffAssignment.assignedTo.email
-            }</div>
-          </div>
-        </div>
-      </div>
-      `
-          : ""
+      </div>`
       }
 
       <div class="section">
@@ -832,20 +619,107 @@ export default function OnboardingPage() {
             }
           }, 1000);
         }
-        
-        // Fallback for browsers that block window.close()
-        document.addEventListener('keydown', function(e) {
-          if (e.key === 'Escape') {
-            window.close();
-          }
-        });
       </script>
     </body>
-    </html>
-  `;
+    </html>`;
 
     printWindow.document.write(printContent);
     printWindow.document.close();
+  };
+
+  // Employee header component with archive button
+  const renderEmployeeHeader = (employee: EmployeeWithStatus) => {
+    const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
+    const progress = calculateOverallProgress(employee);
+
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-start">
+          <div className="flex items-start space-x-4">
+            <button
+              onClick={() => toggleEmployeeExpanded(employee.id)}
+              className="mt-1 text-gray-400 hover:text-gray-600"
+            >
+              {employee.isExpanded ? (
+                <ChevronDownIcon className="h-5 w-5" />
+              ) : (
+                <ChevronRightIcon className="h-5 w-5" />
+              )}
+            </button>
+            <div>
+              <div className="flex items-center space-x-2">
+                <Link
+                  href={`/management-portal/onboarding/${employee.id}`}
+                  className="text-xl font-semibold text-blue-600 hover:text-blue-800"
+                >
+                  {employee.firstName} {employee.lastName}
+                </Link>
+                <button
+                  onClick={() =>
+                    router.push(
+                      `/management-portal/onboarding/${employee.id}/edit`
+                    )
+                  }
+                  className="text-gray-400 hover:text-blue-600"
+                  title="Edit Employee"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => deleteEmployee(employee.id)}
+                  className="text-gray-400 hover:text-red-600"
+                  title="Delete Employee"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+                {/* ARCHIVE BUTTON */}
+                <button
+                  onClick={() => archiveEmployee(employee.id)}
+                  className="text-gray-400 hover:text-orange-600"
+                  title="Archive Employee"
+                >
+                  <ArchiveBoxIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => generatePrintReport(employee)}
+                  className="text-gray-400 hover:text-green-600"
+                  title="Print Report"
+                >
+                  <PrinterIcon className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-gray-600">{employee.jobTitle}</p>
+              <p className="text-sm text-gray-500">
+                Start Date: {new Date(employee.startDate).toLocaleDateString()}{" "}
+                | Added: {daysSinceAdded} day{daysSinceAdded !== 1 ? "s" : ""}{" "}
+                ago | Status:{" "}
+                <span
+                  className={`font-medium ${
+                    employee.status === "completed"
+                      ? "text-green-600"
+                      : employee.status === "archived"
+                      ? "text-orange-600"
+                      : "text-blue-600"
+                  }`}
+                >
+                  {employee.status}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-gray-500 mb-1">Overall Progress</div>
+            <div className="w-32 bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+            <div className="text-sm text-gray-700 mt-1">{progress}%</div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (!isClient || loading) {
@@ -858,7 +732,6 @@ export default function OnboardingPage() {
 
   return (
     <div>
-      {/* Header Section */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
@@ -869,6 +742,12 @@ export default function OnboardingPage() {
           </p>
         </div>
         <div className="flex items-center space-x-4">
+          <Link
+            href="/management-portal/onboarding/archived"
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium"
+          >
+            View Archived
+          </Link>
           <Link
             href="/management-portal/onboarding/new"
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
@@ -896,271 +775,176 @@ export default function OnboardingPage() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {employees.map((employee) => {
-            const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
-            const progress = calculateOverallProgress(employee);
+          {employees.map((employee) => (
+            <div
+              key={employee.id}
+              className="bg-white rounded-lg shadow-sm border border-gray-200"
+            >
+              {renderEmployeeHeader(employee)}
 
-            return (
-              <div
-                key={employee.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200"
-              >
-                {/* Employee Header - Always Visible */}
-                <div className="p-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start space-x-4">
-                      <button
-                        onClick={() => toggleEmployeeExpanded(employee.id)}
-                        className="mt-1 text-gray-400 hover:text-gray-600"
-                      >
-                        {employee.isExpanded ? (
-                          <ChevronDownIcon className="h-5 w-5" />
-                        ) : (
-                          <ChevronRightIcon className="h-5 w-5" />
-                        )}
-                      </button>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <Link
-                            href={`/management-portal/onboarding/${employee.id}`}
-                            className="text-xl font-semibold text-blue-600 hover:text-blue-800"
+              {employee.isExpanded && (
+                <div className="border-t border-gray-200 px-6 py-4 space-y-4">
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-3">
+                      Onboarding Tasks
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {Object.entries(employee.applicationStatus || {}).map(
+                        ([app, taskData]) => {
+                          const currentStatus = taskData.status || "not begun";
+                          return (
+                            <div
+                              key={app}
+                              className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                            >
+                              <div className="flex-1">
+                                <span className="text-sm text-gray-700 block">
+                                  {app}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={currentStatus}
+                                  onChange={(e) =>
+                                    updateApplicationStatus(
+                                      employee.id,
+                                      app,
+                                      e.target.value as any
+                                    )
+                                  }
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs"
+                                >
+                                  <option value="not begun">Not Begun</option>
+                                  <option value="in progress">
+                                    In Progress
+                                  </option>
+                                  <option value="completed">Completed</option>
+                                  <option value="not applicable">
+                                    Not Applicable
+                                  </option>
+                                </select>
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                                    currentStatus
+                                  )}`}
+                                >
+                                  {currentStatus}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+
+                  {isAdminOrIT && (
+                    <div className="border-t pt-4">
+                      <h3 className="font-medium text-gray-900 mb-3">
+                        IT Staff Assignment
+                      </h3>
+                      <div className="flex items-end space-x-4">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Assign to IT Staff
+                          </label>
+                          <select
+                            value={
+                              employee.itStaffAssignment?.assignedToId || ""
+                            }
+                            onChange={(e) =>
+                              updateITAssignment(employee.id, {
+                                ...employee.itStaffAssignment!,
+                                assignedToId: e.target.value
+                                  ? parseInt(e.target.value)
+                                  : undefined,
+                              })
+                            }
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                           >
-                            {employee.firstName} {employee.lastName}
-                          </Link>
+                            <option value="">Not Assigned</option>
+                            {itStaff.map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name} ({staff.role})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Status
+                          </label>
+                          <select
+                            value={
+                              employee.itStaffAssignment?.status ||
+                              "not assigned"
+                            }
+                            onChange={(e) =>
+                              updateITAssignment(employee.id, {
+                                ...employee.itStaffAssignment!,
+                                status: e.target
+                                  .value as ITStaffAssignment["status"],
+                              })
+                            }
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                          >
+                            <option value="not assigned">Not Assigned</option>
+                            <option value="in progress">In Progress</option>
+                            <option value="on hold">On Hold</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                        </div>
+                        <div>
                           <button
                             onClick={() =>
-                              router.push(
-                                `/management-portal/onboarding/${employee.id}/edit`
+                              applyITAssignment(
+                                employee.id,
+                                employee.itStaffAssignment!
                               )
                             }
-                            className="text-gray-400 hover:text-blue-600"
-                            title="Edit Employee"
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
                           >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteEmployee(employee.id)}
-                            className="text-gray-400 hover:text-red-600"
-                            title="Delete Employee"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => generatePrintReport(employee)}
-                            className="text-gray-400 hover:text-green-600"
-                            title="Print Report"
-                          >
-                            <PrinterIcon className="h-4 w-4" />
+                            Apply
                           </button>
                         </div>
-                        <p className="text-gray-600">{employee.jobTitle}</p>
-                        <p className="text-sm text-gray-500">
-                          Start Date:{" "}
-                          {new Date(employee.startDate).toLocaleDateString()} |
-                          Added: {daysSinceAdded} day
-                          {daysSinceAdded !== 1 ? "s" : ""} ago
-                        </p>
                       </div>
+                      {employee.itStaffAssignment?.assignedTo && (
+                        <div className="mt-2 text-sm text-gray-600">
+                          Currently assigned to:{" "}
+                          {employee.itStaffAssignment.assignedTo.name}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500 mb-1">
-                        Overall Progress
-                      </div>
-                      <div className="w-32 bg-gray-200 rounded-full h-2.5">
-                        <div
-                          className="bg-blue-600 h-2.5 rounded-full"
-                          style={{ width: `${progress}%` }}
-                        ></div>
-                      </div>
-                      <div className="text-sm text-gray-700 mt-1">
-                        {progress}%
-                      </div>
+                  )}
+
+                  <div className="border-t pt-4 flex justify-between items-center">
+                    <div className="text-sm text-gray-500">
+                      {daysSinceAdded >= 25 && (
+                        <span className="text-amber-600 font-medium">
+                          Will be archived in {30 - daysSinceAdded} days
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/management-portal/onboarding/${employee.id}`}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
+                      >
+                        Update Status
+                      </Link>
+                      <button
+                        onClick={() => generatePrintReport(employee)}
+                        className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
+                      >
+                        <PrinterIcon className="h-4 w-4 mr-1" />
+                        Print Report
+                      </button>
                     </div>
                   </div>
                 </div>
-
-                {/* Collapsible Content */}
-                {employee.isExpanded && (
-                  <div className="border-t border-gray-200 px-6 py-4 space-y-4">
-                    {/* System Applications Section - Now shows ALL tasks including custom ones */}
-                    <div>
-                      <h3 className="font-medium text-gray-900 mb-3">
-                        Onboarding Tasks
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {Object.entries(employee.applicationStatus || {}).map(
-                          ([app, taskData]) => {
-                            const currentStatus =
-                              taskData.status || "not begun";
-                            const noteCount = taskData.notes?.length || 0;
-                            const isCustomTask =
-                              !systemApplications.hasOwnProperty(app);
-
-                            return (
-                              <div
-                                key={app}
-                                className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                              >
-                                <div className="flex-1">
-                                  <span className="text-sm text-gray-700 block">
-                                    {app}
-                                    {isCustomTask && (
-                                      <span className="ml-1 text-xs text-blue-600"></span>
-                                    )}
-                                  </span>
-                                  {noteCount > 0 && (
-                                    <span className="text-xs text-gray-500">
-                                      {noteCount} note
-                                      {noteCount !== 1 ? "s" : ""}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={currentStatus}
-                                    onChange={(e) =>
-                                      updateApplicationStatus(
-                                        employee.id,
-                                        app,
-                                        e.target.value as any
-                                      )
-                                    }
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs"
-                                  >
-                                    <option value="not begun">Not Begun</option>
-                                    <option value="in progress">
-                                      In Progress
-                                    </option>
-                                    <option value="completed">Completed</option>
-                                    <option value="not applicable">
-                                      Not Applicable
-                                    </option>
-                                  </select>
-                                  <span
-                                    className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                                      currentStatus
-                                    )}`}
-                                  >
-                                    {currentStatus}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-                    </div>
-
-                    {/* IT Staff Section - Only for Admin/IT */}
-                    {isAdminOrIT && (
-                      <div className="border-t pt-4">
-                        <h3 className="font-medium text-gray-900 mb-3">
-                          IT Staff Assignment
-                        </h3>
-                        <div className="flex items-end space-x-4">
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Assign to IT Staff
-                            </label>
-                            <select
-                              value={
-                                employee.itStaffAssignment?.assignedToId || ""
-                              }
-                              onChange={(e) =>
-                                updateITAssignment(employee.id, {
-                                  ...employee.itStaffAssignment!,
-                                  assignedToId: e.target.value
-                                    ? parseInt(e.target.value)
-                                    : undefined,
-                                })
-                              }
-                              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                            >
-                              <option value="">Not Assigned</option>
-                              {itStaff.map((staff) => (
-                                <option key={staff.id} value={staff.id}>
-                                  {staff.name} ({staff.role})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Status
-                            </label>
-                            <select
-                              value={
-                                employee.itStaffAssignment?.status ||
-                                "not assigned"
-                              }
-                              onChange={(e) =>
-                                updateITAssignment(employee.id, {
-                                  ...employee.itStaffAssignment!,
-                                  status: e.target
-                                    .value as ITStaffAssignment["status"],
-                                })
-                              }
-                              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                            >
-                              <option value="not assigned">Not Assigned</option>
-                              <option value="in progress">In Progress</option>
-                              <option value="on hold">On Hold</option>
-                              <option value="completed">Completed</option>
-                            </select>
-                          </div>
-                          <div>
-                            <button
-                              onClick={() =>
-                                applyITAssignment(
-                                  employee.id,
-                                  employee.itStaffAssignment!
-                                )
-                              }
-                              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
-                            >
-                              Apply
-                            </button>
-                          </div>
-                        </div>
-                        {employee.itStaffAssignment?.assignedTo && (
-                          <div className="mt-2 text-sm text-gray-600">
-                            Currently assigned to:{" "}
-                            {employee.itStaffAssignment.assignedTo.name}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="border-t pt-4 flex justify-between items-center">
-                      <div className="text-sm text-gray-500">
-                        {daysSinceAdded >= 25 && (
-                          <span className="text-amber-600 font-medium">
-                            Will be archived in {30 - daysSinceAdded} days
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/management-portal/onboarding/${employee.id}`}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
-                        >
-                          Update Status
-                        </Link>
-                        <button
-                          onClick={() => generatePrintReport(employee)}
-                          className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
-                        >
-                          <PrinterIcon className="h-4 w-4 mr-1" />
-                          Print Report
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

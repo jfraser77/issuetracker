@@ -1,59 +1,93 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "../../../../../lib/db";
+import { connectToDatabase } from "@/lib/db";
+import sql from "mssql";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Add Promise here
 ) {
   try {
-    const employeeId = parseInt(params.id);
+    const { id } = await params; // Await the params
+    const employeeId = parseInt(id);
+
     const pool = await connectToDatabase();
-    
-    const result = await pool.request()
-      .input('employeeId', employeeId)
+
+    const result = await pool.request().input("employeeId", sql.Int, employeeId)
       .query(`
-        SELECT it.*, u.name, u.email, u.role
-        FROM EmployeeITAssignments it
-        LEFT JOIN Users u ON it.assignedToId = u.id
-        WHERE it.employeeId = @employeeId
+        SELECT * FROM ITAssignments 
+        WHERE employeeId = @employeeId
       `);
 
-    return NextResponse.json(result.recordset[0] || { status: "not assigned" });
-  } catch (error) {
+    if (result.recordset.length > 0) {
+      return NextResponse.json(result.recordset[0]);
+    } else {
+      return NextResponse.json({ status: "not assigned" });
+    }
+  } catch (error: any) {
     console.error("Error fetching IT assignment:", error);
-    return NextResponse.json({ status: "not assigned" });
+    return NextResponse.json(
+      { error: "Failed to fetch IT assignment" },
+      { status: 500 }
+    );
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // Add Promise here
 ) {
   try {
-    const employeeId = parseInt(params.id);
-    const { assignedToId, status } = await request.json();
-    
+    const { id } = await params; // Await the params
+    const employeeId = parseInt(id);
+    const assignmentData = await request.json();
+
     const pool = await connectToDatabase();
-    
-    // Upsert the assignment
-    await pool.request()
-      .input('employeeId', employeeId)
-      .input('assignedToId', assignedToId || null)
-      .input('status', status)
-      .query(`
-        MERGE EmployeeITAssignments AS target
-        USING (SELECT @employeeId AS employeeId) AS source
-        ON target.employeeId = source.employeeId
-        WHEN MATCHED THEN
-          UPDATE SET assignedToId = @assignedToId, status = @status, updatedAt = GETDATE()
-        WHEN NOT MATCHED THEN
-          INSERT (employeeId, assignedToId, status) 
-          VALUES (@employeeId, @assignedToId, @status);
+
+    // Check if assignment exists
+    const existingResult = await pool
+      .request()
+      .input("employeeId", sql.Int, employeeId).query(`
+        SELECT * FROM ITAssignments 
+        WHERE employeeId = @employeeId
       `);
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    if (existingResult.recordset.length > 0) {
+      // Update existing assignment
+      const result = await pool
+        .request()
+        .input("employeeId", sql.Int, employeeId)
+        .input("assignedToId", sql.Int, assignmentData.assignedToId || null)
+        .input("status", sql.NVarChar, assignmentData.status || "not assigned")
+        .query(`
+          UPDATE ITAssignments 
+          SET assignedToId = @assignedToId, 
+              status = @status,
+              updatedAt = GETDATE()
+          WHERE employeeId = @employeeId
+          OUTPUT INSERTED.*
+        `);
+
+      return NextResponse.json(result.recordset[0]);
+    } else {
+      // Create new assignment
+      const result = await pool
+        .request()
+        .input("employeeId", sql.Int, employeeId)
+        .input("assignedToId", sql.Int, assignmentData.assignedToId || null)
+        .input("status", sql.NVarChar, assignmentData.status || "not assigned")
+        .query(`
+          INSERT INTO ITAssignments (employeeId, assignedToId, status)
+          OUTPUT INSERTED.*
+          VALUES (@employeeId, @assignedToId, @status)
+        `);
+
+      return NextResponse.json(result.recordset[0]);
+    }
+  } catch (error: any) {
     console.error("Error updating IT assignment:", error);
-    return NextResponse.json({ error: "Failed to update assignment" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update IT assignment" },
+      { status: 500 }
+    );
   }
 }
