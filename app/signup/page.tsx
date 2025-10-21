@@ -11,6 +11,7 @@ export default function SignupPage() {
   const [passwordsMatch, setPasswordsMatch] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -33,6 +34,7 @@ export default function SignupPage() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccess("");
     
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
@@ -66,8 +68,17 @@ export default function SignupPage() {
         throw new Error(data.error || 'Failed to create account');
       }
 
-      // Success - redirect to dashboard
-      router.push('/management-portal/dashboard');
+      // Show success message
+      if (formData.role !== "User") {
+        setSuccess(`Account created successfully! You have been granted basic User access. Your ${formData.role} role request has been sent for administrator approval.`);
+        // Wait a moment before redirecting so user can read the message
+        setTimeout(() => {
+          router.push('/management-portal/dashboard');
+        }, 3000);
+      } else {
+        // Regular user, redirect immediately
+        router.push('/management-portal/dashboard');
+      }
       
     } catch (error) {
       console.error("Signup error:", error);
@@ -101,6 +112,12 @@ export default function SignupPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4">
             <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <p className="text-green-700 text-sm">{success}</p>
           </div>
         )}
 
@@ -225,13 +242,16 @@ export default function SignupPage() {
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               >
-                <option value="User">User (Default Access)</option>
-                <option value="I.T.">I.T. Staff</option>
-                <option value="Trainer">Trainer</option>
-                <option value="HR">HR Staff</option>
+                <option value="User">User (Default Access - Immediate)</option>
+                <option value="I.T.">I.T. Staff (Requires Approval)</option>
+                <option value="Trainer">Trainer (Requires Approval)</option>
+                <option value="HR">HR Staff (Requires Approval)</option>
               </select>
               <p className="text-xs text-gray-500 px-3 pb-2">
-                Note: All role requests require administrator approval
+                {formData.role === "User" 
+                  ? "You will receive basic User access immediately."
+                  : "You will receive basic User access immediately. Role upgrade requires administrator approval."
+                }
               </p>
             </div>
           </div>
