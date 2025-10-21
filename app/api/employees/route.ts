@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { CreateNewEmployee } from "@/app/types/index";
+import sql from "mssql";
 
 export async function GET() {
   try {
@@ -10,14 +10,7 @@ export async function GET() {
       ORDER BY timestamp DESC
     `);
 
-    // Transform the data to match your frontend expectations
-    const employees = result.recordset.map(employee => ({
-      ...employee,
-      firstName: employee.name.split(' ')[0] || '', // Extract first name
-      lastName: employee.name.split(' ').slice(1).join(' ') || '', // Extract last name
-    }));
-
-    return NextResponse.json(employees);
+    return NextResponse.json(result.recordset);
   } catch (error: any) {
     console.error("Error fetching employees:", error);
     return NextResponse.json(
@@ -31,14 +24,14 @@ export async function POST(request: NextRequest) {
   console.log("🔵 POST /api/employees called");
 
   try {
-    const employeeData: CreateNewEmployee = await request.json();
+    const employeeData = await request.json();
     console.log("Received employee data:", employeeData);
 
-    // Validate required fields - updated to match your form
-    if (!employeeData.name || !employeeData.jobTitle || !employeeData.startDate) {
+    // Validate required fields - match your table structure
+    if (!employeeData.firstName || !employeeData.lastName || !employeeData.jobTitle || !employeeData.startDate) {
       console.log("❌ Validation failed: Missing required fields");
       return NextResponse.json(
-        { error: "Name, Job Title, and Start Date are required" },
+        { error: "First Name, Last Name, Job Title, and Start Date are required" },
         { status: 400 }
       );
     }
@@ -47,32 +40,28 @@ export async function POST(request: NextRequest) {
     const pool = await connectToDatabase();
     console.log("✅ Database connected, executing query...");
 
+    // Use proper SQL parameter types matching your table columns
     const result = await pool
       .request()
-      .input("name", employeeData.name)
-      .input("jobTitle", employeeData.jobTitle)
-      .input("startDate", employeeData.startDate)
-      .input("currentManager", employeeData.currentManager || "")
-      .input("directorRegionalDirector", employeeData.directorRegionalDirector || "")
+      .input("firstName", sql.NVarChar, employeeData.firstName)
+      .input("lastName", sql.NVarChar, employeeData.lastName)
+      .input("jobTitle", sql.NVarChar, employeeData.jobTitle)
+      .input("startDate", sql.Date, employeeData.startDate)
+      .input("currentManager", sql.NVarChar, employeeData.currentManager || "")
+      .input("directorRegionalDirector", sql.NVarChar, employeeData.directorRegionalDirector || "")
+      .input("status", sql.NVarChar, employeeData.status || "Active") // Default status
       .query(`
-        INSERT INTO Employees (name, jobTitle, startDate, currentManager, directorRegionalDirector)
+        INSERT INTO Employees (firstName, lastName, jobTitle, startDate, currentManager, directorRegionalDirector, status)
         OUTPUT INSERTED.*
-        VALUES (@name, @jobTitle, @startDate, @currentManager, @directorRegionalDirector)
+        VALUES (@firstName, @lastName, @jobTitle, @startDate, @currentManager, @directorRegionalDirector, @status)
       `);
 
     console.log("✅ Employee created successfully:", result.recordset[0]);
-    
-    // Transform the response to include firstName and lastName
-    const createdEmployee = result.recordset[0];
-    const responseEmployee = {
-      ...createdEmployee,
-      firstName: createdEmployee.name.split(' ')[0] || '',
-      lastName: createdEmployee.name.split(' ').slice(1).join(' ') || '',
-    };
 
-    return NextResponse.json(responseEmployee, { status: 201 });
+    return NextResponse.json(result.recordset[0], { status: 201 });
   } catch (error: any) {
     console.error("❌ Error creating employee:", error);
+    
     return NextResponse.json(
       { error: "Failed to create employee", details: error.message },
       { status: 500 }

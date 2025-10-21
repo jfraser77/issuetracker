@@ -45,12 +45,21 @@ const NewEmployeePage = () => {
         return;
       }
 
+      // Combine firstName and lastName into name
+      const name = `${formData.firstName} ${formData.lastName}`.trim();
+
       const response = await fetch("/api/employees", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          name: name,
+          jobTitle: formData.jobTitle,
+          startDate: formData.startDate,
+          currentManager: formData.currentManager,
+          directorRegionalDirector: formData.directorRegionalDirector,
+        }),
       });
 
       if (!response.ok) {
@@ -137,7 +146,7 @@ const NewEmployeePage = () => {
                 value={formData.firstName}
                 onChange={handleChange}
                 required
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter first name"
               />
             </div>
@@ -153,7 +162,7 @@ const NewEmployeePage = () => {
                 value={formData.lastName}
                 onChange={handleChange}
                 required
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter last name"
               />
             </div>
@@ -169,7 +178,7 @@ const NewEmployeePage = () => {
                 value={formData.jobTitle}
                 onChange={handleChange}
                 required
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter job title"
               />
             </div>
@@ -185,7 +194,7 @@ const NewEmployeePage = () => {
                 value={formData.startDate}
                 onChange={handleChange}
                 required
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -199,7 +208,7 @@ const NewEmployeePage = () => {
                 name="currentManager"
                 value={formData.currentManager}
                 onChange={handleChange}
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter manager's name"
               />
             </div>
@@ -214,7 +223,7 @@ const NewEmployeePage = () => {
                 name="directorRegionalDirector"
                 value={formData.directorRegionalDirector}
                 onChange={handleChange}
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Enter director's name"
               />
             </div>
