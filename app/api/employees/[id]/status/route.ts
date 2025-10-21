@@ -1,10 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "../../../../../lib/db";
+import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 
 interface RouteContext {
-  params: Promise<{ id: string }>;
+  params: {
+    id: string;
+  };
 }
+
+// System applications with initial status
+const systemApplications = {
+  "E-Tenet ID #": { status: "not begun", notes: [] },
+  "New User Network Access Request - tenetone.com": { status: "not begun", notes: [] },
+  "Tenet Portal & TENET/USPI email - tenetone.com": { status: "not begun", notes: [] },
+  "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
+  "USPI Billing drive": { status: "not begun", notes: [] },
+  "CSO Public drive": { status: "not begun", notes: [] },
+  "NSN1 Public drive": { status: "not begun", notes: [] },
+  "Microsoft 365 license (Outlook and Teams)": { status: "not begun", notes: [] },
+  "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
+  "Scan Chart - Req icon to be added to the user Citrix Explorer Account": { status: "not begun", notes: [] },
+  "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
+  "Learn share - USPI university": { status: "not begun", notes: [] },
+  "ProVation - Center Specific": { status: "not begun", notes: [] },
+  "EOM Tool - Role Specific": { status: "not begun", notes: [] },
+  "Bank Access - Role Specific Managers and above": { status: "not begun", notes: [] },
+  "ENVI - Billing Dept": { status: "not begun", notes: [] },
+  "Nimble - Billing Dept": { status: "not begun", notes: [] },
+};
 
 // GET: Fetch application status for an employee
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -12,7 +35,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
     const pool = await connectToDatabase();
 
-    // Check if EmployeeStatus table exists, if not return default status
+    // Check if EmployeeStatus table exists
     const tableCheck = await pool.request().query(`
       SELECT COUNT(*) as count 
       FROM INFORMATION_SCHEMA.TABLES 
@@ -20,27 +43,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     `);
 
     if (tableCheck.recordset[0].count === 0) {
-      // Return the default system applications structure
-      const defaultStatus = {
-        "E-Tenet ID #": { status: "not begun", notes: [] },
-        "New User Network Access Request - tenetone.com": { status: "not begun", notes: [] },
-        "Tenet Portal & TENET/USPI email - tenetone.com": { status: "not begun", notes: [] },
-        "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
-        "USPI Billing drive": { status: "not begun", notes: [] },
-        "CSO Public drive": { status: "not begun", notes: [] },
-        "NSN1 Public drive": { status: "not begun", notes: [] },
-        "Microsoft 365 license (Outlook and Teams)": { status: "not begun", notes: [] },
-        "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
-        "Scan Chart - Req icon to be added to the user Citrix Explorer Account": { status: "not begun", notes: [] },
-        "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
-        "Learn share - USPI university": { status: "not begun", notes: [] },
-        "ProVation - Center Specific": { status: "not begun", notes: [] },
-        "EOM Tool - Role Specific": { status: "not begun", notes: [] },
-        "Bank Access - Role Specific Managers and above": { status: "not begun", notes: [] },
-        "ENVI - Billing Dept": { status: "not begun", notes: [] },
-        "Nimble - Billing Dept": { status: "not begun", notes: [] },
-      };
-      return NextResponse.json(defaultStatus);
+      return NextResponse.json(systemApplications);
     }
 
     const result = await pool
@@ -49,23 +52,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .query("SELECT statusData FROM EmployeeStatus WHERE employeeId = @employeeId");
 
     if (result.recordset.length === 0) {
-      // Return default status if no record exists
-      const defaultStatus = {
-        "E-Tenet ID #": { status: "not begun", notes: [] },
-        // ... include all default applications
-      };
-      return NextResponse.json(defaultStatus);
+      return NextResponse.json(systemApplications);
     }
 
     return NextResponse.json(JSON.parse(result.recordset[0].statusData));
   } catch (error: any) {
     console.error("Error fetching employee status:", error);
-    // Return empty object instead of default to avoid confusion
-    return NextResponse.json({});
+    return NextResponse.json(systemApplications);
   }
 }
 
-// POST: Save application status for an employee - YOUR CURRENT CODE IS GOOD
+// POST: Save application status for an employee
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -93,10 +90,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     `);
 
     // Upsert the status data
-    const result = await pool
+    await pool
       .request()
       .input("employeeId", sql.Int, parseInt(id))
-      .input("statusData", sql.NVarChar, JSON.stringify(statusData)).query(`
+      .input("statusData", sql.NVarChar, JSON.stringify(statusData))
+      .query(`
         MERGE EmployeeStatus AS target
         USING (SELECT @employeeId as employeeId, @statusData as statusData) AS source
         ON target.employeeId = source.employeeId

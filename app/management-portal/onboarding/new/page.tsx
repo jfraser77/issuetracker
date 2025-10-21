@@ -45,21 +45,13 @@ const NewEmployeePage = () => {
         return;
       }
 
-      // Combine firstName and lastName into name
-      const name = `${formData.firstName} ${formData.lastName}`.trim();
-
+      // Send the data as-is (firstName, lastName, etc.)
       const response = await fetch("/api/employees", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: name,
-          jobTitle: formData.jobTitle,
-          startDate: formData.startDate,
-          currentManager: formData.currentManager,
-          directorRegionalDirector: formData.directorRegionalDirector,
-        }),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {

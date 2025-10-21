@@ -27,29 +27,37 @@ export async function POST(request: NextRequest) {
     const employeeData = await request.json();
     console.log("Received employee data:", employeeData);
 
-    // Validate required fields - match your table structure
-    if (!employeeData.firstName || !employeeData.lastName || !employeeData.jobTitle || !employeeData.startDate) {
+    // Validate required fields - accept both firstName/lastName and name
+    const hasFirstNameLastName = employeeData.firstName && employeeData.lastName;
+    const hasFullName = employeeData.name;
+    
+    if ((!hasFirstNameLastName && !hasFullName) || !employeeData.jobTitle || !employeeData.startDate) {
       console.log("❌ Validation failed: Missing required fields");
       return NextResponse.json(
-        { error: "First Name, Last Name, Job Title, and Start Date are required" },
+        { error: "Name (or First/Last Name), Job Title, and Start Date are required" },
         { status: 400 }
       );
     }
+
+    // Build the name field from firstName/lastName or use the name field
+    const name = hasFirstNameLastName 
+      ? `${employeeData.firstName} ${employeeData.lastName}`.trim()
+      : employeeData.name;
 
     console.log("🔄 Attempting database connection...");
     const pool = await connectToDatabase();
     console.log("✅ Database connected, executing query...");
 
-    // Use proper SQL parameter types matching your table columns
+    // Use proper SQL parameter types
     const result = await pool
       .request()
-      .input("firstName", sql.NVarChar, employeeData.firstName)
-      .input("lastName", sql.NVarChar, employeeData.lastName)
+      .input("firstName", sql.NVarChar, hasFirstNameLastName ? employeeData.firstName : name.split(' ')[0] || '')
+      .input("lastName", sql.NVarChar, hasFirstNameLastName ? employeeData.lastName : name.split(' ').slice(1).join(' ') || '')
       .input("jobTitle", sql.NVarChar, employeeData.jobTitle)
       .input("startDate", sql.Date, employeeData.startDate)
       .input("currentManager", sql.NVarChar, employeeData.currentManager || "")
       .input("directorRegionalDirector", sql.NVarChar, employeeData.directorRegionalDirector || "")
-      .input("status", sql.NVarChar, employeeData.status || "Active") // Default status
+      .input("status", sql.NVarChar, employeeData.status || "Active")
       .query(`
         INSERT INTO Employees (firstName, lastName, jobTitle, startDate, currentManager, directorRegionalDirector, status)
         OUTPUT INSERTED.*
