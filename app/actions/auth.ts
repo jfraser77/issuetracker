@@ -10,9 +10,12 @@ export async function signup(formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const role = (formData.get("role") as string) || "HR";
+  const requestedRole = (formData.get("role") as string) || "User";
+  const assignedRole = "User"; 
 
-  console.log("Signup attempt:", { name, email, role });
+
+
+  console.log("Signup attempt:", { name, email, assignedRole });
 
   if (!name || !email || !password) {
     return { error: "All fields are required" };

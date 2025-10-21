@@ -6,11 +6,12 @@ import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json();
+    const { name, email, password, role = "User" } = await request.json();
 
     console.log("Signup request:", {
       name,
       email,
+      role,
       password: password ? "***" : "missing",
     });
 
@@ -39,15 +40,17 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user with role
     const userResult = await pool
       .request()
       .input("name", sql.NVarChar, name)
       .input("email", sql.NVarChar, email)
-      .input("password", sql.NVarChar, hashedPassword).query(`
-        INSERT INTO Users (name, email, password) 
+      .input("password", sql.NVarChar, hashedPassword)
+      .input("role", sql.NVarChar, role)
+      .query(`
+        INSERT INTO Users (name, email, password, role) 
         OUTPUT INSERTED.id
-        VALUES (@name, @email, @password)
+        VALUES (@name, @email, @password, @role)
       `);
 
     const newUserId = userResult.recordset[0].id;

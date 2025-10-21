@@ -1,21 +1,23 @@
 "use client";
-import { signup } from "@/app/actions/auth";
 import Link from "next/link";
 import { useState } from "react";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordsMatch, setPasswordsMatch] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    role: "User" // Default to User
+    role: "User"
   });
 
   const handlePasswordChange = (field: string, value: string) => {
@@ -30,23 +32,46 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
     
     if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       setIsLoading(false);
       return;
     }
 
     if (formData.password.length < 8) {
-      alert("Password must be at least 8 characters long");
+      setError("Password must be at least 8 characters long");
       setIsLoading(false);
       return;
     }
 
     try {
-      await signup(formData);
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create account');
+      }
+
+      // Success - redirect to dashboard
+      router.push('/management-portal/dashboard');
+      
     } catch (error) {
       console.error("Signup error:", error);
+      setError(error instanceof Error ? error.message : "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +97,13 @@ export default function SignupPage() {
             </Link>
           </p>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
@@ -180,7 +212,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {/* Role Selection - Admin removed from options */}
+            {/* Role Selection */}
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1 px-3 pt-2">
                 Requested Role
