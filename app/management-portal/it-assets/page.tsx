@@ -39,13 +39,16 @@ interface LaptopOrder {
   orderNumber: string;
   trackingNumber: string | null;
   orderedByUserId: number;
+  intendedRecipientId: number;
   quantity: number;
   status: "ordered" | "received" | "cancelled" | "archived";
   orderDate: string;
   receivedDate: string | null;
   notes: string;
-  orderedBy?: User;
   isArchived?: boolean;
+  canUnarchive?: boolean;
+  orderedBy?: User;
+  intendedRecipient?: User | null; 
 }
 
 interface TerminationStats {
@@ -65,6 +68,7 @@ export default function ITAssetsPage() {
     quantity: 1,
     trackingNumber: "",
     orderedByUserId: "",
+    intendedRecipientId: "", 
     notes: "",
   });
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
@@ -289,52 +293,57 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Rest of your existing functions (createOrder, markOrderReceived, etc.) remain the same
-  const createOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newOrder.orderedByUserId) {
-      alert("Please select who the order is for");
-      return;
-    }
+ 
 
-    try {
-      const response = await fetch("/api/it-assets/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quantity: newOrder.quantity,
-          trackingNumber: newOrder.trackingNumber || null,
-          orderedByUserId: parseInt(newOrder.orderedByUserId),
-          notes: newOrder.notes,
-        }),
+
+
+const createOrder = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newOrder.orderedByUserId || !newOrder.intendedRecipientId) {
+    alert("Please select who ordered and who the intended recipient is");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/it-assets/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        quantity: newOrder.quantity,
+        trackingNumber: newOrder.trackingNumber || null,
+        orderedByUserId: parseInt(newOrder.orderedByUserId),
+        intendedRecipientId: parseInt(newOrder.intendedRecipientId), // ADD THIS
+        notes: newOrder.notes,
+      }),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      setShowOrderForm(false);
+      setNewOrder({
+        quantity: 1,
+        trackingNumber: "",
+        orderedByUserId: currentUser?.id.toString() || "",
+        intendedRecipientId: "", // RESET THIS
+        notes: "",
       });
-
-      const responseData = await response.json();
-
-      if (response.ok) {
-        setShowOrderForm(false);
-        setNewOrder({
-          quantity: 1,
-          trackingNumber: "",
-          orderedByUserId: currentUser?.id.toString() || "",
-          notes: "",
-        });
-        fetchData();
-        alert("Order created successfully!");
-      } else {
-        console.error("Order creation failed:", responseData);
-        alert(
-          responseData.error ||
-            "Failed to create order. Check console for details."
-        );
-      }
-    } catch (error) {
-      console.error("Error creating order:", error);
-      alert("Network error. Please check your connection and try again.");
+      fetchData();
+      alert("Order created successfully!");
+    } else {
+      console.error("Order creation failed:", responseData);
+      alert(
+        responseData.error ||
+          "Failed to create order. Check console for details."
+      );
     }
-  };
+  } catch (error) {
+    console.error("Error creating order:", error);
+    alert("Network error. Please check your connection and try again.");
+  }
+};
 
   const markOrderReceived = async (orderId: number) => {
     try {
@@ -937,7 +946,7 @@ export default function ITAssetsPage() {
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+<thead className="bg-gray-50">
   <tr>
     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
       Tracking Number
@@ -951,7 +960,15 @@ export default function ITAssetsPage() {
     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
       Quantity
     </th>
-    {/* ... rest of headers */}
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Order Date
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Status
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Actions
+    </th>
   </tr>
 </thead>
             <tbody className="bg-white divide-y divide-gray-200">

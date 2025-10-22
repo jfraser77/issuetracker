@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const orderData = await request.json();
 
-    // Validate required fields - now including intendedRecipientId
+    // Validate required fields
     if (!orderData.quantity || !orderData.orderedByUserId || !orderData.intendedRecipientId) {
       return NextResponse.json(
         { error: "Quantity, orderedByUserId, and intendedRecipientId are required" },
@@ -46,11 +46,9 @@ export async function POST(request: NextRequest) {
     const pool = await connectToDatabase();
 
     // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create order with intended recipient
+
     const result = await pool
       .request()
       .input("orderNumber", sql.NVarChar, orderNumber)
@@ -59,13 +57,69 @@ export async function POST(request: NextRequest) {
       .input("intendedRecipientId", sql.Int, orderData.intendedRecipientId)
       .input("quantity", sql.Int, orderData.quantity)
       .input("status", sql.NVarChar, "ordered")
-      .input("notes", sql.NVarChar, orderData.notes || "").query(`
-        INSERT INTO LaptopOrders (orderNumber, trackingNumber, orderedByUserId, intendedRecipientId, quantity, status, notes)
-        OUTPUT INSERTED.*
-        VALUES (@orderNumber, @trackingNumber, @orderedByUserId, @intendedRecipientId, @quantity, @status, @notes)
+      .input("notes", sql.NVarChar, orderData.notes || "")
+      .query(`
+        INSERT INTO LaptopOrders 
+        (orderNumber, trackingNumber, orderedByUserId, intendedRecipientId, quantity, status, notes, orderDate)
+        OUTPUT INSERTED.id, INSERTED.orderNumber, INSERTED.trackingNumber, INSERTED.orderedByUserId, 
+               INSERTED.intendedRecipientId, INSERTED.quantity, INSERTED.status, INSERTED.notes, 
+               INSERTED.orderDate, INSERTED.receivedDate, INSERTED.isArchived, INSERTED.canUnarchive
+        VALUES (@orderNumber, @trackingNumber, @orderedByUserId, @intendedRecipientId, @quantity, @status, @notes, GETDATE())
       `);
 
-    return NextResponse.json(result.recordset[0], { status: 201 });
+    if (result.recordset.length === 0) {
+      return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    }
+
+    // Now fetch the complete order with user details
+    const completeOrderResult = await pool
+      .request()
+      .input("orderId", sql.Int, result.recordset[0].id)
+      .query(`
+        SELECT 
+          lo.*,
+          u.name as orderedByName,
+          u.email as orderedByEmail,
+          u.role as orderedByRole,
+          ir.name as intendedRecipientName,
+          ir.email as intendedRecipientEmail,
+          ir.role as intendedRecipientRole
+        FROM LaptopOrders lo
+        LEFT JOIN Users u ON lo.orderedByUserId = u.id
+        LEFT JOIN Users ir ON lo.intendedRecipientId = ir.id
+        WHERE lo.id = @orderId
+      `);
+
+    const order = completeOrderResult.recordset[0];
+    
+    const formattedOrder = {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      trackingNumber: order.trackingNumber,
+      orderedByUserId: order.orderedByUserId,
+      intendedRecipientId: order.intendedRecipientId,
+      quantity: order.quantity,
+      status: order.status,
+      orderDate: order.orderDate,
+      receivedDate: order.receivedDate,
+      notes: order.notes,
+      isArchived: order.isArchived,
+      canUnarchive: order.canUnarchive,
+      orderedBy: {
+        id: order.orderedByUserId,
+        name: order.orderedByName,
+        email: order.orderedByEmail,
+        role: order.orderedByRole,
+      },
+      intendedRecipient: order.intendedRecipientId ? {
+        id: order.intendedRecipientId,
+        name: order.intendedRecipientName,
+        email: order.intendedRecipientEmail,
+        role: order.intendedRecipientRole,
+      } : null
+    };
+
+    return NextResponse.json(formattedOrder, { status: 201 });
   } catch (error: any) {
     console.error("Error creating laptop order:", error);
     return NextResponse.json(
@@ -79,7 +133,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("active") === "true";
-    const includeArchived = searchParams.get("includeArchived") === "true";
 
     const pool = await connectToDatabase();
 
@@ -97,21 +150,15 @@ export async function GET(request: NextRequest) {
       LEFT JOIN Users ir ON lo.intendedRecipientId = ir.id
     `;
 
-    const conditions = [];
     if (activeOnly) {
-      conditions.push(`lo.isArchived = 0`);
-    }
-    if (includeArchived) {
-      // No filter needed, include all
-    }
-
-    if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(' AND ')}`;
+      query += ` WHERE lo.isArchived = 0 `;
     }
 
     query += ` ORDER BY lo.orderDate DESC`;
 
     const result = await pool.request().query(query);
+
+    console.log("Fetched orders:", result.recordset.length);
 
     // Transform the data to match the frontend interface
     const orders = result.recordset.map((order) => ({
@@ -133,12 +180,12 @@ export async function GET(request: NextRequest) {
         email: order.orderedByEmail,
         role: order.orderedByRole,
       },
-      intendedRecipient: {
+      intendedRecipient: order.intendedRecipientId ? {
         id: order.intendedRecipientId,
         name: order.intendedRecipientName,
         email: order.intendedRecipientEmail,
         role: order.intendedRecipientRole,
-      },
+      } : null
     }));
 
     return NextResponse.json(orders);
