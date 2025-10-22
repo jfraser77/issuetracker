@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         u.role as userRole
       FROM ITStaffInventory i
       LEFT JOIN Users u ON i.userId = u.id
+      WHERE u.role IN ('Admin', 'I.T.')  -- Only include Admin and I.T. roles
       ORDER BY u.name
     `);
 
@@ -69,6 +70,14 @@ export async function PUT(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    // Only allow Admin and I.T. roles to modify inventory
+    if (user.role !== "Admin" && user.role !== "I.T.") {
+      return NextResponse.json(
+        { error: "Insufficient permissions" },
+        { status: 403 }
+      );
     }
 
     const { userId, change } = await request.json();
