@@ -53,6 +53,13 @@ export default function EmployeeOnboardingDetail() {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [newNotes, setNewNotes] = useState<{ [key: string]: string }>({});
 
+  const getDaysSinceAdded = (timestamp: string) => {
+  const addedDate = new Date(timestamp);
+  const today = new Date();
+  const diffTime = Math.abs(today.getTime() - addedDate.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
   // System applications with proper TaskWithNotes structure
   const systemApplications: ApplicationStatus = {
     "E-Tenet ID #": { status: "not begun", notes: [] },
@@ -346,13 +353,7 @@ export default function EmployeeOnboardingDetail() {
     return !systemApplications.hasOwnProperty(taskName);
   };
 
-  const getDaysSinceAdded = () => {
-    if (!employee?.timestamp) return 0;
-    const addedDate = new Date(employee.timestamp);
-    const today = new Date();
-    const diffTime = Math.abs(today.getTime() - addedDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
+
 
   const formatNoteTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString();
@@ -385,8 +386,9 @@ export default function EmployeeOnboardingDetail() {
     );
   }
 
+  
+ const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
   const progress = calculateProgress();
-  const daysSinceAdded = getDaysSinceAdded();
 
   return (
     <div>

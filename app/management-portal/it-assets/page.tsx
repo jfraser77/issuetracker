@@ -39,13 +39,16 @@ interface LaptopOrder {
   orderNumber: string;
   trackingNumber: string | null;
   orderedByUserId: number;
+  intendedRecipientId: number;
   quantity: number;
   status: "ordered" | "received" | "cancelled" | "archived";
   orderDate: string;
   receivedDate: string | null;
   notes: string;
-  orderedBy?: User;
   isArchived?: boolean;
+  canUnarchive?: boolean;
+  orderedBy?: User;
+  intendedRecipient?: User | null; 
 }
 
 interface TerminationStats {
@@ -67,6 +70,7 @@ export default function ITAssetsPage() {
     quantity: 1,
     trackingNumber: "",
     orderedByUserId: "",
+    intendedRecipientId: "", 
     notes: "",
   });
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
@@ -310,52 +314,57 @@ export default function ITAssetsPage() {
     }
   };
 
-  // Rest of your existing functions (createOrder, markOrderReceived, etc.) remain the same
-  const createOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newOrder.orderedByUserId) {
-      alert("Please select who the order is for");
-      return;
-    }
+ 
 
-    try {
-      const response = await fetch("/api/it-assets/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          quantity: newOrder.quantity,
-          trackingNumber: newOrder.trackingNumber || null,
-          orderedByUserId: parseInt(newOrder.orderedByUserId),
-          notes: newOrder.notes,
-        }),
+
+
+const createOrder = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!newOrder.orderedByUserId || !newOrder.intendedRecipientId) {
+    alert("Please select who ordered and who the intended recipient is");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/it-assets/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        quantity: newOrder.quantity,
+        trackingNumber: newOrder.trackingNumber || null,
+        orderedByUserId: parseInt(newOrder.orderedByUserId),
+        intendedRecipientId: parseInt(newOrder.intendedRecipientId), // ADD THIS
+        notes: newOrder.notes,
+      }),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      setShowOrderForm(false);
+      setNewOrder({
+        quantity: 1,
+        trackingNumber: "",
+        orderedByUserId: currentUser?.id.toString() || "",
+        intendedRecipientId: "", // RESET THIS
+        notes: "",
       });
-
-      const responseData = await response.json();
-
-      if (response.ok) {
-        setShowOrderForm(false);
-        setNewOrder({
-          quantity: 1,
-          trackingNumber: "",
-          orderedByUserId: currentUser?.id.toString() || "",
-          notes: "",
-        });
-        fetchData();
-        alert("Order created successfully!");
-      } else {
-        console.error("Order creation failed:", responseData);
-        alert(
-          responseData.error ||
-            "Failed to create order. Check console for details."
-        );
-      }
-    } catch (error) {
-      console.error("Error creating order:", error);
-      alert("Network error. Please check your connection and try again.");
+      fetchData();
+      alert("Order created successfully!");
+    } else {
+      console.error("Order creation failed:", responseData);
+      alert(
+        responseData.error ||
+          "Failed to create order. Check console for details."
+      );
     }
-  };
+  } catch (error) {
+    console.error("Error creating order:", error);
+    alert("Network error. Please check your connection and try again.");
+  }
+};
 
   const markOrderReceived = async (orderId: number) => {
     try {
@@ -380,27 +389,28 @@ export default function ITAssetsPage() {
     }
   };
 
-  const archiveOrder = async (orderId: number) => {
-    try {
-      const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+  const archiveOrder = async (orderId: number, action: 'archive' | 'unarchive' = 'archive') => {
+  try {
+    const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action }),
+    });
 
-      if (response.ok) {
-        fetchData();
-        alert("Order archived successfully!");
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to archive order");
-      }
-    } catch (error) {
-      console.error("Error archiving order:", error);
-      alert("Failed to archive order");
+    if (response.ok) {
+      fetchData();
+      alert(`Order ${action === 'unarchive' ? 'unarchived' : 'archived'} successfully!`);
+    } else {
+      const errorData = await response.json();
+      alert(errorData.error || `Failed to ${action} order`);
     }
-  };
+  } catch (error) {
+    console.error(`Error ${action}ing order:`, error);
+    alert(`Failed to ${action} order`);
+  }
+};
 
   const deleteOrder = async (orderId: number) => {
     if (
@@ -827,6 +837,7 @@ export default function ITAssetsPage() {
       )}
 
       {/* Laptop Orders Section */}
+<<<<<<< HEAD
       {shouldShowITStaffInventory && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex justify-between items-center mb-4">
@@ -853,9 +864,157 @@ export default function ITAssetsPage() {
                 <ClockIcon className="h-4 w-4 mr-2" />
                 Order History
               </Link>
+=======
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Laptop Orders
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Active orders - received orders auto-archive after 30 days
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowOrderForm(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
+            >
+              <ShoppingCartIcon className="h-4 w-4 mr-2" />
+              New Order
+            </button>
+            <Link
+              href="/management-portal/order-history"
+              className="bg-blue-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
+            >
+              <ClockIcon className="h-4 w-4 mr-2" />
+              Order History
+            </Link>
+          </div>
+        </div>
+
+        {/* Order Form Modal */}
+        {showOrderForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-semibold mb-4">New Laptop Order</h3>
+              <form onSubmit={createOrder}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Ordered By *
+                  </label>
+                  <select
+                    value={newOrder.orderedByUserId}
+                    onChange={(e) =>
+                      setNewOrder({
+                        ...newOrder,
+                        orderedByUserId: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Select User</option>
+                    {allUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({user.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-4">
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Intended Recipient *
+  </label>
+  <select
+    value={newOrder.intendedRecipientId}
+    onChange={(e) =>
+      setNewOrder({
+        ...newOrder,
+        intendedRecipientId: e.target.value,
+      })
+    }
+    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    required
+  >
+    <option value="">Select Intended Recipient</option>
+    {allUsers.map((user) => (
+      <option key={user.id} value={user.id}>
+        {user.name} ({user.role})
+      </option>
+    ))}
+  </select>
+</div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newOrder.quantity}
+                    onChange={(e) =>
+                      setNewOrder({
+                        ...newOrder,
+                        quantity: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tracking Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newOrder.trackingNumber}
+                    onChange={(e) =>
+                      setNewOrder({
+                        ...newOrder,
+                        trackingNumber: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter tracking number"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={newOrder.notes}
+                    onChange={(e) =>
+                      setNewOrder({ ...newOrder, notes: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    rows={3}
+                    placeholder="Any additional notes about this order..."
+                  />
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowOrderForm(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+                  >
+                    Place Order
+                  </button>
+                </div>
+              </form>
+>>>>>>> d18731c9e5518a1804e266774cbad75393550142
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Order Form Modal */}
           {showOrderForm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -957,6 +1116,37 @@ export default function ITAssetsPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
+=======
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+<thead className="bg-gray-50">
+  <tr>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Tracking Number
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Ordered By
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Intended Recipient
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Quantity
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Order Date
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Status
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Actions
+    </th>
+  </tr>
+</thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {activeOrders.length === 0 ? (
+>>>>>>> d18731c9e5518a1804e266774cbad75393550142
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Tracking Number
@@ -977,6 +1167,7 @@ export default function ITAssetsPage() {
                     Actions
                   </th>
                 </tr>
+<<<<<<< HEAD
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {activeOrders.length === 0 ? (
@@ -986,6 +1177,123 @@ export default function ITAssetsPage() {
                       className="px-6 py-4 text-center text-gray-500"
                     >
                       No active orders found
+=======
+              ) : (
+                activeOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.trackingNumber ? (
+                        <span className="font-mono bg-gray-100 px-2 py-1 rounded border">
+                          {order.trackingNumber}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 italic">
+                          No tracking number
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-3">
+                          <span className="text-white text-xs font-semibold">
+                            {getUserInitial(order)}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {getUserDisplayName(order)}
+                          </div>
+                          <div className="text-xs text-gray-500 capitalize">
+                            {getUserRole(order)}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+  <div className="flex items-center">
+    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-3">
+      <span className="text-white text-xs font-semibold">
+        {order.intendedRecipient?.name?.charAt(0).toUpperCase() || 'U'}
+      </span>
+    </div>
+    <div>
+      <div className="font-medium text-gray-900">
+        {order.intendedRecipient?.name || `User ${order.intendedRecipientId}`}
+      </div>
+      <div className="text-xs text-gray-500 capitalize">
+        {order.intendedRecipient?.role || 'User'}
+      </div>
+    </div>
+  </div>
+</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.quantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.orderDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(
+                          order.status
+                        )}`}
+                      >
+                        {getStatusText(order.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        {order.status === "ordered" && (
+                          <button
+                            onClick={() => markOrderReceived(order.id)}
+                            className="text-green-600 hover:text-green-800 flex items-center"
+                            title="Mark as Received"
+                          >
+                            <CheckIcon className="h-4 w-4 mr-1" />
+                            Receive
+                          </button>
+                        )}
+                        {order.isArchived ? (
+  <button
+    onClick={() => archiveOrder(order.id, 'unarchive')}
+    className="text-blue-600 hover:text-blue-800 flex items-center"
+    title="Unarchive Order"
+  >
+    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+    Unarchive
+  </button>
+) : (
+  <button
+    onClick={() => archiveOrder(order.id, 'archive')}
+    className="text-gray-600 hover:text-gray-800 flex items-center"
+    title="Archive Order"
+  >
+    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+    Archive
+  </button>
+)}
+                        <button
+                          onClick={() => deleteOrder(order.id)}
+                          disabled={deletingOrderId === order.id}
+                          className="text-red-600 hover:text-red-800 flex items-center group relative"
+                          title="Delete Order"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                          {deletingOrderId === order.id ? (
+                            <span className="ml-1 text-xs">Deleting...</span>
+                          ) : (
+                            <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                              Delete
+                            </span>
+                          )}
+                        </button>
+                        {order.status === "received" && (
+                          <span className="text-gray-400 text-xs">
+                            Auto-archives in 30 days
+                          </span>
+                        )}
+                      </div>
+>>>>>>> d18731c9e5518a1804e266774cbad75393550142
                     </td>
                   </tr>
                 ) : (
