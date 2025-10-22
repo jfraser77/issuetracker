@@ -221,6 +221,7 @@ export async function getCurrentUser() {
     const userEmail = cookieStore.get("auth-user")?.value;
 
     if (!userEmail) {
+      console.log("No auth-user cookie found");
       return null;
     }
 
@@ -230,7 +231,10 @@ export async function getCurrentUser() {
       .input("email", sql.NVarChar, userEmail)
       .query("SELECT id, name, email, role FROM Users WHERE email = @email");
 
-    return result.recordset[0] || null;
+    const user = result.recordset[0] || null;
+    console.log("getCurrentUser found:", user ? user.email : "no user");
+    
+    return user;
   } catch (error) {
     console.error("Get user error:", error);
     return null;

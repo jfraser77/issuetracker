@@ -90,6 +90,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         if (response.ok) {
           const userData = await response.json();
           setUserRole(userData.role);
+        } else {
+          console.error("Failed to fetch user role:", response.status);
         }
       } catch (error) {
         console.error("Failed to fetch user role:", error);
@@ -160,19 +162,11 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         `}
         >
           <div className="flex items-center mt-5 justify-center h-16 bg-blue-800 px-4">
-            <Link href="/" onClick={() => setSidebarOpen(false)}>
-              <Image
-                src="/nsn_revenue_resources_logo.jpg"
-                alt="NSN image"
-                width={500}
-                height={300}
-                className="rounded-full"
-              />
-            </Link>
-
-            <h2 className="text-white text-xl font-semibold ml-2 bg-blue-800">
-              IT Management Portal
-            </h2>
+            <div className="animate-pulse bg-blue-600 rounded-full w-12 h-12"></div>
+            <div className="ml-2">
+              <div className="h-4 bg-blue-600 rounded w-32 mb-2"></div>
+              <div className="h-3 bg-blue-600 rounded w-24"></div>
+            </div>
           </div>
 
           <nav className="mt-9 px-2">
