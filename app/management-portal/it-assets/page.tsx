@@ -359,27 +359,28 @@ export default function ITAssetsPage() {
     }
   };
 
-  const archiveOrder = async (orderId: number) => {
-    try {
-      const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+  const archiveOrder = async (orderId: number, action: 'archive' | 'unarchive' = 'archive') => {
+  try {
+    const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action }),
+    });
 
-      if (response.ok) {
-        fetchData();
-        alert("Order archived successfully!");
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to archive order");
-      }
-    } catch (error) {
-      console.error("Error archiving order:", error);
-      alert("Failed to archive order");
+    if (response.ok) {
+      fetchData();
+      alert(`Order ${action === 'unarchive' ? 'unarchived' : 'archived'} successfully!`);
+    } else {
+      const errorData = await response.json();
+      alert(errorData.error || `Failed to ${action} order`);
     }
-  };
+  } catch (error) {
+    console.error(`Error ${action}ing order:`, error);
+    alert(`Failed to ${action} order`);
+  }
+};
 
   const deleteOrder = async (orderId: number) => {
     if (
@@ -821,7 +822,7 @@ export default function ITAssetsPage() {
               <form onSubmit={createOrder}>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ordered For *
+                    Ordered By *
                   </label>
                   <select
                     value={newOrder.orderedByUserId}
@@ -842,6 +843,29 @@ export default function ITAssetsPage() {
                     ))}
                   </select>
                 </div>
+                <div className="mb-4">
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Intended Recipient *
+  </label>
+  <select
+    value={newOrder.intendedRecipientId}
+    onChange={(e) =>
+      setNewOrder({
+        ...newOrder,
+        intendedRecipientId: e.target.value,
+      })
+    }
+    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    required
+  >
+    <option value="">Select Intended Recipient</option>
+    {allUsers.map((user) => (
+      <option key={user.id} value={user.id}>
+        {user.name} ({user.role})
+      </option>
+    ))}
+  </select>
+</div>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Quantity *
@@ -914,27 +938,22 @@ export default function ITAssetsPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tracking Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ordered By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantity
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+  <tr>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Tracking Number
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Ordered By
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Intended Recipient
+    </th>
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Quantity
+    </th>
+    {/* ... rest of headers */}
+  </tr>
+</thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {activeOrders.length === 0 ? (
                 <tr>
@@ -976,6 +995,23 @@ export default function ITAssetsPage() {
                         </div>
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+  <div className="flex items-center">
+    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-3">
+      <span className="text-white text-xs font-semibold">
+        {order.intendedRecipient?.name?.charAt(0).toUpperCase() || 'U'}
+      </span>
+    </div>
+    <div>
+      <div className="font-medium text-gray-900">
+        {order.intendedRecipient?.name || `User ${order.intendedRecipientId}`}
+      </div>
+      <div className="text-xs text-gray-500 capitalize">
+        {order.intendedRecipient?.role || 'User'}
+      </div>
+    </div>
+  </div>
+</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {order.quantity}
                     </td>
@@ -1003,17 +1039,25 @@ export default function ITAssetsPage() {
                             Receive
                           </button>
                         )}
-                        {(order.status === "received" ||
-                          order.status === "cancelled") && (
-                          <button
-                            onClick={() => archiveOrder(order.id)}
-                            className="text-gray-600 hover:text-gray-800 flex items-center"
-                            title="Archive Order"
-                          >
-                            <ArchiveBoxIcon className="h-4 w-4 mr-1" />
-                            Archive
-                          </button>
-                        )}
+                        {order.isArchived ? (
+  <button
+    onClick={() => archiveOrder(order.id, 'unarchive')}
+    className="text-blue-600 hover:text-blue-800 flex items-center"
+    title="Unarchive Order"
+  >
+    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+    Unarchive
+  </button>
+) : (
+  <button
+    onClick={() => archiveOrder(order.id, 'archive')}
+    className="text-gray-600 hover:text-gray-800 flex items-center"
+    title="Archive Order"
+  >
+    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+    Archive
+  </button>
+)}
                         <button
                           onClick={() => deleteOrder(order.id)}
                           disabled={deletingOrderId === order.id}

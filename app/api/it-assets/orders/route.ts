@@ -35,10 +35,10 @@ export async function POST(request: NextRequest) {
 
     const orderData = await request.json();
 
-    // Validate required fields
-    if (!orderData.quantity || !orderData.orderedByUserId) {
+    // Validate required fields - now including intendedRecipientId
+    if (!orderData.quantity || !orderData.orderedByUserId || !orderData.intendedRecipientId) {
       return NextResponse.json(
-        { error: "Quantity and orderedByUserId are required" },
+        { error: "Quantity, orderedByUserId, and intendedRecipientId are required" },
         { status: 400 }
       );
     }
@@ -50,17 +50,19 @@ export async function POST(request: NextRequest) {
       .toString(36)
       .substr(2, 9)}`;
 
+    // Create order with intended recipient
     const result = await pool
       .request()
       .input("orderNumber", sql.NVarChar, orderNumber)
       .input("trackingNumber", sql.NVarChar, orderData.trackingNumber || null)
       .input("orderedByUserId", sql.Int, orderData.orderedByUserId)
+      .input("intendedRecipientId", sql.Int, orderData.intendedRecipientId)
       .input("quantity", sql.Int, orderData.quantity)
       .input("status", sql.NVarChar, "ordered")
       .input("notes", sql.NVarChar, orderData.notes || "").query(`
-        INSERT INTO LaptopOrders (orderNumber, trackingNumber, orderedByUserId, quantity, status, notes)
+        INSERT INTO LaptopOrders (orderNumber, trackingNumber, orderedByUserId, intendedRecipientId, quantity, status, notes)
         OUTPUT INSERTED.*
-        VALUES (@orderNumber, @trackingNumber, @orderedByUserId, @quantity, @status, @notes)
+        VALUES (@orderNumber, @trackingNumber, @orderedByUserId, @intendedRecipientId, @quantity, @status, @notes)
       `);
 
     return NextResponse.json(result.recordset[0], { status: 201 });
@@ -77,6 +79,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("active") === "true";
+    const includeArchived = searchParams.get("includeArchived") === "true";
 
     const pool = await connectToDatabase();
 
@@ -85,13 +88,25 @@ export async function GET(request: NextRequest) {
         lo.*,
         u.name as orderedByName,
         u.email as orderedByEmail,
-        u.role as orderedByRole
+        u.role as orderedByRole,
+        ir.name as intendedRecipientName,
+        ir.email as intendedRecipientEmail,
+        ir.role as intendedRecipientRole
       FROM LaptopOrders lo
       LEFT JOIN Users u ON lo.orderedByUserId = u.id
+      LEFT JOIN Users ir ON lo.intendedRecipientId = ir.id
     `;
 
+    const conditions = [];
     if (activeOnly) {
-      query += ` WHERE lo.isArchived = 0 `;
+      conditions.push(`lo.isArchived = 0`);
+    }
+    if (includeArchived) {
+      // No filter needed, include all
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     query += ` ORDER BY lo.orderDate DESC`;
@@ -104,17 +119,25 @@ export async function GET(request: NextRequest) {
       orderNumber: order.orderNumber,
       trackingNumber: order.trackingNumber,
       orderedByUserId: order.orderedByUserId,
+      intendedRecipientId: order.intendedRecipientId,
       quantity: order.quantity,
       status: order.status,
       orderDate: order.orderDate,
       receivedDate: order.receivedDate,
       notes: order.notes,
       isArchived: order.isArchived,
+      canUnarchive: order.canUnarchive,
       orderedBy: {
         id: order.orderedByUserId,
         name: order.orderedByName,
         email: order.orderedByEmail,
         role: order.orderedByRole,
+      },
+      intendedRecipient: {
+        id: order.intendedRecipientId,
+        name: order.intendedRecipientName,
+        email: order.intendedRecipientEmail,
+        role: order.intendedRecipientRole,
       },
     }));
 
