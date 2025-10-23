@@ -919,9 +919,9 @@ export default function OnboardingPage() {
 
                   <div className="border-t pt-4 flex justify-between items-center">
                     <div className="text-sm text-gray-500">
-                      {daysSinceAdded >= 25 && (
+                      {getDaysSinceAdded(employee.timestamp) >= 25 && (
                         <span className="text-amber-600 font-medium">
-                          Will be archived in {30 - daysSinceAdded} days
+                          Will be archived in {30 - getDaysSinceAdded(employee.timestamp)} days
                         </span>
                       )}
                     </div>
