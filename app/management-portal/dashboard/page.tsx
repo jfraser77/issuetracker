@@ -157,15 +157,23 @@ export default function Dashboard() {
 
   const markAlertAsViewed = async (alertId: string) => {
     try {
+      // Optimistically update UI first
+      setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+
       const response = await fetch(`/api/dashboard/alerts/${alertId}/view`, {
         method: "POST",
       });
 
-      if (response.ok) {
-        setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+      if (!response.ok) {
+        // If the API call fails, revert the optimistic update
+        console.error("Failed to mark alert as viewed");
+        // Re-fetch alerts to get the correct state
+        fetchAlerts();
       }
     } catch (error) {
       console.error("Error marking alert as viewed:", error);
+      // Re-fetch alerts on error
+      fetchAlerts();
     }
   };
 
