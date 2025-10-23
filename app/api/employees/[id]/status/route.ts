@@ -25,27 +25,46 @@ export async function GET(
     if (result.recordset.length > 0) {
       const record = result.recordset[0];
       
-      // Check both columns for data
+      // Check both columns for data with proper error handling
       let statusData = null;
       
+      // Try statusData column first
       if (record.statusData) {
-        console.log(`✅ Found data in statusData column`);
-        statusData = JSON.parse(record.statusData);
-      } else if (record.applicationStatus) {
-        console.log(`✅ Found data in applicationStatus column`);
-        statusData = JSON.parse(record.applicationStatus);
+        try {
+          console.log(`✅ Found data in statusData column`);
+          statusData = JSON.parse(record.statusData);
+          console.log(`✅ Successfully parsed statusData`);
+        } catch (parseError) {
+          console.error(`❌ Failed to parse statusData:`, parseError);
+          // Continue to check applicationStatus
+        }
+      }
+      
+      // If statusData is still null, try applicationStatus
+      if (!statusData && record.applicationStatus) {
+        try {
+          console.log(`✅ Trying applicationStatus column`);
+          statusData = JSON.parse(record.applicationStatus);
+          console.log(`✅ Successfully parsed applicationStatus`);
+        } catch (parseError) {
+          console.error(`❌ Failed to parse applicationStatus:`, parseError);
+        }
       }
       
       if (statusData) {
-        console.log(`✅ Returning status data:`, statusData);
+        console.log(`✅ Returning status data with ${Object.keys(statusData).length} tasks`);
         return NextResponse.json(statusData);
+      } else {
+        console.log(`✅ Found record but no parseable data, returning empty`);
+        return NextResponse.json({});
       }
     }
     
-    console.log(`✅ No status found, returning empty object`);
+    console.log(`✅ No status record found, returning empty object`);
     return NextResponse.json({});
   } catch (error: any) {
     console.error("❌ Error fetching employee status:", error);
+    console.error("❌ Error stack:", error.stack);
     return NextResponse.json(
       { error: "Failed to fetch employee status", details: error.message },
       { status: 500 }

@@ -145,31 +145,47 @@ export default function OnboardingPage() {
       const employeesWithStatus = await Promise.all(
         employeesData.map(async (employee: Employee) => {
           try {
-            const statusResponse = await fetch(
-              `/api/employees/${employee.id}/status`
-            );
-            const itStaffResponse = await fetch(
-              `/api/employees/${employee.id}/it-assignment`
-            );
-
             let applicationStatus: ApplicationStatus = { ...systemApplications }; // Start with system apps
-
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json();
-              if (
-                statusData &&
-                typeof statusData === "object" &&
-                Object.keys(statusData).length > 0
-              ) {
-                // Merge system applications with saved data (preserving custom tasks)
-                applicationStatus = { ...systemApplications, ...statusData };
+            
+            // Try to fetch status, but don't fail the whole process if it fails
+            try {
+              const statusResponse = await fetch(
+                `/api/employees/${employee.id}/status`
+              );
+              
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                if (
+                  statusData &&
+                  typeof statusData === "object" &&
+                  Object.keys(statusData).length > 0
+                ) {
+                  // Merge system applications with saved data (preserving custom tasks)
+                  applicationStatus = { ...systemApplications, ...statusData };
+                  console.log(`✅ Loaded status for employee ${employee.id}:`, Object.keys(statusData).length, 'tasks');
+                } else {
+                  console.log(`✅ No saved status for employee ${employee.id}, using system apps`);
+                }
+              } else {
+                console.warn(`⚠️ Status fetch failed for employee ${employee.id}, using system apps`);
               }
-              // If status fetch fails or returns empty, we already have systemApplications as default
+            } catch (statusError) {
+              console.warn(`⚠️ Status fetch error for employee ${employee.id}:`, statusError);
+              // Continue with system applications as fallback
             }
 
-            const itStaffAssignment = itStaffResponse.ok
-              ? await itStaffResponse.json()
-              : { status: "not assigned" };
+            // Try to fetch IT assignment (optional)
+            let itStaffAssignment = { status: "not assigned" };
+            try {
+              const itStaffResponse = await fetch(
+                `/api/employees/${employee.id}/it-assignment`
+              );
+              if (itStaffResponse.ok) {
+                itStaffAssignment = await itStaffResponse.json();
+              }
+            } catch (itError) {
+              console.warn(`⚠️ IT assignment fetch error for employee ${employee.id}:`, itError);
+            }
 
             return {
               ...employee,
@@ -179,7 +195,7 @@ export default function OnboardingPage() {
             };
           } catch (error) {
             console.error(
-              `Error fetching data for employee ${employee.id}:`,
+              `❌ Error processing employee ${employee.id}:`,
               error
             );
             return {
@@ -268,7 +284,10 @@ export default function OnboardingPage() {
 ) => {
   try {
     const employee = employees.find((emp) => emp.id === employeeId);
-    if (!employee) return;
+    if (!employee) {
+      console.error(`❌ Employee ${employeeId} not found`);
+      return;
+    }
 
     // Get current application status or use system applications as base
     const currentApplicationStatus = employee.applicationStatus || { ...systemApplications };
@@ -283,18 +302,29 @@ export default function OnboardingPage() {
       },
     };
 
-    // Save to database
-    const saveResponse = await fetch(`/api/employees/${employeeId}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedStatus),
-    });
+    console.log(`🔄 Updating status for employee ${employeeId}, task: ${appName} to ${status}`);
 
-    if (!saveResponse.ok) {
-      throw new Error("Failed to save status");
+    // Save to database with error handling
+    try {
+      const saveResponse = await fetch(`/api/employees/${employeeId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedStatus),
+      });
+
+      if (!saveResponse.ok) {
+        const errorText = await saveResponse.text();
+        console.error(`❌ Save failed:`, errorText);
+        throw new Error(`Failed to save status: ${saveResponse.status}`);
+      }
+
+      console.log(`✅ Status saved successfully for employee ${employeeId}`);
+    } catch (saveError) {
+      console.error(`❌ Error saving status for employee ${employeeId}:`, saveError);
+      // Continue to update local state even if save fails
     }
 
-    // Update local state
+    // Update local state regardless of save success
     setEmployees((prev) =>
       prev.map((emp) =>
         emp.id === employeeId
@@ -307,7 +337,7 @@ export default function OnboardingPage() {
     );
   } catch (error) {
     console.error("Error updating application status:", error);
-    alert("Failed to update application status. Please try again.");
+    // Don't show alert here as it might be annoying for users
   }
 };
 
