@@ -10,6 +10,9 @@ import {
   TrashIcon,
   PrinterIcon,
   ArchiveBoxIcon,
+  PlusIcon,
+  XMarkIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
 
 interface User {
@@ -37,13 +40,14 @@ interface TaskNote {
   author?: string;
 }
 
-interface TaskWithNotes {
+interface OnboardingTask {
+  id: string;
+  name: string;
   status: "not begun" | "in progress" | "completed" | "not applicable";
   notes: TaskNote[];
-}
-
-interface ApplicationStatus {
-  [key: string]: TaskWithNotes;
+  completedBy?: string;
+  completedAt?: string;
+  isCustom?: boolean;
 }
 
 interface ITStaffAssignment {
@@ -52,15 +56,15 @@ interface ITStaffAssignment {
   assignedTo?: User;
 }
 
-interface EmployeeWithStatus extends Employee {
-  applicationStatus?: ApplicationStatus;
+interface EmployeeWithDetails extends Employee {
+  onboardingTasks: OnboardingTask[];
   itStaffAssignment?: ITStaffAssignment;
   isExpanded?: boolean;
 }
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [employees, setEmployees] = useState<EmployeeWithStatus[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itStaff, setItStaff] = useState<User[]>([]);
@@ -69,46 +73,86 @@ export default function OnboardingPage() {
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
-  // System applications with initial status
-  const systemApplications: ApplicationStatus = {
-    "E-Tenet ID #": { status: "not begun", notes: [] },
-    "New User Network Access Request - tenetone.com": {
+  // Default system tasks
+  const defaultTasks: OnboardingTask[] = [
+    { id: "1", name: "E-Tenet ID #", status: "not begun", notes: [] },
+    {
+      id: "2",
+      name: "New User Network Access Request - tenetone.com",
       status: "not begun",
       notes: [],
     },
-    "Tenet Portal & TENET/USPI email - tenetone.com": {
+    {
+      id: "3",
+      name: "Tenet Portal & TENET/USPI email - tenetone.com",
       status: "not begun",
       notes: [],
     },
-    "Citrix / Citrix Explorer": { status: "not begun", notes: [] },
-    "USPI Billing drive": { status: "not begun", notes: [] },
-    "CSO Public drive": { status: "not begun", notes: [] },
-    "NSN1 Public drive": { status: "not begun", notes: [] },
-    "Microsoft 365 license (Outlook and Teams)": {
+    {
+      id: "4",
+      name: "Citrix / Citrix Explorer",
       status: "not begun",
       notes: [],
     },
-    "DDL - Digital Deposit Log": { status: "not begun", notes: [] },
-    "Scan Chart - Req icon to be added to the user Citrix Explorer Account": {
+    { id: "5", name: "USPI Billing drive", status: "not begun", notes: [] },
+    { id: "6", name: "CSO Public drive", status: "not begun", notes: [] },
+    { id: "7", name: "NSN1 Public drive", status: "not begun", notes: [] },
+    {
+      id: "8",
+      name: "Microsoft 365 license (Outlook and Teams)",
       status: "not begun",
       notes: [],
     },
-    "Patient Refund Portal - Role Specific": { status: "not begun", notes: [] },
-    "Learn share - USPI university": { status: "not begun", notes: [] },
-    "ProVation - Center Specific": { status: "not begun", notes: [] },
-    "EOM Tool - Role Specific": { status: "not begun", notes: [] },
-    "Bank Access - Role Specific Managers and above": {
+    {
+      id: "9",
+      name: "DDL - Digital Deposit Log",
       status: "not begun",
       notes: [],
     },
-    "ENVI - Billing Dept": { status: "not begun", notes: [] },
-    "Nimble - Billing Dept": { status: "not begun", notes: [] },
-  };
+    {
+      id: "10",
+      name: "Scan Chart - Req icon to be added to the user Citrix Explorer Account",
+      status: "not begun",
+      notes: [],
+    },
+    {
+      id: "11",
+      name: "Patient Refund Portal - Role Specific",
+      status: "not begun",
+      notes: [],
+    },
+    {
+      id: "12",
+      name: "Learn share - USPI university",
+      status: "not begun",
+      notes: [],
+    },
+    {
+      id: "13",
+      name: "ProVation - Center Specific",
+      status: "not begun",
+      notes: [],
+    },
+    {
+      id: "14",
+      name: "EOM Tool - Role Specific",
+      status: "not begun",
+      notes: [],
+    },
+    {
+      id: "15",
+      name: "Bank Access - Role Specific Managers and above",
+      status: "not begun",
+      notes: [],
+    },
+    { id: "16", name: "ENVI - Billing Dept", status: "not begun", notes: [] },
+    { id: "17", name: "Nimble - Billing Dept", status: "not begun", notes: [] },
+  ];
 
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
-    fetchEmployeesWithStatus();
+    fetchEmployeesWithDetails();
     fetchITStaff();
   }, []);
 
@@ -136,94 +180,220 @@ export default function OnboardingPage() {
     }
   };
 
-  const fetchEmployeesWithStatus = async () => {
-  try {
-    const response = await fetch("/api/employees?status=active");
-    if (response.ok) {
-      const employeesData = await response.json();
+  const fetchEmployeesWithDetails = async () => {
+    try {
+      const response = await fetch("/api/employees?status=active");
+      if (response.ok) {
+        const employeesData = await response.json();
 
-      const employeesWithStatus = await Promise.all(
-        employeesData.map(async (employee: Employee) => {
-          try {
-            let applicationStatus: ApplicationStatus = { ...systemApplications }; // Start with system apps
-            
-            // Try to fetch status, but don't fail the whole process if it fails
+        const employeesWithDetails = await Promise.all(
+          employeesData.map(async (employee: Employee) => {
             try {
-              const statusResponse = await fetch(
-                `/api/employees/${employee.id}/status`
-              );
-              
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                if (
-                  statusData &&
-                  typeof statusData === "object" &&
-                  Object.keys(statusData).length > 0
-                ) {
-                  // Merge system applications with saved data (preserving custom tasks)
-                  applicationStatus = { ...systemApplications, ...statusData };
-                  console.log(`✅ Loaded status for employee ${employee.id}:`, Object.keys(statusData).length, 'tasks');
-                } else {
-                  console.log(`✅ No saved status for employee ${employee.id}, using system apps`);
+              let onboardingTasks = [...defaultTasks];
+
+              // Fetch saved tasks
+              try {
+                const tasksResponse = await fetch(
+                  `/api/employees/${employee.id}/onboarding-tasks`
+                );
+                if (tasksResponse.ok) {
+                  const savedTasks = await tasksResponse.json();
+                  if (savedTasks && savedTasks.length > 0) {
+                    onboardingTasks = savedTasks;
+                  }
                 }
-              } else {
-                console.warn(`⚠️ Status fetch failed for employee ${employee.id}, using system apps`);
+              } catch (tasksError) {
+                console.warn(
+                  `No saved tasks for employee ${employee.id}, using defaults`
+                );
               }
-            } catch (statusError) {
-              console.warn(`⚠️ Status fetch error for employee ${employee.id}:`, statusError);
-              // Continue with system applications as fallback
-            }
 
-            // Try to fetch IT assignment (optional)
-            let itStaffAssignment = { status: "not assigned" };
-            try {
-              const itStaffResponse = await fetch(
-                `/api/employees/${employee.id}/it-assignment`
-              );
-              if (itStaffResponse.ok) {
-                itStaffAssignment = await itStaffResponse.json();
+              // Fetch IT assignment
+              let itStaffAssignment = { status: "not assigned" };
+              try {
+                const itStaffResponse = await fetch(
+                  `/api/employees/${employee.id}/it-assignment`
+                );
+                if (itStaffResponse.ok) {
+                  itStaffAssignment = await itStaffResponse.json();
+                }
+              } catch (itError) {
+                console.warn(`No IT assignment for employee ${employee.id}`);
               }
-            } catch (itError) {
-              console.warn(`⚠️ IT assignment fetch error for employee ${employee.id}:`, itError);
+
+              return {
+                ...employee,
+                onboardingTasks,
+                itStaffAssignment,
+                isExpanded: false,
+              };
+            } catch (error) {
+              console.error(`Error processing employee ${employee.id}:`, error);
+              return {
+                ...employee,
+                onboardingTasks: [...defaultTasks],
+                itStaffAssignment: { status: "not assigned" },
+                isExpanded: false,
+              };
             }
+          })
+        );
 
-            return {
-              ...employee,
-              applicationStatus,
-              itStaffAssignment,
-              isExpanded: false,
-            };
-          } catch (error) {
-            console.error(
-              `❌ Error processing employee ${employee.id}:`,
-              error
-            );
-            return {
-              ...employee,
-              applicationStatus: { ...systemApplications }, // Fallback to system apps
-              itStaffAssignment: { status: "not assigned" },
-              isExpanded: false,
-            };
-          }
-        })
-      );
-
-      setEmployees(employeesWithStatus);
+        setEmployees(employeesWithDetails);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-  // Manual archive function
-  const archiveEmployee = async (employeeId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to archive this employee? They will be moved to the archived section."
+  const addCustomTask = (employeeId: number) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              onboardingTasks: [
+                ...emp.onboardingTasks,
+                {
+                  id: `custom-${Date.now()}`,
+                  name: "",
+                  status: "not begun",
+                  notes: [],
+                  isCustom: true,
+                },
+              ],
+            }
+          : emp
       )
-    ) {
+    );
+  };
+
+  const updateTaskName = (
+    employeeId: number,
+    taskId: string,
+    newName: string
+  ) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              onboardingTasks: emp.onboardingTasks.map((task) =>
+                task.id === taskId ? { ...task, name: newName } : task
+              ),
+            }
+          : emp
+      )
+    );
+  };
+
+  const deleteTask = (employeeId: number, taskId: string) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              onboardingTasks: emp.onboardingTasks.filter(
+                (task) => task.id !== taskId
+              ),
+            }
+          : emp
+      )
+    );
+  };
+
+  const updateTaskStatus = async (
+    employeeId: number,
+    taskId: string,
+    status: OnboardingTask["status"],
+    completedBy?: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            onboardingTasks: emp.onboardingTasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    status,
+                    completedBy:
+                      status === "completed"
+                        ? completedBy || currentUser?.name
+                        : undefined,
+                    completedAt:
+                      status === "completed"
+                        ? new Date().toISOString()
+                        : undefined,
+                  }
+                : task
+            ),
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    try {
+      const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+      if (employee) {
+        await fetch(`/api/employees/${employeeId}/onboarding-tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(employee.onboardingTasks),
+        });
+      }
+    } catch (error) {
+      console.error("Error saving task status:", error);
+    }
+  };
+
+  const addTaskNote = (
+    employeeId: number,
+    taskId: string,
+    noteContent: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            onboardingTasks: emp.onboardingTasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    notes: [
+                      ...task.notes,
+                      {
+                        content: noteContent,
+                        timestamp: new Date().toISOString(),
+                        author: currentUser?.name,
+                      },
+                    ],
+                  }
+                : task
+            ),
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/onboarding-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.onboardingTasks),
+      });
+    }
+  };
+
+  const archiveEmployee = async (employeeId: number) => {
+    if (!confirm("Are you sure you want to archive this employee?")) {
       return;
     }
 
@@ -238,12 +408,37 @@ export default function OnboardingPage() {
         setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
         alert("Employee archived successfully!");
       } else {
-        const errorData = await response.json();
-        alert(`Failed to archive employee: ${errorData.error}`);
+        alert("Failed to archive employee.");
       }
     } catch (error) {
       console.error("Error archiving employee:", error);
-      alert("Failed to archive employee. Please try again.");
+      alert("Failed to archive employee.");
+    }
+  };
+
+  const deleteEmployee = async (employeeId: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this employee? This cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/employees/${employeeId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
+        alert("Employee deleted successfully!");
+      } else {
+        alert("Failed to delete employee.");
+      }
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      alert("Failed to delete employee.");
     }
   };
 
@@ -270,127 +465,10 @@ export default function OnboardingPage() {
       );
 
       if (response.ok) {
-        fetchEmployeesWithStatus();
+        fetchEmployeesWithDetails();
       }
     } catch (error) {
       console.error("Error updating IT assignment:", error);
-    }
-  };
-
-  const updateApplicationStatus = async (
-  employeeId: number,
-  appName: string,
-  status: "not begun" | "in progress" | "completed" | "not applicable"
-) => {
-  try {
-    const employee = employees.find((emp) => emp.id === employeeId);
-    if (!employee) {
-      console.error(`❌ Employee ${employeeId} not found`);
-      return;
-    }
-
-    // Get current application status or use system applications as base
-    const currentApplicationStatus = employee.applicationStatus || { ...systemApplications };
-
-    const updatedStatus = {
-      ...currentApplicationStatus,
-      [appName]: {
-        ...currentApplicationStatus[appName],
-        status,
-        // Preserve notes if they exist
-        notes: currentApplicationStatus[appName]?.notes || [],
-      },
-    };
-
-    console.log(`🔄 Updating status for employee ${employeeId}, task: ${appName} to ${status}`);
-
-    // Save to database with error handling
-    try {
-      const saveResponse = await fetch(`/api/employees/${employeeId}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedStatus),
-      });
-
-      if (!saveResponse.ok) {
-        const errorText = await saveResponse.text();
-        console.error(`❌ Save failed:`, errorText);
-        throw new Error(`Failed to save status: ${saveResponse.status}`);
-      }
-
-      console.log(`✅ Status saved successfully for employee ${employeeId}`);
-    } catch (saveError) {
-      console.error(`❌ Error saving status for employee ${employeeId}:`, saveError);
-      // Continue to update local state even if save fails
-    }
-
-    // Update local state regardless of save success
-    setEmployees((prev) =>
-      prev.map((emp) =>
-        emp.id === employeeId
-          ? {
-              ...emp,
-              applicationStatus: updatedStatus,
-            }
-          : emp
-      )
-    );
-  } catch (error) {
-    console.error("Error updating application status:", error);
-    // Don't show alert here as it might be annoying for users
-  }
-};
-
-  const applyITAssignment = async (
-    employeeId: number,
-    assignment: ITStaffAssignment
-  ) => {
-    if (assignment.status === "completed" && assignment.assignedToId) {
-      try {
-        await fetch("/api/it-assets/inventory", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: assignment.assignedToId,
-            change: -1,
-          }),
-        });
-      } catch (error) {
-        console.error("Error updating inventory:", error);
-      }
-    }
-
-    await updateITAssignment(employeeId, assignment);
-  };
-
-  const deleteEmployee = async (employeeId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this employee? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/employees/${employeeId}`, {
-        method: "DELETE",
-      });
-
-      const responseData = await response.json();
-
-      if (response.ok) {
-        setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
-        alert("Employee deleted successfully!");
-      } else {
-        console.error("Delete failed:", responseData);
-        alert(
-          `Failed to delete employee: ${responseData.error || "Unknown error"}`
-        );
-      }
-    } catch (error) {
-      console.error("Error deleting employee:", error);
-      alert("Failed to delete employee. Please try again.");
     }
   };
 
@@ -412,23 +490,17 @@ export default function OnboardingPage() {
     }
   };
 
-  const calculateOverallProgress = (employee: EmployeeWithStatus) => {
-    if (
-      !employee.applicationStatus ||
-      Object.keys(employee.applicationStatus).length === 0
-    )
-      return 0;
-
-    const applicableTasks = Object.values(employee.applicationStatus).filter(
+  const calculateOverallProgress = (employee: EmployeeWithDetails) => {
+    const applicableTasks = employee.onboardingTasks.filter(
       (task) => task.status !== "not applicable"
     );
 
-    const totalApps = applicableTasks.length;
-    const completedApps = applicableTasks.filter(
+    const totalTasks = applicableTasks.length;
+    const completedTasks = applicableTasks.filter(
       (task) => task.status === "completed"
     ).length;
 
-    return totalApps > 0 ? Math.round((completedApps / totalApps) * 100) : 0;
+    return totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   };
 
   const getDaysSinceAdded = (timestamp: string) => {
@@ -438,230 +510,80 @@ export default function OnboardingPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const generatePrintReport = (employee: EmployeeWithStatus) => {
+  const generatePrintReport = (employee: EmployeeWithDetails) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
     const progress = calculateOverallProgress(employee);
-    const allTasks = Object.entries(employee.applicationStatus || {});
-    const completedTasks = allTasks
-      .filter(([_, task]) => task.status === "completed")
-      .map(([task]) => task);
-    const pendingTasks = allTasks
-      .filter(([_, task]) => task.status !== "completed")
-      .map(([task, taskData]) => ({
-        task,
-        status: taskData.status,
-        isCustom: !systemApplications.hasOwnProperty(task),
-      }));
-
-    const totalTasks = allTasks.length;
-    const completedCount = completedTasks.length;
-    const pendingCount = pendingTasks.length;
+    const completedTasks = employee.onboardingTasks.filter(
+      (task) => task.status === "completed"
+    );
+    const pendingTasks = employee.onboardingTasks.filter(
+      (task) => task.status !== "completed"
+    );
 
     const printContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Onboarding Report - ${employee.firstName} ${
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Onboarding Report - ${employee.firstName} ${
       employee.lastName
     }</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.4; }
-        .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-        .header h1 { color: #2563eb; margin: 0; font-size: 28px; }
-        .section { margin-bottom: 30px; }
-        .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
-        .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .info-item { margin-bottom: 8px; }
-        .info-label { font-weight: bold; color: #6b7280; display: inline-block; width: 180px; }
-        .progress-bar { background: #e5e7eb; height: 24px; border-radius: 12px; margin: 15px 0; overflow: hidden; }
-        .progress-fill { background: #2563eb; height: 100%; border-radius: 12px; text-align: center; color: white; font-size: 14px; line-height: 24px; font-weight: bold; }
-        .task-list { margin: 15px 0; }
-        .task-item { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
-        .completed { color: #059669; }
-        .pending { color: #6b7280; }
-        .in-progress { color: #d97706; }
-        .not-applicable { color: #7c3aed; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 10px; font-weight: 500; }
-        .completed-badge { background: #d1fae5; color: #065f46; }
-        .in-progress-badge { background: #fef3c7; color: #92400e; }
-        .not-started-badge { background: #f3f4f6; color: #374151; }
-        .not-applicable-badge { background: #e9d5ff; color: #7c3aed; }
-        .custom-task-indicator { background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; font-weight: 500; }
-        .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
-        .stat-card { background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
-        .stat-number { font-size: 24px; font-weight: bold; color: #1e40af; margin-bottom: 4px; }
-        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-        .task-count { font-size: 14px; color: #6b7280; margin: 10px 0; }
-        @media print { body { margin: 20px; } .no-print { display: none; } .section { break-inside: avoid; } }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Employee Onboarding Report</h1>
-        <div class="print-date">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
-      </div>
-
-      <div class="section">
-        <h2>Employee Information</h2>
-        <div class="employee-info">
-          <div>
-            <div class="info-item"><span class="info-label">Full Name:</span> ${
-              employee.firstName
-            } ${employee.lastName}</div>
-            <div class="info-item"><span class="info-label">Job Title:</span> ${
-              employee.jobTitle
-            }</div>
-            <div class="info-item"><span class="info-label">Start Date:</span> ${new Date(
-              employee.startDate
-            ).toLocaleDateString()}</div>
-          </div>
-          <div>
-            <div class="info-item"><span class="info-label">Manager:</span> ${
-              employee.currentManager || "Not specified"
-            }</div>
-            <div class="info-item"><span class="info-label">Director:</span> ${
-              employee.directorRegionalDirector || "Not specified"
-            }</div>
-            <div class="info-item"><span class="info-label">Status:</span> ${
-              employee.status
-            }</div>
-          </div>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+          .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+          .header h1 { color: #2563eb; margin: 0; }
+          .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+          .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; }
+          .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+          .completed { color: #059669; }
+          .print-date { text-align: right; color: #6b7280; margin-top: 30px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Onboarding Report - ${employee.firstName} ${
+      employee.lastName
+    }</h1>
+          <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
         </div>
-      </div>
-
-      <div class="section">
-        <h2>Onboarding Progress</h2>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-number">${progress}%</div>
-            <div class="stat-label">Overall Progress</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number">${completedCount}</div>
-            <div class="stat-label">Completed Tasks</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number">${totalTasks}</div>
-            <div class="stat-label">Total Tasks</div>
+        
+        <div>
+          <h3>Progress: ${progress}%</h3>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${progress}%"></div>
           </div>
         </div>
         
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
-        </div>
-        
-        <div class="task-count">
-          ${completedCount} of ${totalTasks} tasks completed
-          ${pendingCount > 0 ? `(${pendingCount} pending)` : ""}
-        </div>
-      </div>
-
-      ${
-        completedTasks.length > 0
-          ? `
-      <div class="section">
-        <h2>Completed Tasks</h2>
-        <div class="task-list">
+        <div>
+          <h3>Completed Tasks (${completedTasks.length})</h3>
           ${completedTasks
             .map(
-              (task) => `
-            <div class="task-item completed">
-              ✓ ${task}
-              ${
-                !systemApplications.hasOwnProperty(task)
-                  ? '<span class="custom-task-indicator">Custom</span>'
-                  : ""
-              }
-              <span class="status-badge completed-badge">Completed</span>
-            </div>`
+              (task) => `<div class="task-item completed">✓ ${task.name}</div>`
             )
             .join("")}
         </div>
-      </div>`
-          : ""
-      }
-
-      ${
-        pendingTasks.length > 0
-          ? `
-      <div class="section">
-        <h2>Pending Tasks</h2>
-        <div class="task-list">
+        
+        <div>
+          <h3>Pending Tasks (${pendingTasks.length})</h3>
           ${pendingTasks
-            .map(({ task, status, isCustom }) => {
-              const statusBadgeClass =
-                status === "in progress"
-                  ? "in-progress-badge"
-                  : status === "not applicable"
-                  ? "not-applicable-badge"
-                  : "not-started-badge";
-              const statusText =
-                status === "in progress"
-                  ? "In Progress"
-                  : status === "not applicable"
-                  ? "Not Applicable"
-                  : "Not Started";
-              return `
-              <div class="task-item ${
-                status === "in progress"
-                  ? "in-progress"
-                  : status === "not applicable"
-                  ? "not-applicable"
-                  : "pending"
-              }">
-                ${task}
-                ${
-                  isCustom
-                    ? '<span class="custom-task-indicator">Custom</span>'
-                    : ""
-                }
-                <span class="status-badge ${statusBadgeClass}">${statusText}</span>
-              </div>`;
-            })
+            .map(
+              (task) =>
+                `<div class="task-item">${task.name} - ${task.status}</div>`
+            )
             .join("")}
         </div>
-      </div>`
-          : `
-      <div class="section">
-        <h2>Pending Tasks</h2>
-        <div class="task-list">
-          <div class="task-item completed" style="color: #059669; font-weight: 500;">
-            ✓ All tasks completed! Onboarding process is finished.
-          </div>
-        </div>
-      </div>`
-      }
-
-      <div class="section">
-        <div class="print-date">
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
-          Report generated by NSN IT Management Portal<br>
-          Employee ID: ${employee.id} | Report ID: ${Date.now()}
-        </div>
-      </div>
-
-      <script>
-        window.onload = function() {
-          window.print();
-          setTimeout(() => {
-            if (!window.closed) {
-              window.close();
-            }
-          }, 1000);
-        }
-      </script>
-    </body>
-    </html>`;
+        
+        <script>window.print(); setTimeout(() => window.close(), 1000);</script>
+      </body>
+      </html>
+    `;
 
     printWindow.document.write(printContent);
     printWindow.document.close();
   };
 
-  // Employee header component with archive button
-  const renderEmployeeHeader = (employee: EmployeeWithStatus) => {
+  const renderEmployeeHeader = (employee: EmployeeWithDetails) => {
     const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
     const progress = calculateOverallProgress(employee);
 
@@ -705,7 +627,6 @@ export default function OnboardingPage() {
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
-                {/* ARCHIVE BUTTON */}
                 <button
                   onClick={() => archiveEmployee(employee.id)}
                   className="text-gray-400 hover:text-orange-600"
@@ -725,18 +646,7 @@ export default function OnboardingPage() {
               <p className="text-sm text-gray-500">
                 Start Date: {new Date(employee.startDate).toLocaleDateString()}{" "}
                 | Added: {daysSinceAdded} day{daysSinceAdded !== 1 ? "s" : ""}{" "}
-                ago | Status:{" "}
-                <span
-                  className={`font-medium ${
-                    employee.status === "completed"
-                      ? "text-green-600"
-                      : employee.status === "archived"
-                      ? "text-orange-600"
-                      : "text-blue-600"
-                  }`}
-                >
-                  {employee.status}
-                </span>
+                ago
               </p>
             </div>
           </div>
@@ -754,6 +664,118 @@ export default function OnboardingPage() {
       </div>
     );
   };
+
+  const renderTaskItem = (
+    employee: EmployeeWithDetails,
+    task: OnboardingTask
+  ) => (
+    <div key={task.id} className="border border-gray-200 rounded-lg p-4">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1">
+          {task.isCustom ? (
+            <input
+              type="text"
+              value={task.name}
+              onChange={(e) =>
+                updateTaskName(employee.id, task.id, e.target.value)
+              }
+              placeholder="Enter task name..."
+              className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm"
+            />
+          ) : (
+            <span className="text-sm font-medium text-gray-900">
+              {task.name}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center space-x-2 ml-4">
+          <select
+            value={task.status}
+            onChange={(e) =>
+              updateTaskStatus(
+                employee.id,
+                task.id,
+                e.target.value as OnboardingTask["status"]
+              )
+            }
+            className="border border-gray-300 rounded px-2 py-1 text-xs"
+          >
+            <option value="not begun">Not Begun</option>
+            <option value="in progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="not applicable">Not Applicable</option>
+          </select>
+          <span
+            className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+              task.status
+            )}`}
+          >
+            {task.status}
+          </span>
+          {task.isCustom && (
+            <button
+              onClick={() => deleteTask(employee.id, task.id)}
+              className="text-red-400 hover:text-red-600"
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {task.status === "completed" && task.completedBy && (
+        <div className="text-xs text-gray-500 mb-2">
+          Completed by {task.completedBy} on{" "}
+          {task.completedAt
+            ? new Date(task.completedAt).toLocaleDateString()
+            : "Unknown date"}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {task.notes.map((note, noteIndex) => (
+          <div
+            key={noteIndex}
+            className="text-xs text-gray-600 bg-gray-50 p-2 rounded"
+          >
+            <div className="font-medium">{note.author || "Unknown"}:</div>
+            <div>{note.content}</div>
+            <div className="text-gray-400 text-xs mt-1">
+              {new Date(note.timestamp).toLocaleDateString()}
+            </div>
+          </div>
+        ))}
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            placeholder="Add a note..."
+            className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+            onKeyPress={(e) => {
+              if (e.key === "Enter") {
+                const input = e.target as HTMLInputElement;
+                if (input.value.trim()) {
+                  addTaskNote(employee.id, task.id, input.value.trim());
+                  input.value = "";
+                }
+              }
+            }}
+          />
+          <button
+            onClick={(e) => {
+              const input = e.currentTarget.previousSibling as HTMLInputElement;
+              if (input.value.trim()) {
+                addTaskNote(employee.id, task.id, input.value.trim());
+                input.value = "";
+              }
+            }}
+            className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+          >
+            Add Note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   if (!isClient || loading) {
     return (
@@ -816,61 +838,29 @@ export default function OnboardingPage() {
               {renderEmployeeHeader(employee)}
 
               {employee.isExpanded && (
-                <div className="border-t border-gray-200 px-6 py-4 space-y-4">
+                <div className="border-t border-gray-200 px-6 py-4 space-y-6">
+                  {/* Onboarding Tasks Section */}
                   <div>
-                    <h3 className="font-medium text-gray-900 mb-3">
-                      Onboarding Tasks
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {Object.entries(employee.applicationStatus || {}).map(
-                        ([app, taskData]) => {
-                          const currentStatus = taskData.status || "not begun";
-                          return (
-                            <div
-                              key={app}
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                            >
-                              <div className="flex-1">
-                                <span className="text-sm text-gray-700 block">
-                                  {app}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <select
-                                  value={currentStatus}
-                                  onChange={(e) =>
-                                    updateApplicationStatus(
-                                      employee.id,
-                                      app,
-                                      e.target.value as any
-                                    )
-                                  }
-                                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                                >
-                                  <option value="not begun">Not Begun</option>
-                                  <option value="in progress">
-                                    In Progress
-                                  </option>
-                                  <option value="completed">Completed</option>
-                                  <option value="not applicable">
-                                    Not Applicable
-                                  </option>
-                                </select>
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                                    currentStatus
-                                  )}`}
-                                >
-                                  {currentStatus}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-medium text-gray-900">
+                        Onboarding Tasks
+                      </h3>
+                      <button
+                        onClick={() => addCustomTask(employee.id)}
+                        className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+                      >
+                        <PlusIcon className="h-4 w-4 mr-1" />
+                        Add Task
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {employee.onboardingTasks.map((task) =>
+                        renderTaskItem(employee, task)
                       )}
                     </div>
                   </div>
 
+                  {/* IT Staff Assignment Section */}
                   {isAdminOrIT && (
                     <div className="border-t pt-4">
                       <h3 className="font-medium text-gray-900 mb-3">
@@ -930,7 +920,7 @@ export default function OnboardingPage() {
                         <div>
                           <button
                             onClick={() =>
-                              applyITAssignment(
+                              updateITAssignment(
                                 employee.id,
                                 employee.itStaffAssignment!
                               )
@@ -941,12 +931,6 @@ export default function OnboardingPage() {
                           </button>
                         </div>
                       </div>
-                      {employee.itStaffAssignment?.assignedTo && (
-                        <div className="mt-2 text-sm text-gray-600">
-                          Currently assigned to:{" "}
-                          {employee.itStaffAssignment.assignedTo.name}
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -954,17 +938,12 @@ export default function OnboardingPage() {
                     <div className="text-sm text-gray-500">
                       {getDaysSinceAdded(employee.timestamp) >= 25 && (
                         <span className="text-amber-600 font-medium">
-                          Will be archived in {30 - getDaysSinceAdded(employee.timestamp)} days
+                          Will be archived in{" "}
+                          {30 - getDaysSinceAdded(employee.timestamp)} days
                         </span>
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <Link
-                        href={`/management-portal/onboarding/${employee.id}`}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
-                      >
-                        Update Status
-                      </Link>
                       <button
                         onClick={() => generatePrintReport(employee)}
                         className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
