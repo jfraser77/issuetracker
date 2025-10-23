@@ -137,66 +137,69 @@ export default function OnboardingPage() {
   };
 
   const fetchEmployeesWithStatus = async () => {
-    try {
-      const response = await fetch("/api/employees?status=active");
-      if (response.ok) {
-        const employeesData = await response.json();
+  try {
+    const response = await fetch("/api/employees?status=active");
+    if (response.ok) {
+      const employeesData = await response.json();
 
-        const employeesWithStatus = await Promise.all(
-          employeesData.map(async (employee: Employee) => {
-            try {
-              const statusResponse = await fetch(
-                `/api/employees/${employee.id}/status`
-              );
-              const itStaffResponse = await fetch(
-                `/api/employees/${employee.id}/it-assignment`
-              );
+      const employeesWithStatus = await Promise.all(
+        employeesData.map(async (employee: Employee) => {
+          try {
+            const statusResponse = await fetch(
+              `/api/employees/${employee.id}/status`
+            );
+            const itStaffResponse = await fetch(
+              `/api/employees/${employee.id}/it-assignment`
+            );
 
-              let applicationStatus: ApplicationStatus = {};
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                if (
-                  statusData &&
-                  typeof statusData === "object" &&
-                  Object.keys(statusData).length > 0
-                ) {
-                  applicationStatus = statusData;
-                }
+            let applicationStatus: ApplicationStatus = { ...systemApplications }; // Start with system apps
+
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (
+                statusData &&
+                typeof statusData === "object" &&
+                Object.keys(statusData).length > 0
+              ) {
+                // Merge system applications with saved data (preserving custom tasks)
+                applicationStatus = { ...systemApplications, ...statusData };
               }
-
-              const itStaffAssignment = itStaffResponse.ok
-                ? await itStaffResponse.json()
-                : { status: "not assigned" };
-
-              return {
-                ...employee,
-                applicationStatus,
-                itStaffAssignment,
-                isExpanded: false,
-              };
-            } catch (error) {
-              console.error(
-                `Error fetching data for employee ${employee.id}:`,
-                error
-              );
-              return {
-                ...employee,
-                applicationStatus: {},
-                itStaffAssignment: { status: "not assigned" },
-                isExpanded: false,
-              };
+              // If status fetch fails or returns empty, we already have systemApplications as default
             }
-          })
-        );
 
-        setEmployees(employeesWithStatus);
-      }
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    } finally {
-      setLoading(false);
+            const itStaffAssignment = itStaffResponse.ok
+              ? await itStaffResponse.json()
+              : { status: "not assigned" };
+
+            return {
+              ...employee,
+              applicationStatus,
+              itStaffAssignment,
+              isExpanded: false,
+            };
+          } catch (error) {
+            console.error(
+              `Error fetching data for employee ${employee.id}:`,
+              error
+            );
+            return {
+              ...employee,
+              applicationStatus: { ...systemApplications }, // Fallback to system apps
+              itStaffAssignment: { status: "not assigned" },
+              isExpanded: false,
+            };
+          }
+        })
+      );
+
+      setEmployees(employeesWithStatus);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching employees:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Manual archive function
   const archiveEmployee = async (employeeId: number) => {
@@ -259,54 +262,54 @@ export default function OnboardingPage() {
   };
 
   const updateApplicationStatus = async (
-    employeeId: number,
-    appName: string,
-    status: "not begun" | "in progress" | "completed" | "not applicable"
-  ) => {
-    try {
-      const employee = employees.find((emp) => emp.id === employeeId);
-      if (!employee) return;
+  employeeId: number,
+  appName: string,
+  status: "not begun" | "in progress" | "completed" | "not applicable"
+) => {
+  try {
+    const employee = employees.find((emp) => emp.id === employeeId);
+    if (!employee) return;
 
-      const currentStatusResponse = await fetch(
-        `/api/employees/${employeeId}/status`
-      );
-      let currentApplicationStatus: ApplicationStatus = {};
+    // Get current application status or use system applications as base
+    const currentApplicationStatus = employee.applicationStatus || { ...systemApplications };
 
-      if (currentStatusResponse.ok) {
-        const statusData = await currentStatusResponse.json();
-        if (statusData && typeof statusData === "object") {
-          currentApplicationStatus = statusData;
-        }
-      }
+    const updatedStatus = {
+      ...currentApplicationStatus,
+      [appName]: {
+        ...currentApplicationStatus[appName],
+        status,
+        // Preserve notes if they exist
+        notes: currentApplicationStatus[appName]?.notes || [],
+      },
+    };
 
-      const updatedStatus = {
-        ...currentApplicationStatus,
-        [appName]: {
-          ...currentApplicationStatus[appName],
-          status,
-        },
-      };
+    // Save to database
+    const saveResponse = await fetch(`/api/employees/${employeeId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedStatus),
+    });
 
-      await fetch(`/api/employees/${employeeId}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedStatus),
-      });
-
-      setEmployees((prev) =>
-        prev.map((emp) =>
-          emp.id === employeeId
-            ? {
-                ...emp,
-                applicationStatus: updatedStatus,
-              }
-            : emp
-        )
-      );
-    } catch (error) {
-      console.error("Error updating application status:", error);
+    if (!saveResponse.ok) {
+      throw new Error("Failed to save status");
     }
-  };
+
+    // Update local state
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              applicationStatus: updatedStatus,
+            }
+          : emp
+      )
+    );
+  } catch (error) {
+    console.error("Error updating application status:", error);
+    alert("Failed to update application status. Please try again.");
+  }
+};
 
   const applyITAssignment = async (
     employeeId: number,
