@@ -15,7 +15,8 @@ export async function GET() {
       newThisMonthResult, // New employees added this month
       terminationsResult, // Pending termination requests
       laptopsResult, // Available laptops from IT inventory
-      // Removed problematic queries that cause errors
+      onboardingProgressResult,
+      terminationProgressResult, // Removed problematic queries that cause errors
     ] = await Promise.all([
       // Query 1: Count all active employees in the system
       pool
@@ -48,6 +49,48 @@ export async function GET() {
         .request()
         .query("SELECT SUM(availableLaptops) as count FROM ITStaffInventory")
         .catch(() => ({ recordset: [{ count: 0 }] })), // Return 0 if table doesn't exist
+      // Onboarding progress calculation
+      pool
+        .request()
+        .query(
+          `
+    SELECT 
+      AVG(progress) as avgProgress
+    FROM (
+      SELECT 
+        e.id,
+        CASE 
+          WHEN COUNT(ot.id) = 0 THEN 0
+          ELSE (SUM(CASE WHEN ot.status = 'completed' THEN 1 ELSE 0 END) * 100.0 / COUNT(ot.id))
+        END as progress
+      FROM Employees e
+      LEFT JOIN EmployeeOnboardingTasks eot ON e.id = eot.employeeId
+      CROSS APPLY OPENJSON(eot.onboardingTasks) WITH (
+        id NVARCHAR(50),
+        name NVARCHAR(255),
+        status NVARCHAR(50)
+      ) AS ot
+      WHERE e.status = 'active'
+      GROUP BY e.id
+    ) as progress_data
+  `
+        )
+        .catch(() => ({ recordset: [{ avgProgress: 0 }] })),
+      pool
+        .request()
+        .query(
+          `
+    SELECT 
+      AVG(CASE 
+        WHEN status = 'completed' THEN 100
+        WHEN status = 'in-progress' THEN 50
+        ELSE 0 
+      END) as avgProgress
+    FROM Terminations 
+    WHERE status IN ('pending', 'in-progress', 'completed')
+  `
+        )
+        .catch(() => ({ recordset: [{ avgProgress: 0 }] })),
     ]);
 
     /**
@@ -99,6 +142,13 @@ export async function GET() {
       totalEmployees: employeesResult.recordset[0]?.count || 0,
       newThisMonth: newThisMonthResult.recordset[0]?.count || 0,
       pendingTerminations: terminationsResult.recordset[0]?.count || 0,
+      // Onboarding and Termination Progress metric
+      onboardingProgress: Math.round(
+        onboardingProgressResult.recordset[0]?.avgProgress || 0
+      ),
+      terminationProgress: Math.round(
+        terminationProgressResult.recordset[0]?.avgProgress || 0
+      ),
 
       // IT asset metrics
       availableLaptops: laptopsResult.recordset[0]?.count || 0,

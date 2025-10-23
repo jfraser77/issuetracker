@@ -11,14 +11,12 @@ import {
   ChartBarIcon,
   ClockIcon,
   CheckCircleIcon,
+  XMarkIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { StatItem, ActivityItem } from "../types";
 import Link from "next/link";
 
-/**
- * User interface defining the structure of user data
- * Used for storing current logged-in user information
- */
 interface User {
   id: number;
   name: string;
@@ -26,41 +24,40 @@ interface User {
   role: string;
 }
 
-/**
- * DashboardStats interface defining all statistical metrics
- * Optional properties for role-specific metrics that may not be available to all users
- */
 interface DashboardStats {
-  totalEmployees: number; // Count of all active employees
-  newThisMonth: number; // Employees added in current month
-  pendingTerminations: number; // Termination requests in progress
-  availableLaptops: number; // Laptops available for assignment
-  pendingApprovals?: number; // Role upgrade requests awaiting approval (Admin/IT only)
-  archivedCount?: number; // Archived/terminated records (Reporting roles)
-  completionRate?: number; // Onboarding completion percentage (HR/Admin)
-  overdueReturns?: number; // Equipment returns past deadline (IT only)
+  totalEmployees: number;
+  newThisMonth: number;
+  pendingTerminations: number;
+  availableLaptops: number;
+  pendingApprovals?: number;
+  archivedCount?: number;
+  completionRate?: number;
+  overdueReturns?: number;
+  onboardingProgress?: number;
+  terminationProgress?: number;
 }
 
-/**
- * DashboardActivities interface organizing activity data into categories
- * Used for displaying different sections of activities and alerts
- */
 interface DashboardActivities {
-  recentActivities: ActivityItem[]; // General system activities from last 30 days
-  pendingActions: ActivityItem[]; // Items requiring immediate attention
-  systemAlerts: ActivityItem[]; // System-wide warnings and notifications
+  recentActivities: ActivityItem[];
+  pendingActions: ActivityItem[];
+  systemAlerts: ActivityItem[];
 }
 
-/**
- * Main Dashboard Component
- * Displays role-based metrics, alerts, and quick actions
- * Features dynamic content based on user permissions
- */
+interface AlertItem {
+  id: string;
+  type: "onboarding" | "termination" | "system";
+  title: string;
+  message: string;
+  progress?: number;
+  status: "in-progress" | "completed" | "pending";
+  timestamp: string;
+  viewed: boolean;
+  link: string;
+}
+
 export default function Dashboard() {
-  // STATE MANAGEMENT: Track component data and UI state
-  const [currentUser, setCurrentUser] = useState<User | null>(null); // Current logged-in user data
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
-    // Dashboard metrics and statistics
     totalEmployees: 0,
     newThisMonth: 0,
     pendingTerminations: 0,
@@ -69,44 +66,35 @@ export default function Dashboard() {
     archivedCount: 0,
     completionRate: 0,
     overdueReturns: 0,
+    onboardingProgress: 0,
+    terminationProgress: 0,
   });
   const [activities, setActivities] = useState<DashboardActivities>({
-    // Activity and alert data
     recentActivities: [],
     pendingActions: [],
     systemAlerts: [],
   });
-  const [newEmployeesCount, setNewEmployeesCount] = useState(0); // Count of new employees needing IT setup
-  const [isClient, setIsClient] = useState(false); // Track if component is running on client
-  const [refreshing, setRefreshing] = useState(false); // Loading state for data refresh
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [newEmployeesCount, setNewEmployeesCount] = useState(0);
+  const [isClient, setIsClient] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  /**
-   * useEffect: Component lifecycle management
-   * - Sets client-side flag for hydration
-   * - Fetches initial data on component mount
-   * - Sets up auto-refresh interval (30 seconds)
-   * - Cleans up interval on component unmount
-   */
   useEffect(() => {
-    setIsClient(true); // Mark as client-side rendered
-    fetchCurrentUser(); // Get current user data
-    fetchDashboardData(); // Load dashboard metrics and activities
-    fetchNewEmployeesCount(); // Get count of new employees
+    setIsClient(true);
+    fetchCurrentUser();
+    fetchDashboardData();
+    fetchNewEmployeesCount();
+    fetchAlerts();
 
-    // Set up auto-refresh interval (30 seconds)
     const interval = setInterval(() => {
       fetchDashboardData();
       fetchNewEmployeesCount();
+      fetchAlerts();
     }, 30000);
 
-    // Cleanup: Clear interval when component unmounts
     return () => clearInterval(interval);
   }, []);
 
-  /**
-   * fetchCurrentUser: Retrieves current logged-in user data
-   * Used for role-based access control and personalization
-   */
   const fetchCurrentUser = async () => {
     try {
       const response = await fetch("/api/auth/user");
@@ -119,27 +107,19 @@ export default function Dashboard() {
     }
   };
 
-  /**
-   * fetchDashboardData: Fetches all dashboard metrics and activities
-   * Uses Promise.all for parallel API calls to improve performance
-   * Sets refreshing state to show loading indicator
-   */
   const fetchDashboardData = async () => {
-    setRefreshing(true); // Show loading state
+    setRefreshing(true);
     try {
-      // Fetch stats and activities in parallel
       const [statsResponse, activitiesResponse] = await Promise.all([
         fetch("/api/dashboard/stats"),
         fetch("/api/dashboard/activities"),
       ]);
 
-      // Process stats response
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData);
       }
 
-      // Process activities response
       if (activitiesResponse.ok) {
         const activitiesData = await activitiesResponse.json();
         setActivities(activitiesData);
@@ -147,14 +127,10 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
-      setRefreshing(false); // Hide loading state
+      setRefreshing(false);
     }
   };
 
-  /**
-   * fetchNewEmployeesCount: Gets count of active employees
-   * Used specifically for IT setup alert calculations
-   */
   const fetchNewEmployeesCount = async () => {
     try {
       const response = await fetch("/api/employees?status=active");
@@ -167,19 +143,46 @@ export default function Dashboard() {
     }
   };
 
-  // ROLE-BASED ACCESS CONTROL: Boolean flags for permission checking
-  const isAdmin = currentUser?.role === "Admin"; // Full system access
-  const isIT = currentUser?.role === "I.T."; // IT management access
-  const isHR = currentUser?.role === "HR"; // Human resources access
-  const isTrainer = currentUser?.role === "Trainer"; // Training management access
+  const fetchAlerts = async () => {
+    try {
+      const response = await fetch("/api/dashboard/alerts");
+      if (response.ok) {
+        const alertsData = await response.json();
+        setAlerts(alertsData);
+      }
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+    }
+  };
 
-  // COMPOUND PERMISSIONS: Combined role permissions for common scenarios
-  const isAdminOrIT = isAdmin || isIT; // IT asset and approval management
-  const canManageUsers = isAdmin || isHR; // User and employee management
-  const canViewReports = isAdmin || isIT || isHR; // Reporting and analytics access
-  const canManageApprovals = isAdmin || isIT; // Role approval management
+  const markAlertAsViewed = async (alertId: string) => {
+    try {
+      const response = await fetch(`/api/dashboard/alerts/${alertId}/view`, {
+        method: "POST",
+      });
 
-  // Loading state: Show loading message until client-side rendering is complete
+      if (response.ok) {
+        setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+      }
+    } catch (error) {
+      console.error("Error marking alert as viewed:", error);
+    }
+  };
+
+  const isAdmin = currentUser?.role === "Admin";
+  const isIT = currentUser?.role === "I.T.";
+  const isHR = currentUser?.role === "HR";
+  const isTrainer = currentUser?.role === "Trainer";
+  const isAdminOrIT = isAdmin || isIT;
+  const canManageUsers = isAdmin || isHR;
+  const canViewReports = isAdmin || isIT || isHR;
+  const canManageApprovals = isAdmin || isIT;
+
+  // Filter alerts for Trainer, HR, and Admin roles
+  const visibleAlerts = alerts.filter(
+    (alert) => (isTrainer || isHR || isAdmin) && !alert.viewed
+  );
+
   if (!isClient) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -188,35 +191,17 @@ export default function Dashboard() {
     );
   }
 
-  /**
-   * currentDate: Formatted current date for display
-   * Used in dashboard header for context
-   */
   const currentDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
 
-  /**
-   * statCards: Dynamic array of statistic cards
-   * - Core metrics shown to all users
-   * - Role-specific metrics conditionally added based on permissions
-   * - Each card includes icon, value, label, color, and optional link/description
-   */
   const statCards: (StatItem & {
-    link?: string; // Optional navigation link
-    description?: string; // Additional context for the metric
-    roleRestricted?: boolean; // Flag for role-specific metrics
+    link?: string;
+    description?: string;
+    roleRestricted?: boolean;
   })[] = [
-    // CORE METRICS: Shown to all users regardless of role
-    // {
-    //   icon: UsersIcon,
-    //   value: stats.totalEmployees,
-    //   label: "Total Employees",
-    //   color: "text-blue-500",
-    //   description: "Active employees in system",
-    // },
     {
       icon: UserPlusIcon,
       value: stats.newThisMonth,
@@ -233,8 +218,15 @@ export default function Dashboard() {
       link: "/management-portal/terminations",
       description: "Terminations in progress",
     },
+    {
+      icon: ChartBarIcon,
+      value: `${stats.onboardingProgress || 0}%`,
+      label: "Onboarding Progress",
+      color: "text-blue-500",
+      link: "/management-portal/onboarding",
+      description: "Average completion rate",
+    },
 
-    // IT-SPECIFIC METRICS: Only shown to Admin and IT roles
     ...(isAdminOrIT
       ? [
           {
@@ -249,7 +241,6 @@ export default function Dashboard() {
         ]
       : []),
 
-    // ADMIN APPROVAL METRICS: Only shown to Admin role
     ...(isAdmin
       ? [
           {
@@ -264,7 +255,6 @@ export default function Dashboard() {
         ]
       : []),
 
-    // ARCHIVE METRICS: Shown to reporting roles (Admin, IT, HR)
     ...(canViewReports
       ? [
           {
@@ -273,35 +263,16 @@ export default function Dashboard() {
             label: "Archived Records",
             color: "text-purple-500",
             link: "/management-portal/onboarding/archived",
-            description: "Completed onboarding processes",
-            roleRestricted: true,
-          },
-        ]
-      : []),
-
-    // COMPLETION RATE METRICS: Shown to user management roles (Admin, HR)
-    ...(canManageUsers
-      ? [
-          {
-            icon: ChartBarIcon,
-            value: `${stats.completionRate || 0}%`,
-            label: "Completion Rate",
-            color: "text-indigo-500",
-            link: "/management-portal/reports",
-            description: "Onboarding completion average",
+            description: "Completed processes",
             roleRestricted: true,
           },
         ]
       : []),
   ];
 
-  /**
-   * RENDER: Main dashboard UI with conditional rendering based on user role
-   * Organized into sections: Header, Alerts, Statistics, Activities, Quick Actions
-   */
   return (
     <div suppressHydrationWarning>
-      {/* ENHANCED HEADER: Shows user welcome message and current date */}
+      {/* Header */}
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
@@ -319,9 +290,129 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ENHANCED ALERT SYSTEM: Role-based alert cards for urgent notifications */}
+      {/* Enhanced Alert System with Progress Tracking */}
+      {(isTrainer || isHR || isAdmin) && visibleAlerts.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {visibleAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`border rounded-lg p-4 transition-colors relative ${
+                alert.status === "completed"
+                  ? "bg-green-50 border-green-200"
+                  : alert.status === "in-progress"
+                  ? "bg-blue-50 border-blue-200"
+                  : "bg-amber-50 border-amber-200"
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center mb-2">
+                    {alert.status === "completed" ? (
+                      <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
+                    ) : alert.status === "in-progress" ? (
+                      <ClockIcon className="h-5 w-5 text-blue-500 mr-2" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-5 w-5 text-amber-500 mr-2" />
+                    )}
+                    <h3
+                      className={`text-lg font-semibold ${
+                        alert.status === "completed"
+                          ? "text-green-800"
+                          : alert.status === "in-progress"
+                          ? "text-blue-800"
+                          : "text-amber-800"
+                      }`}
+                    >
+                      {alert.title}
+                    </h3>
+                  </div>
+                  <p
+                    className={`text-sm mb-3 ${
+                      alert.status === "completed"
+                        ? "text-green-700"
+                        : alert.status === "in-progress"
+                        ? "text-blue-700"
+                        : "text-amber-700"
+                    }`}
+                  >
+                    {alert.message}
+                  </p>
+
+                  {alert.progress !== undefined && (
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span
+                          className={
+                            alert.status === "completed"
+                              ? "text-green-600"
+                              : alert.status === "in-progress"
+                              ? "text-blue-600"
+                              : "text-amber-600"
+                          }
+                        >
+                          Progress
+                        </span>
+                        <span
+                          className={
+                            alert.status === "completed"
+                              ? "text-green-600"
+                              : alert.status === "in-progress"
+                              ? "text-blue-600"
+                              : "text-amber-600"
+                          }
+                        >
+                          {alert.progress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${
+                            alert.status === "completed"
+                              ? "bg-green-500"
+                              : alert.status === "in-progress"
+                              ? "bg-blue-500"
+                              : "bg-amber-500"
+                          }`}
+                          style={{ width: `${alert.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center">
+                    <Link
+                      href={alert.link}
+                      className={`text-sm font-medium px-3 py-1 rounded ${
+                        alert.status === "completed"
+                          ? "bg-green-500 text-white hover:bg-green-600"
+                          : alert.status === "in-progress"
+                          ? "bg-blue-500 text-white hover:bg-blue-600"
+                          : "bg-amber-500 text-white hover:bg-amber-600"
+                      }`}
+                    >
+                      View Details
+                    </Link>
+                    <span className="text-xs text-gray-500">
+                      {new Date(alert.timestamp).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => markAlertAsViewed(alert.id)}
+                  className="ml-4 text-gray-400 hover:text-gray-600"
+                  title="Mark as viewed"
+                >
+                  <EyeIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Enhanced Alert System for IT Setup and Other Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* IT SETUP ALERT: Shown to Admin and IT when new employees need equipment */}
         {isAdminOrIT && newEmployeesCount > 0 && (
           <Link href="/management-portal/onboarding">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 hover:bg-amber-100 transition-colors cursor-pointer">
@@ -345,7 +436,6 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/* ROLE APPROVAL ALERT: Shown to Admin and IT when approval requests exist */}
         {canManageApprovals && (stats.pendingApprovals || 0) > 0 && (
           <Link href="/management-portal/admin/approvals">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors cursor-pointer">
@@ -368,7 +458,6 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/* OVERDUE RETURNS ALERT: Shown to IT staff for equipment compliance */}
         {isIT && (stats.overdueReturns || 0) > 0 && (
           <Link href="/management-portal/terminations?filter=overdue">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer">
@@ -391,7 +480,6 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/* TRAINING COMPLETION ALERT: Shown to Trainers and HR for performance tracking */}
         {(isTrainer || isHR) && (
           <Link href="/management-portal/reports?view=training">
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors cursor-pointer">
@@ -414,7 +502,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ENHANCED STATISTICS SECTION: Dynamic metric cards with role-based filtering */}
+      {/* Enhanced Statistics Section */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Key Metrics {currentUser?.role && `• ${currentUser.role} View`}
@@ -422,10 +510,6 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {statCards.map((stat, index) => {
             const IconComponent = stat.icon;
-            /**
-             * Card Content: Reusable card component for each statistic
-             * Includes icon, value, label, description, and role badge if restricted
-             */
             const cardContent = (
               <div
                 className={`bg-white rounded-lg shadow-sm p-6 border-l-4 ${stat.color.replace(
@@ -461,10 +545,6 @@ export default function Dashboard() {
               </div>
             );
 
-            /**
-             * Render card as link if navigation is provided
-             * Otherwise render as static card
-             */
             return stat.link ? (
               <Link key={index} href={stat.link}>
                 {cardContent}
@@ -476,9 +556,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ENHANCED ACTIVITY SECTIONS: Recent activities and quick actions sidebar */}
+      {/* Enhanced Activity Sections */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* RECENT ACTIVITY: Main activity feed showing system events */}
+        {/* Recent Activity with Onboarding/Termination Updates */}
         <div className="bg-white rounded-lg shadow-sm p-6 xl:col-span-2">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Recent Activity
@@ -496,6 +576,11 @@ export default function Dashboard() {
                   <div className="text-sm text-gray-600">
                     {activity.activity}
                   </div>
+                  {activity.department && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {activity.department}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-gray-500">{activity.date}</div>
@@ -523,16 +608,17 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* QUICK ACTIONS & PENDING ITEMS: Sidebar with actionable items and navigation */}
+        {/* Quick Actions & Pending Items */}
         <div className="space-y-6">
-          {/* PENDING ACTIONS: Critical items requiring immediate attention */}
-          {activities.pendingActions.length > 0 && (
+          {/* Enhanced Requires Attention Section */}
+          {(activities.pendingActions.length > 0 ||
+            visibleAlerts.length > 0) && (
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
                 Requires Attention
               </h3>
               <div className="space-y-2">
-                {activities.pendingActions.slice(0, 5).map((action, index) => (
+                {activities.pendingActions.slice(0, 3).map((action, index) => (
                   <Link key={index} href={action.link || "#"} className="block">
                     <div className="p-2 border border-orange-200 bg-orange-50 rounded hover:bg-orange-100 transition-colors">
                       <div className="text-sm font-medium text-orange-800">
@@ -544,17 +630,54 @@ export default function Dashboard() {
                     </div>
                   </Link>
                 ))}
+                {visibleAlerts.slice(0, 2).map((alert) => (
+                  <Link key={alert.id} href={alert.link} className="block">
+                    <div
+                      className={`p-2 border rounded hover:bg-gray-50 transition-colors ${
+                        alert.status === "completed"
+                          ? "border-green-200 bg-green-50"
+                          : alert.status === "in-progress"
+                          ? "border-blue-200 bg-blue-50"
+                          : "border-amber-200 bg-amber-50"
+                      }`}
+                    >
+                      <div
+                        className={`text-sm font-medium ${
+                          alert.status === "completed"
+                            ? "text-green-800"
+                            : alert.status === "in-progress"
+                            ? "text-blue-800"
+                            : "text-amber-800"
+                        }`}
+                      >
+                        {alert.title}
+                      </div>
+                      <div
+                        className={`text-xs ${
+                          alert.status === "completed"
+                            ? "text-green-600"
+                            : alert.status === "in-progress"
+                            ? "text-blue-600"
+                            : "text-amber-600"
+                        }`}
+                      >
+                        {alert.progress
+                          ? `${alert.progress}% complete`
+                          : "Action required"}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
             </div>
           )}
 
-          {/* ROLE-SPECIFIC QUICK LINKS: Contextual navigation based on user role */}
+          {/* Enhanced Quick Actions */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">
               Quick Actions
             </h3>
             <div className="space-y-2">
-              {/* COMMON ACTIONS: Available to all users */}
               <Link href="/management-portal/onboarding" className="block">
                 <div className="p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors">
                   <div className="font-medium text-gray-900">
@@ -566,7 +689,17 @@ export default function Dashboard() {
                 </div>
               </Link>
 
-              {/* ROLE-SPECIFIC QUICK ACTIONS: Conditionally shown based on permissions */}
+              <Link href="/management-portal/terminations" className="block">
+                <div className="p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors">
+                  <div className="font-medium text-gray-900">
+                    Process Termination
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Initiate employee offboarding
+                  </div>
+                </div>
+              </Link>
+
               {canManageApprovals && (
                 <Link
                   href="/management-portal/admin/approvals"
@@ -596,18 +729,18 @@ export default function Dashboard() {
                 </Link>
               )}
 
-              {/* {canViewReports && (
+              {(isTrainer || isHR) && (
                 <Link href="/management-portal/reports" className="block">
                   <div className="p-3 border border-purple-200 bg-purple-50 rounded hover:bg-purple-100 transition-colors">
                     <div className="font-medium text-purple-900">
-                      View Reports
+                      Training Reports
                     </div>
                     <div className="text-sm text-purple-600">
-                      Analytics & insights
+                      View completion analytics
                     </div>
                   </div>
                 </Link>
-              )} */}
+              )}
             </div>
           </div>
         </div>
