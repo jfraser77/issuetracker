@@ -9,22 +9,52 @@ export async function GET() {
     console.log("🔍 Fetching dashboard activities...");
 
     /**
-     * SECTION 1: RECENT ACTIVITIES - This works fine now
+     * SECTION 1: RECENT ACTIVITIES - Enhanced with current status
      */
     let recentActivities = [];
 
     try {
+      // Get employees with their current onboarding status
       const employeeActivities = await pool.request().query(`
         SELECT TOP 10 
-          firstName + ' ' + lastName as employee,
-          jobTitle as department,
-          'Employee Onboarded' as activity,
-          timestamp as date,
-          'completed' as status,
+          e.id,
+          e.firstName + ' ' + e.lastName as employee,
+          e.jobTitle as department,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM EmployeeOnboardingTasks eot 
+                        WHERE eot.employeeId = e.id 
+                        AND EXISTS (SELECT 1 FROM OPENJSON(eot.onboardingTasks) 
+                                  WITH (status NVARCHAR(50)) 
+                                  WHERE status IN ('in progress', 'not begun'))) 
+            THEN 'Onboarding in Progress'
+            WHEN EXISTS (SELECT 1 FROM EmployeeOnboardingTasks eot 
+                        WHERE eot.employeeId = e.id 
+                        AND NOT EXISTS (SELECT 1 FROM OPENJSON(eot.onboardingTasks) 
+                                      WITH (status NVARCHAR(50)) 
+                                      WHERE status IN ('in progress', 'not begun'))) 
+            THEN 'Onboarding Completed'
+            ELSE 'New Employee Added'
+          END as activity,
+          e.timestamp as date,
+          CASE 
+            WHEN EXISTS (SELECT 1 FROM EmployeeOnboardingTasks eot 
+                        WHERE eot.employeeId = e.id 
+                        AND EXISTS (SELECT 1 FROM OPENJSON(eot.onboardingTasks) 
+                                  WITH (status NVARCHAR(50)) 
+                                  WHERE status IN ('in progress', 'not begun'))) 
+            THEN 'in progress'
+            WHEN EXISTS (SELECT 1 FROM EmployeeOnboardingTasks eot 
+                        WHERE eot.employeeId = e.id 
+                        AND NOT EXISTS (SELECT 1 FROM OPENJSON(eot.onboardingTasks) 
+                                      WITH (status NVARCHAR(50)) 
+                                      WHERE status IN ('in progress', 'not begun'))) 
+            THEN 'completed'
+            ELSE 'pending'
+          END as status,
           '/management-portal/onboarding' as link
-        FROM Employees 
-        WHERE status = 'active'
-        ORDER BY timestamp DESC
+        FROM Employees e
+        WHERE e.status = 'active'
+        ORDER BY e.timestamp DESC
       `);
 
       recentActivities = employeeActivities.recordset.map((activity) => ({
@@ -43,6 +73,37 @@ export async function GET() {
       console.log(`✅ Found ${recentActivities.length} employee activities`);
     } catch (employeeError) {
       console.log("❌ Employee activities error:", employeeError.message);
+
+      // Fallback: Simple query if the enhanced one fails
+      try {
+        const fallbackActivities = await pool.request().query(`
+          SELECT TOP 10 
+            firstName + ' ' + lastName as employee,
+            jobTitle as department,
+            'Employee Onboarded' as activity,
+            timestamp as date,
+            'in progress' as status,
+            '/management-portal/onboarding' as link
+          FROM Employees 
+          WHERE status = 'active'
+          ORDER BY timestamp DESC
+        `);
+
+        recentActivities = fallbackActivities.recordset.map((activity) => ({
+          employee: activity.employee,
+          department: activity.department,
+          activity: activity.activity,
+          date: new Date(activity.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+          status: activity.status,
+          link: activity.link,
+        }));
+      } catch (fallbackError) {
+        console.log("❌ Fallback activities also failed");
+      }
     }
 
     /**
@@ -60,7 +121,7 @@ export async function GET() {
           'warning' as status,
           '/management-portal/terminations' as link
         FROM Terminations 
-        WHERE status IN ('pending', 'overdue')
+        WHERE status IN ('pending', 'overdue', 'in-progress')
         ORDER BY terminationDate DESC
       `);
 
@@ -82,7 +143,6 @@ export async function GET() {
       console.log(
         "ℹ️ Terminations table not available - this is normal if you don't have terminations data"
       );
-      // Don't log as error since this table might not exist yet
     }
 
     /**
@@ -117,6 +177,52 @@ export async function GET() {
       console.log(
         "ℹ️ PendingApprovals table not available - this is normal if you don't have role approvals yet"
       );
+    }
+
+    // Add onboarding progress alerts to pending actions
+    try {
+      const incompleteOnboarding = await pool.request().query(`
+        SELECT TOP 3
+          e.firstName + ' ' + e.lastName as employee,
+          e.jobTitle as department,
+          'Onboarding Incomplete' as activity,
+          e.timestamp as date,
+          'warning' as status,
+          '/management-portal/onboarding' as link
+        FROM Employees e
+        WHERE e.status = 'active'
+        AND EXISTS (
+          SELECT 1 FROM EmployeeOnboardingTasks eot 
+          WHERE eot.employeeId = e.id 
+          AND EXISTS (
+            SELECT 1 FROM OPENJSON(eot.onboardingTasks) 
+            WITH (status NVARCHAR(50)) 
+            WHERE status IN ('in progress', 'not begun')
+          )
+        )
+        ORDER BY e.timestamp DESC
+      `);
+
+      incompleteOnboarding.recordset.forEach((activity) => {
+        pendingActions.push({
+          employee: activity.employee,
+          department: activity.department,
+          activity: activity.activity,
+          date: new Date(activity.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+          status: activity.status,
+          link: activity.link,
+        });
+      });
+
+      console.log(
+        `✅ Added ${incompleteOnboarding.recordset.length} incomplete onboarding to pending actions`
+      );
+    } catch (onboardingError) {
+      console.log("❌ Could not fetch incomplete onboarding data");
     }
 
     console.log("📊 Final activities summary:", {

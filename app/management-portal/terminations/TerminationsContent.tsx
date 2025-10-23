@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDownIcon,
@@ -662,7 +662,7 @@ export default function TerminationsContent() {
         )}
       </div>
 
-      {/* Termination Form Modal - Same as before */}
+      {/* Termination Form Modal */}
       {showTerminationForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -923,7 +923,7 @@ export default function TerminationsContent() {
               {/* Collapsible Content */}
               {termination.isExpanded && (
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
-                  {/* Equipment Return Section - MOVED TO TOP */}
+                  {/* Equipment Return Section */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h3 className="font-medium text-gray-900 mb-3 flex items-center">
                       <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />

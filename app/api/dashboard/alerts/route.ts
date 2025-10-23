@@ -43,7 +43,8 @@ export async function GET() {
         status: progress === 100 ? "completed" : ("in-progress" as const),
         timestamp: record.timestamp,
         viewed: false,
-        link: `/management-portal/onboarding/${record.id}`,
+        // CHANGED: Link to main onboarding page instead of individual employee page
+        link: "/management-portal/onboarding",
       };
     });
 
