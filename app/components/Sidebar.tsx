@@ -59,23 +59,12 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     });
   };
 
-  // Base navigation items (always visible)
+  // Dashboard 
   const baseNavItems: NavItem[] = [
     { name: "Dashboard", href: "/", icon: HomeIcon },
-    {
-      name: "IT Assets",
-      href: "/management-portal/it-assets",
-      icon: ComputerDesktopIcon,
-    },
-    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
-    {
-      name: "Settings",
-      href: "/management-portal/settings",
-      icon: Cog6ToothIcon,
-    },
   ];
 
-  // Collapsible menus
+  // Employee Onboarding 
   const collapsibleMenus: CollapsibleMenu[] = [
     {
       name: "Employee Onboarding",
@@ -90,6 +79,17 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           name: "Archived Onboarding",
           href: "/management-portal/onboarding/archived",
           icon: ArchiveBoxIcon,
+        },
+      ],
+    },
+    {
+      name: "IT Assets",
+      icon: ComputerDesktopIcon,
+      items: [
+        {
+          name: "Manage IT Assets",
+          href: "/management-portal/it-assets",
+          icon: ComputerDesktopIcon,
         },
       ],
     },
@@ -109,6 +109,12 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         },
       ],
     },
+  ];
+
+  //Reports and Settings 
+  const endNavItems: NavItem[] = [
+    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
+    { name: "Settings", href: "/management-portal/settings", icon: Cog6ToothIcon },
   ];
 
   // Admin-only collapsible menu
@@ -276,7 +282,28 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         )}
 
         <nav className="mt-4 px-2">
-          {/* Collapsible Menus */}
+          {/* Dashboard */}
+          {baseNavItems.map((item) => {
+            const IconComponent = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors
+                  ${
+                    isActive(item.href)
+                      ? "bg-blue-700 border-l-4 border-blue-400"
+                      : ""
+                  }`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <IconComponent className="h-6 w-6" />
+                <span className="ml-3">{item.name}</span>
+              </Link>
+            );
+          })}
+
+          {/* Collapsible Menus (Employee Onboarding, IT Assets, Terminations) */}
           {allCollapsibleMenus.map((menu) => {
             const IconComponent = menu.icon;
             const isMenuOpen = openMenus.has(menu.name);
@@ -341,8 +368,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             );
           })}
 
-          {/* Regular Navigation Items */}
-          {baseNavItems.map((item) => {
+          {/* End Navigation Items  */}
+          {endNavItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <Link
