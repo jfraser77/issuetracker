@@ -643,7 +643,8 @@ export default function TerminationsContent() {
       throw new Error(errorData.error || "Failed to mark equipment returned");
     }
 
-    const updatedTermination = await response.json();
+    const result = await response.json();
+    const updatedTermination = result.termination; // FIX: Get termination from result object
 
     // Update local state immediately
     setTerminations((prev) =>
