@@ -15,14 +15,6 @@ import {
   PrinterIcon,
 } from "@heroicons/react/24/outline";
 
-// =============================================================================
-// INTERFACE DEFINITIONS
-// =============================================================================
-
-/**
- * User interface representing system users with role-based access
-
- */
 interface User {
   id: number;
   name: string;
@@ -30,10 +22,6 @@ interface User {
   role: string;
 }
 
-/**
- * Checklist item for IT access removal tasks
-
- */
 interface ChecklistItem {
   id: string;
   category: string;
@@ -44,10 +32,6 @@ interface ChecklistItem {
   notes?: string;
 }
 
-/**
- * Main termination record interface
- * @interface Termination
- */
 interface Termination {
   id: number;
   employeeName: string;
@@ -78,31 +62,9 @@ interface Termination {
   isExpanded?: boolean;
 }
 
-// =============================================================================
-// MAIN COMPONENT
-// =============================================================================
-
-/**
- * TerminationsContent Component
- * 
- * Manages the employee termination process including:
- * - Creating new termination records
- * - Tracking equipment returns
- * - IT access removal checklist
- * - Equipment inventory management
- * - Automated overdue tracking
- * 
- * @component
-
- */
 export default function TerminationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // ===========================================================================
-  // STATE MANAGEMENT
-  // ===========================================================================
-  
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -117,49 +79,22 @@ export default function TerminationsContent() {
     terminationReason: "",
     equipmentDisposition: "return_to_pool" as "return_to_pool" | "retire",
   });
-  const [isClient, setIsClient] = useState(false);
 
-  // ===========================================================================
-  // ACCESS CONTROL & FILTERING
-  // ===========================================================================
-  
-  /**
-   * Role-based access control
-   * Admin, I.T., and HR can initiate terminations
-   */
   const isAuthorized =
     currentUser?.role === "Admin" ||
     currentUser?.role === "I.T." ||
     currentUser?.role === "HR";
-  
-  /**
-   * Admin and I.T. have additional privileges for checklist management
-   */
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
-  
   const filter = searchParams.get("filter");
+  const [isClient, setIsClient] = useState(false);
 
-  // ===========================================================================
-  // MEMOIZED VALUES
-  // ===========================================================================
-  
-  /**
-   * Memoized filtered terminations to prevent unnecessary re-renders
-   * Currently returns all terminations - can be extended for filtering
-   */
+  // Memoize the filtered terminations to prevent unnecessary re-renders
   const filteredTerminations = useMemo(() => {
     return terminations;
   }, [terminations]);
 
-  // ===========================================================================
-  // DEFAULT DATA
-  // ===========================================================================
-  
-  /**
-   * Default IT checklist items for new termination records
-   * These are standard access removal tasks across all systems
-   */
+  // Default IT checklist items
   const defaultChecklist: ChecklistItem[] = [
     {
       id: "1",
@@ -167,34 +102,124 @@ export default function TerminationsContent() {
       description: "Disable Windows/AD account",
       completed: false,
     },
-    // ... rest of default checklist items
+    {
+      id: "2",
+      category: "Active Directory",
+      description:
+        'Enter "disabled" and your initials and date in the Description field',
+      completed: false,
+    },
+    {
+      id: "3",
+      category: "Active Directory",
+      description: "Remove all groups from Member Of tab",
+      completed: false,
+    },
+    {
+      id: "4",
+      category: "Active Directory",
+      description:
+        "Run Powershell script: Start-ADSyncSyncCycle -PolicyType Delta",
+      completed: false,
+    },
+    {
+      id: "5",
+      category: "Active Directory",
+      description: "ScreenConnect and remove the computer from the domain",
+      completed: false,
+    },
+    {
+      id: "6",
+      category: "Active Directory",
+      description: "ScreenConnect - General button > Machine Product/Serial#",
+      completed: false,
+    },
+    {
+      id: "7",
+      category: "Microsoft 365",
+      description: "Active Users > (NOTE: do not remove license for 30 days)",
+      completed: false,
+    },
+    {
+      id: "8",
+      category: "Microsoft 365",
+      description: "Account tab > Groups > Manage Groups – remove all groups",
+      completed: false,
+    },
+    {
+      id: "9",
+      category: "Software Access",
+      description: "Navigator",
+      completed: false,
+    },
+    {
+      id: "10",
+      category: "Software Access",
+      description: "SourceMed Analytics USPI",
+      completed: false,
+    },
+    {
+      id: "11",
+      category: "Software Access",
+      description: "SourceMed Analytics NSN",
+      completed: false,
+    },
+    {
+      id: "12",
+      category: "Software Access",
+      description: "SonicWall VPN Connect",
+      completed: false,
+    },
+    {
+      id: "13",
+      category: "Software Access",
+      description:
+        "Viirtue – Numbers and Devices. Change drop down to Available Number",
+      completed: false,
+    },
+    {
+      id: "14",
+      category: "Phone/Fax",
+      description: "Phone #",
+      completed: false,
+    },
+    {
+      id: "15",
+      category: "Phone/Fax",
+      description: "Fax #",
+      completed: false,
+    },
+    {
+      id: "16",
+      category: "Software Access",
+      description: "Adobe – permanently delete",
+      completed: false,
+    },
+    {
+      id: "17",
+      category: "Software Access",
+      description:
+        "Set Ticket type = Access > Termination. Then Angie gets a notice and will disable Availity and Waystar",
+      completed: false,
+    },
+    {
+      id: "18",
+      category: "Software Access",
+      description: "Automate - removed automate license",
+      completed: false,
+    },
   ];
 
-  // ===========================================================================
-  // LIFECYCLE & DATA FETCHING
-  // ===========================================================================
-  
-  /**
-   * Component initialization
-   * - Sets client-side flag
-   * - Fetches initial data
-   * - Sets up overdue check interval
-   */
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
     fetchTerminations();
     fetchITUsers();
 
-    // Check for overdue terminations daily
     const interval = setInterval(checkOverdueTerminations, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [filter]);
 
-  /**
-   * Fetches current user data for access control
-   * @async
-   */
   const fetchCurrentUser = async () => {
     try {
       const response = await fetch("/api/auth/user");
@@ -207,10 +232,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Fetches IT users for assignment dropdowns
-  
-   */
   const fetchITUsers = async () => {
     try {
       const response = await fetch("/api/users?role=IT,Admin");
@@ -223,11 +244,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Fetches termination records with checklist initialization
-   * Ensures all terminations have the full checklist
- 
-   */
   const fetchTerminations = async () => {
     try {
       const url = filter
@@ -236,6 +252,15 @@ export default function TerminationsContent() {
       const response = await fetch(url);
       if (response.ok) {
         const terminationsData = await response.json();
+
+        // Log to debug checklist issues
+        terminationsData.forEach((t: Termination, index: number) => {
+          console.log(
+            `Termination ${t.id} has ${
+              t.checklist?.length || 0
+            } checklist items`
+          );
+        });
 
         // Ensure each termination has the full checklist
         const terminationsWithChecklist = terminationsData.map(
@@ -261,15 +286,6 @@ export default function TerminationsContent() {
     }
   };
 
-  // ===========================================================================
-  // DEBOUNCED UPDATES
-  // ===========================================================================
-  
-  /**
-   * Debounced tracking number update to prevent excessive API calls
-   * Waits 1 second after user stops typing before saving
-
-   */
   const debouncedUpdateTrackingNumber = useCallback(
     (terminationId: number, trackingNumber: string) => {
       const timeoutId = setTimeout(async () => {
@@ -285,15 +301,6 @@ export default function TerminationsContent() {
     []
   );
 
-  // ===========================================================================
-  // UI STATE MANAGEMENT
-  // ===========================================================================
-  
-  /**
-   * Toggles expansion state of termination card
-   * Uses useCallback to prevent unnecessary re-renders
-
-   */
    const toggleTerminationExpanded = useCallback((terminationId: number) => {
     setTerminations((prev) =>
       prev.map((t) =>
@@ -302,15 +309,6 @@ export default function TerminationsContent() {
     );
   }, []);
 
-  // ===========================================================================
-  // TERMINATION ACTIONS
-  // ===========================================================================
-  
-  /**
-   * Archives a termination record
-   * Moves termination from active to archived state
-   
-   */
   const archiveTermination = async (terminationId: number) => {
     try {
       const response = await fetch(`/api/terminations/${terminationId}/archive`, {
@@ -330,11 +328,8 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Generates a printable termination report
-   * Opens print dialog with formatted report
 
-   */
+
   const generatePrintReport = (termination: Termination) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -343,24 +338,142 @@ export default function TerminationsContent() {
     const totalChecklistItems = termination.checklist?.length || 0;
     const progress = totalChecklistItems > 0 ? Math.round((completedChecklistItems.length / totalChecklistItems) * 100) : 0;
 
-    // Print content generation...
+    const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Termination Report - ${termination.employeeName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.4; }
+        .header { border-bottom: 2px solid #dc2626; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #dc2626; margin: 0; font-size: 28px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
+        .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .info-item { margin-bottom: 8px; }
+        .info-label { font-weight: bold; color: #6b7280; display: inline-block; width: 180px; }
+        .progress-bar { background: #e5e7eb; height: 24px; border-radius: 12px; margin: 15px 0; overflow: hidden; }
+        .progress-fill { background: #dc2626; height: 100%; border-radius: 12px; text-align: center; color: white; font-size: 14px; line-height: 24px; font-weight: bold; }
+        .checklist { margin: 15px 0; }
+        .checklist-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+        .completed { color: #059669; }
+        .pending { color: #6b7280; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 10px; font-weight: 500; }
+        .completed-badge { background: #d1fae5; color: #065f46; }
+        .pending-badge { background: #f3f4f6; color: #374151; }
+        .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+        .stat-card { background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #dc2626; margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        @media print { body { margin: 20px; } .no-print { display: none; } .section { break-inside: avoid; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Employee Termination Report</h1>
+        <div class="print-date">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+      </div>
+
+      <div class="section">
+        <h2>Employee Information</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Employee Name:</span> ${termination.employeeName}</div>
+            <div class="info-item"><span class="info-label">Job Title:</span> ${termination.jobTitle}</div>
+            <div class="info-item"><span class="info-label">Department:</span> ${termination.department}</div>
+            <div class="info-item"><span class="info-label">Email:</span> ${termination.employeeEmail}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Termination Date:</span> ${new Date(termination.terminationDate).toLocaleDateString()}</div>
+            <div class="info-item"><span class="info-label">Reason:</span> ${termination.terminationReason}</div>
+            <div class="info-item"><span class="info-label">Initiated By:</span> ${termination.initiatedBy}</div>
+            <div class="info-item"><span class="info-label">Status:</span> ${termination.status}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Equipment Return</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Tracking Number:</span> ${termination.trackingNumber || 'Not provided'}</div>
+            <div class="info-item"><span class="info-label">Disposition:</span> ${termination.equipmentDisposition === 'return_to_pool' ? 'Return to Available Pool' : 'Retire Equipment'}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Completed By:</span> ${termination.completedByUser?.name || 'Not assigned'}</div>
+            <div class="info-item"><span class="info-label">Days Remaining:</span> ${termination.daysRemaining}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Checklist Progress</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${progress}%</div>
+            <div class="stat-label">Overall Progress</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${completedChecklistItems.length}</div>
+            <div class="stat-label">Completed Items</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalChecklistItems}</div>
+            <div class="stat-label">Total Items</div>
+          </div>
+        </div>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>IT Access Removal Checklist</h2>
+        <div class="checklist">
+          ${termination.checklist?.map(item => `
+            <div class="checklist-item ${item.completed ? 'completed' : 'pending'}">
+              ${item.completed ? '✓' : '○'} ${item.description}
+              <span class="status-badge ${item.completed ? 'completed-badge' : 'pending-badge'}">
+                ${item.completed ? 'Completed' : 'Pending'}
+              </span>
+              ${item.completed && item.completedBy ? `<br><small>Completed by ${item.completedBy} on ${item.completedDate ? new Date(item.completedDate).toLocaleDateString() : 'unknown date'}</small>` : ''}
+              ${item.notes ? `<br><small>Notes: ${item.notes}</small>` : ''}
+            </div>
+          `).join('') || 'No checklist items'}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="print-date">
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
+          Report generated by NSN IT Management Portal<br>
+          Termination ID: ${termination.id} | Report ID: ${Date.now()}
+        </div>
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(() => {
+            if (!window.closed) {
+              window.close();
+            }
+          }, 1000);
+        }
+      </script>
+    </body>
+    </html>`;
+
     printWindow.document.write(printContent);
     printWindow.document.close();
   };
 
-  /**
-   * Navigates to termination edit page
-   
-   */
   const handleEditTermination = (terminationId: number) => {
     router.push(`/management-portal/terminations/${terminationId}/edit`);
   };
 
-  /**
-   * Creates a new termination record
-   * Includes authorization check and default checklist initialization
-
-   */
   const createTermination = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthorized) {
@@ -399,15 +512,6 @@ export default function TerminationsContent() {
     }
   };
 
-  // ===========================================================================
-  // DATA UPDATE FUNCTIONS
-  // ===========================================================================
-  
-  /**
-   * Updates termination record in both local state and database
-   * PRESERVES EXPANDED STATE to prevent collapse during updates
-
-   */
     const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
     try {
       // Update local state first for immediate feedback
@@ -417,7 +521,6 @@ export default function TerminationsContent() {
             ? { 
                 ...t, 
                 ...updates,
-                // CRITICAL: Preserve expanded state during updates
                 isExpanded: updates.isExpanded !== undefined ? updates.isExpanded : t.isExpanded
               }
             : t
@@ -435,8 +538,6 @@ export default function TerminationsContent() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // NOTE: fetchTerminations() is NOT called here to preserve UI state
-      // Only call fetchTerminations() on errors to restore correct state
       
     } catch (error) {
       console.error("Error updating termination:", error);
@@ -446,11 +547,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Updates individual checklist item
-   * PRESERVES EXPANDED STATE to prevent collapse
-
-   */
   const updateChecklistItem = async (
   terminationId: number,
   itemId: string,
@@ -486,11 +582,7 @@ export default function TerminationsContent() {
   }
 };
 
-  /**
-   * Removes checklist item from termination
-   * PRESERVES EXPANDED STATE to prevent collapse
 
-   */
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
   if (!confirm("Are you sure you want to remove this checklist item?")) {
     return;
@@ -526,11 +618,6 @@ export default function TerminationsContent() {
   }
 };
 
-  /**
-   * Marks equipment as returned and updates IT inventory
-   * Updates both termination status and IT staff laptop count
-
-   */
   const markEquipmentReturned = async (
   terminationId: number,
   trackingNumber: string,
@@ -604,14 +691,8 @@ export default function TerminationsContent() {
   }
 };
 
-  // ===========================================================================
-  // EVENT HANDLERS WITH STATE PRESERVATION
-  // ===========================================================================
   
-  /**
-   * Handles equipment disposition changes
-   * PRESERVES EXPANDED STATE during updates
-   */
+
   const handleEquipmentDispositionChange = useCallback(
   (terminationId: number, value: "return_to_pool" | "retire") => {
     setTerminations((prev) =>
@@ -630,10 +711,6 @@ export default function TerminationsContent() {
   []
 );
 
-  /**
-   * Handles completed by user assignment changes
-   * PRESERVES EXPANDED STATE during updates
-   */
   const handleCompletedByChange = useCallback(
   (terminationId: number, value: string) => {
     const completedByUserId = value ? parseInt(value) : undefined;
@@ -653,10 +730,6 @@ export default function TerminationsContent() {
   []
 );
 
-  /**
-   * Deletes termination record after confirmation
-   
-   */
   const deleteTermination = async (terminationId: number) => {
     if (
       !confirm(
@@ -679,9 +752,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Checks for overdue terminations (runs daily via interval)
-   */
   const checkOverdueTerminations = async () => {
     try {
       await fetch("/api/terminations/check-overdue", { method: "POST" });
@@ -691,14 +761,6 @@ export default function TerminationsContent() {
     }
   };
 
-  // ===========================================================================
-  // UI HELPER FUNCTIONS
-  // ===========================================================================
-  
-  /**
-   * Returns appropriate CSS classes for status badges
-  
-   */
   const getStatusColor = (status: string, isOverdue: boolean) => {
     if (isOverdue) return "bg-red-100 text-red-800";
 
@@ -716,10 +778,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Returns human-readable status text
-
-   */
   const getStatusText = (
     status: string,
     daysRemaining: number,
@@ -741,9 +799,6 @@ export default function TerminationsContent() {
     }
   };
 
-  /**
-   * Handles tracking number input with debounced save
-   */
   const handleTrackingNumberChange = useCallback(
     (terminationId: number, value: string) => {
       setTerminations((prev) =>
@@ -756,9 +811,6 @@ export default function TerminationsContent() {
     [debouncedUpdateTrackingNumber]
   );
 
-  /**
-   * Auto-fills termination form when employee is selected
-   */
   const handleEmployeeSelect = (employee: any) => {
     setTerminationForm((prev) => ({
       ...prev,
@@ -769,30 +821,12 @@ export default function TerminationsContent() {
     }));
   };
 
-  // ===========================================================================
-  // CHECKLIST SECTION COMPONENT
-  // ===========================================================================
-  
-  /**
-   * ChecklistSection Component
-   * 
-   * Manages IT access removal checklist for a specific termination
-   * Includes:
-   * - Item completion tracking
-   * - Bulk operations (check all/uncheck all)
-   * - Progress tracking
-   * - Custom item addition
-   * 
-    */
   const ChecklistSection = ({ termination }: { termination: Termination }) => {
     const [localNewItem, setLocalNewItem] = useState({
       category: "",
       description: "",
     });
 
-    /**
-     * Adds custom checklist item
-     */
     const handleAddChecklistItem = async () => {
       if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
         alert("Please enter both category and description");
@@ -831,9 +865,6 @@ export default function TerminationsContent() {
       }
     };
 
-    /**
-     * Groups checklist items by category for organized display
-     */
     const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
       const grouped: { [key: string]: ChecklistItem[] } = {};
       checklist.forEach((item) => {
@@ -851,15 +882,252 @@ export default function TerminationsContent() {
           IT Access Removal Checklist
         </h3>
 
-        {/* Checklist UI implementation... */}
+        {/* Completed By Dropdown */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Completed By
+          </label>
+          <select
+            value={termination.completedByUserId || ""}
+            onChange={(e) =>
+              handleCompletedByChange(termination.id, e.target.value)
+            }
+            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm"
+          >
+            <option value="">Select IT Staff</option>
+            {itUsers.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name} ({user.role})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Global Check All/Uncheck All Buttons */}
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={() => {
+              const updatedChecklist = termination.checklist!.map((item) => ({
+                ...item,
+                completed: true,
+                completedBy: currentUser?.name,
+                completedDate: new Date().toISOString(),
+              }));
+              updateTermination(termination.id, {
+                checklist: updatedChecklist,
+              });
+            }}
+            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <CheckCircleIcon className="h-4 w-4 mr-1" />
+            Check All
+          </button>
+          <button
+            onClick={() => {
+              const updatedChecklist = termination.checklist!.map((item) => ({
+                ...item,
+                completed: false,
+                completedBy: undefined,
+                completedDate: undefined,
+              }));
+              updateTermination(termination.id, {
+                checklist: updatedChecklist,
+              });
+            }}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <MinusIcon className="h-4 w-4 mr-1" />
+            Uncheck All
+          </button>
+        </div>
+
+        {/* Checklist Items */}
+        {Object.entries(
+          groupChecklistByCategory(termination.checklist || [])
+        ).map(([category, items]) => (
+          <div key={category} className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-gray-800">{category}</h4>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    const updatedChecklist = termination.checklist!.map(
+                      (item) =>
+                        item.category === category
+                          ? {
+                              ...item,
+                              completed: true,
+                              completedBy: currentUser?.name,
+                              completedDate: new Date().toISOString(),
+                            }
+                          : item
+                    );
+                    updateTermination(termination.id, {
+                      checklist: updatedChecklist,
+                    });
+                  }}
+                  className="text-green-600 hover:text-green-800 text-xs flex items-center"
+                >
+                  <CheckCircleIcon className="h-3 w-3 mr-1" />
+                  Check All
+                </button>
+                <button
+                  onClick={() => {
+                    const updatedChecklist = termination.checklist!.map(
+                      (item) =>
+                        item.category === category
+                          ? {
+                              ...item,
+                              completed: false,
+                              completedBy: undefined,
+                              completedDate: undefined,
+                            }
+                          : item
+                    );
+                    updateTermination(termination.id, {
+                      checklist: updatedChecklist,
+                    });
+                  }}
+                  className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
+                >
+                  <MinusIcon className="h-3 w-3 mr-1" />
+                  Uncheck All
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.completed}
+                    onChange={(e) =>
+                      updateChecklistItem(termination.id, item.id, {
+                        completed: e.target.checked,
+                        completedBy: e.target.checked
+                          ? currentUser?.name
+                          : undefined,
+                        completedDate: e.target.checked
+                          ? new Date().toISOString()
+                          : undefined,
+                      })
+                    }
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <div className="flex-1">
+                    <label
+                      className={`text-sm ${
+                        item.completed
+                          ? "text-gray-500 line-through"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      {item.description}
+                    </label>
+                    {item.completed && item.completedBy && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Completed by {item.completedBy} on{" "}
+                        {item.completedDate
+                          ? new Date(item.completedDate).toLocaleDateString()
+                          : "unknown date"}
+                      </p>
+                    )}
+                    <textarea
+                      placeholder="Add notes..."
+                      value={item.notes || ""}
+                      onChange={(e) =>
+                        updateChecklistItem(termination.id, item.id, {
+                          notes: e.target.value,
+                        })
+                      }
+                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                      rows={2}
+                    />
+                  </div>
+                  <button
+                    onClick={() => removeChecklistItem(termination.id, item.id)}
+                    className="text-red-500 hover:text-red-700"
+                    title="Remove item"
+                  >
+                    <MinusIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Progress Summary */}
+        {termination.checklist && (
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-blue-800">
+                Checklist Progress
+              </span>
+              <span className="text-sm text-blue-700">
+                {termination.checklist.filter((item) => item.completed).length}{" "}
+                of {termination.checklist.length} completed
+              </span>
+            </div>
+            <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: `${
+                    (termination.checklist.filter((item) => item.completed)
+                      .length /
+                      termination.checklist.length) *
+                    100
+                  }%`,
+                }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {/* Add New Checklist Item */}
+        <div className="border-t pt-4">
+          <h4 className="font-medium text-gray-800 mb-2">
+            Add New Checklist Item
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+            <input
+              type="text"
+              placeholder="Category (e.g., Software Access)"
+              value={localNewItem.category}
+              onChange={(e) =>
+                setLocalNewItem({ ...localNewItem, category: e.target.value })
+              }
+              className="px-3 py-2 border border-gray-300 rounded text-sm"
+            />
+            <input
+              type="text"
+              placeholder="Description"
+              value={localNewItem.description}
+              onChange={(e) =>
+                setLocalNewItem({
+                  ...localNewItem,
+                  description: e.target.value,
+                })
+              }
+              className="px-3 py-2 border border-gray-300 rounded text-sm"
+            />
+          </div>
+          <button
+            onClick={handleAddChecklistItem}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+          >
+            <PlusIcon className="h-4 w-4 mr-1" />
+            Add Item
+          </button>
+        </div>
       </div>
     );
-  };
+  }; // FIXED: Added missing closing brace for ChecklistSection
 
-  // ===========================================================================
-  // RENDER LOGIC
-  // ===========================================================================
-  
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -867,7 +1135,6 @@ export default function TerminationsContent() {
       </div>
     );
   }
-
 
   return (
     <div suppressHydrationWarning>
