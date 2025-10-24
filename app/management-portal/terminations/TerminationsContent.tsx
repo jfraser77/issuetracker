@@ -300,13 +300,178 @@ export default function TerminationsContent() {
     []
   );
 
-  const toggleTerminationExpanded = useCallback((terminationId: number) => {
+   const toggleTerminationExpanded = useCallback((terminationId: number) => {
     setTerminations((prev) =>
       prev.map((t) =>
         t.id === terminationId ? { ...t, isExpanded: !t.isExpanded } : t
       )
     );
   }, []);
+
+  const archiveTermination = async (terminationId: number) => {
+    try {
+      const response = await fetch(`/api/terminations/${terminationId}/archive`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        fetchTerminations();
+        alert("Termination archived successfully!");
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to archive termination: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error("Error archiving termination:", error);
+      alert("Failed to archive termination. Please try again.");
+    }
+  };
+
+
+
+  const generatePrintReport = (termination: Termination) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const completedChecklistItems = termination.checklist?.filter(item => item.completed) || [];
+    const totalChecklistItems = termination.checklist?.length || 0;
+    const progress = totalChecklistItems > 0 ? Math.round((completedChecklistItems.length / totalChecklistItems) * 100) : 0;
+
+    const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Termination Report - ${termination.employeeName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.4; }
+        .header { border-bottom: 2px solid #dc2626; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #dc2626; margin: 0; font-size: 28px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
+        .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .info-item { margin-bottom: 8px; }
+        .info-label { font-weight: bold; color: #6b7280; display: inline-block; width: 180px; }
+        .progress-bar { background: #e5e7eb; height: 24px; border-radius: 12px; margin: 15px 0; overflow: hidden; }
+        .progress-fill { background: #dc2626; height: 100%; border-radius: 12px; text-align: center; color: white; font-size: 14px; line-height: 24px; font-weight: bold; }
+        .checklist { margin: 15px 0; }
+        .checklist-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+        .completed { color: #059669; }
+        .pending { color: #6b7280; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 10px; font-weight: 500; }
+        .completed-badge { background: #d1fae5; color: #065f46; }
+        .pending-badge { background: #f3f4f6; color: #374151; }
+        .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+        .stat-card { background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #dc2626; margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        @media print { body { margin: 20px; } .no-print { display: none; } .section { break-inside: avoid; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Employee Termination Report</h1>
+        <div class="print-date">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+      </div>
+
+      <div class="section">
+        <h2>Employee Information</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Employee Name:</span> ${termination.employeeName}</div>
+            <div class="info-item"><span class="info-label">Job Title:</span> ${termination.jobTitle}</div>
+            <div class="info-item"><span class="info-label">Department:</span> ${termination.department}</div>
+            <div class="info-item"><span class="info-label">Email:</span> ${termination.employeeEmail}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Termination Date:</span> ${new Date(termination.terminationDate).toLocaleDateString()}</div>
+            <div class="info-item"><span class="info-label">Reason:</span> ${termination.terminationReason}</div>
+            <div class="info-item"><span class="info-label">Initiated By:</span> ${termination.initiatedBy}</div>
+            <div class="info-item"><span class="info-label">Status:</span> ${termination.status}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Equipment Return</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Tracking Number:</span> ${termination.trackingNumber || 'Not provided'}</div>
+            <div class="info-item"><span class="info-label">Disposition:</span> ${termination.equipmentDisposition === 'return_to_pool' ? 'Return to Available Pool' : 'Retire Equipment'}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Completed By:</span> ${termination.completedByUser?.name || 'Not assigned'}</div>
+            <div class="info-item"><span class="info-label">Days Remaining:</span> ${termination.daysRemaining}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Checklist Progress</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${progress}%</div>
+            <div class="stat-label">Overall Progress</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${completedChecklistItems.length}</div>
+            <div class="stat-label">Completed Items</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalChecklistItems}</div>
+            <div class="stat-label">Total Items</div>
+          </div>
+        </div>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>IT Access Removal Checklist</h2>
+        <div class="checklist">
+          ${termination.checklist?.map(item => `
+            <div class="checklist-item ${item.completed ? 'completed' : 'pending'}">
+              ${item.completed ? '✓' : '○'} ${item.description}
+              <span class="status-badge ${item.completed ? 'completed-badge' : 'pending-badge'}">
+                ${item.completed ? 'Completed' : 'Pending'}
+              </span>
+              ${item.completed && item.completedBy ? `<br><small>Completed by ${item.completedBy} on ${item.completedDate ? new Date(item.completedDate).toLocaleDateString() : 'unknown date'}</small>` : ''}
+              ${item.notes ? `<br><small>Notes: ${item.notes}</small>` : ''}
+            </div>
+          `).join('') || 'No checklist items'}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="print-date">
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
+          Report generated by NSN IT Management Portal<br>
+          Termination ID: ${termination.id} | Report ID: ${Date.now()}
+        </div>
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(() => {
+            if (!window.closed) {
+              window.close();
+            }
+          }, 1000);
+        }
+      </script>
+    </body>
+    </html>`;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  };
+
+  const handleEditTermination = (terminationId: number) => {
+    router.push(`/management-portal/terminations/${terminationId}/edit`);
+  };
 
   const createTermination = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,41 +511,38 @@ export default function TerminationsContent() {
     }
   };
 
-  const updateTermination = async (
-    terminationId: number,
-    updates: Partial<Termination>
-  ) => {
+    const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
     try {
-      // Preserve expanded state during updates
-      const currentTermination = terminations.find(
-        (t) => t.id === terminationId
+      // Update local state first for immediate feedback
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? { 
+                ...t, 
+                ...updates,
+                isExpanded: updates.isExpanded !== undefined ? updates.isExpanded : t.isExpanded
+              }
+            : t
+        )
       );
-      const updatesWithState = {
-        ...updates,
-        isExpanded: currentTermination?.isExpanded, // Preserve current expanded state
-      };
 
+      // Then update in database
       const response = await fetch(`/api/terminations/${terminationId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatesWithState),
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update termination");
-      }
-
-      // Only refresh if the update was successful
+      // Refresh data to ensure consistency
       fetchTerminations();
     } catch (error) {
       console.error("Error updating termination:", error);
       alert("Failed to update termination. Please try again.");
+      // Refresh on error to restore correct state
       fetchTerminations();
     }
   };
@@ -418,6 +580,7 @@ export default function TerminationsContent() {
       fetchTerminations();
     }
   };
+
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
     if (!confirm("Are you sure you want to remove this checklist item?")) {
@@ -504,22 +667,7 @@ export default function TerminationsContent() {
     }
   };
 
-  const archiveTermination = async (terminationId: number) => {
-    try {
-      const response = await fetch(
-        `/api/terminations/${terminationId}/archive`,
-        {
-          method: "POST",
-        }
-      );
-
-      if (response.ok) {
-        fetchTerminations();
-      }
-    } catch (error) {
-      console.error("Error archiving termination:", error);
-    }
-  };
+  
 
   const handleEquipmentDispositionChange = useCallback(
     (terminationId: number, value: "return_to_pool" | "retire") => {
@@ -1041,16 +1189,19 @@ export default function TerminationsContent() {
                           {termination.employeeName}
                         </h3>
                         <button
-                          onClick={() =>
-                            router.push(
-                              `/management-portal/terminations/${termination.id}/edit`
-                            )
-                          }
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Edit Termination"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
+        onClick={() => handleEditTermination(termination.id)}
+        className="text-gray-400 hover:text-blue-600"
+        title="Edit Termination"
+      >
+        <PencilIcon className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => generatePrintReport(termination)}
+        className="text-gray-400 hover:text-green-600"
+        title="Print Report"
+      >
+        <PrinterIcon className="h-4 w-4" />
+      </button>
                         <button
                           onClick={() => deleteTermination(termination.id)}
                           className="text-gray-400 hover:text-red-600"
