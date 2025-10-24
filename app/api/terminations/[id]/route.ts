@@ -203,7 +203,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     Object.entries(fieldMappings).forEach(([key, config]) => {
       if (updates[key] !== undefined) {
         updateFields.push(`${config.field} = @${key}`);
-        if (updates[key] === null || updates[key] === '') {
+        // Handle null/undefined values properly
+        if (updates[key] === null || updates[key] === undefined || updates[key] === '') {
           requestObj.input(key, config.type, null);
         } else {
           requestObj.input(key, config.type, updates[key]);
@@ -215,7 +216,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (updates.checklist !== undefined) {
       updateFields.push("checklist = @checklist");
       requestObj.input("checklist", sql.NVarChar, 
-        updates.checklist ? JSON.stringify(updates.checklist) : null
+        updates.checklist && updates.checklist.length > 0 
+          ? JSON.stringify(updates.checklist) 
+          : JSON.stringify(defaultChecklist)
       );
     }
 
@@ -238,7 +241,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       WHERE id = @id
     `;
 
-    console.log(`📝 Executing query: UPDATE Terminations SET ${updateFields.join(", ")} WHERE id = @id`);
+    console.log(`📝 Executing update query for termination ${terminationId}`);
 
     const result = await requestObj.query(query);
     
@@ -282,7 +285,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json(
       { 
         error: "Failed to update termination",
-        details: error.message 
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );

@@ -880,26 +880,7 @@ export default function TerminationsContent() {
           IT Access Removal Checklist
         </h3>
 
-        {/* Completed By Dropdown */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Completed By
-          </label>
-          <select
-            value={termination.completedByUserId || ""}
-            onChange={(e) =>
-              handleCompletedByChange(termination.id, e.target.value)
-            }
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="">Select IT Staff</option>
-            {itUsers.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name} ({user.role})
-              </option>
-            ))}
-          </select>
-        </div>
+        
 
         {/* Global Check All/Uncheck All Buttons */}
         <div className="mb-4 flex gap-2">
