@@ -638,47 +638,45 @@ export default function TerminationsContent() {
       }
     );
 
-    if (response.ok) {
-      // Update local state immediately
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                status: "equipment_returned" as const,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // If equipment is being returned to pool, update IT Staff inventory
-      if (equipmentDisposition === "return_to_pool" && completedByUserId) {
-        try {
-          await fetch("/api/it-assets/inventory", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: completedByUserId,
-              change: 1,
-            }),
-          });
-          console.log(
-            `Updated IT Staff inventory for user ${completedByUserId}`
-          );
-        } catch (inventoryError) {
-          console.error("Error updating IT Staff inventory:", inventoryError);
-          // Continue even if inventory update fails
-        }
-      }
-
-      alert("Equipment return recorded successfully and inventory updated.");
-      
-      // Don't call fetchTerminations() - we've already updated local state
-    } else {
+    if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || "Failed to mark equipment returned");
     }
+
+    const updatedTermination = await response.json();
+
+    // Update local state immediately
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? {
+              ...updatedTermination,
+              isExpanded: t.isExpanded, // Preserve expanded state
+            }
+          : t
+      )
+    );
+
+    // If equipment is being returned to pool, update IT Staff inventory
+    if (equipmentDisposition === "return_to_pool" && completedByUserId) {
+      try {
+        await fetch("/api/it-assets/inventory", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: completedByUserId,
+            change: 1,
+          }),
+        });
+        console.log(`Updated IT Staff inventory for user ${completedByUserId}`);
+      } catch (inventoryError) {
+        console.error("Error updating IT Staff inventory:", inventoryError);
+        // Continue even if inventory update fails
+      }
+    }
+
+    alert("Equipment return recorded successfully and inventory updated.");
+    
   } catch (error) {
     console.error("Error marking equipment returned:", error);
     alert(
@@ -686,7 +684,7 @@ export default function TerminationsContent() {
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
-    // Only refresh on error
+    // Refresh on error to restore correct state
     fetchTerminations();
   }
 };
@@ -1279,114 +1277,103 @@ export default function TerminationsContent() {
               {termination.isExpanded && (
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                   {/* Equipment Return Section */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                      <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
-                      Equipment Return Process
-                    </h3>
+                  // Equipment Return Section - Decoupled from IT Checklist
+<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+    <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
+    Equipment Return Process
+  </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Tracking Number */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tracking Number
-                        </label>
-                        <input
-                          type="text"
-                          value={termination.trackingNumber || ""}
-                          onChange={(e) =>
-                            handleTrackingNumberChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          placeholder="Enter return tracking number"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {/* Tracking Number */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Tracking Number
+      </label>
+      <input
+        type="text"
+        value={termination.trackingNumber || ""}
+        onChange={(e) =>
+          handleTrackingNumberChange(termination.id, e.target.value)
+        }
+        placeholder="Enter return tracking number"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      />
+    </div>
 
-                      {/* Equipment Disposition */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Equipment Disposition
-                        </label>
-                        <select
-                          value={termination.equipmentDisposition}
-                          onChange={(e) =>
-                            handleEquipmentDispositionChange(
-                              termination.id,
-                              e.target.value as "return_to_pool" | "retire"
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="return_to_pool">
-                            Return to Available Pool
-                          </option>
-                          <option value="retire">Retire Equipment</option>
-                        </select>
-                      </div>
+    {/* Equipment Disposition */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Equipment Disposition
+      </label>
+      <select
+        value={termination.equipmentDisposition}
+        onChange={(e) =>
+          handleEquipmentDispositionChange(
+            termination.id,
+            e.target.value as "return_to_pool" | "retire"
+          )
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="return_to_pool">Return to Available Pool</option>
+        <option value="retire">Retire Equipment</option>
+      </select>
+    </div>
 
-                      {/* Completed By*/}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Completed By (IT Staff)
-                        </label>
-                        <select
-                          value={termination.completedByUserId || ""}
-                          onChange={(e) =>
-                            handleCompletedByChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select IT Staff</option>
-                          {itUsers.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name} ({user.role})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+    {/* Completed By - SPECIFIC TO EQUIPMENT RETURN */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Return Completed By (IT Staff)
+      </label>
+      <select
+        value={termination.completedByUserId || ""}
+        onChange={(e) =>
+          handleCompletedByChange(termination.id, e.target.value)
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">Select IT Staff</option>
+        {itUsers.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.name} ({user.role})
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
 
-                    {/* Mark Equipment Returned Button */}
-                    {isAdminOrIT &&
-                      termination.trackingNumber &&
-                      termination.completedByUserId && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() =>
-                              markEquipmentReturned(
-                                termination.id,
-                                termination.trackingNumber!,
-                                termination.equipmentDisposition,
-                                termination.completedByUserId
-                              )
-                            }
-                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
-                          >
-                            <CheckCircleIcon className="h-4 w-4 mr-2" />
-                            Mark Equipment Returned
-                            {termination.equipmentDisposition ===
-                              "return_to_pool" && (
-                              <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
-                                +1 Laptop to{" "}
-                                {
-                                  itUsers.find(
-                                    (u) =>
-                                      u.id === termination.completedByUserId
-                                  )?.name
-                                }
-                                's Inventory
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                  </div>
+  {/* Mark Equipment Returned Button */}
+  {isAdminOrIT &&
+    termination.trackingNumber &&
+    termination.completedByUserId && (
+      <div className="mt-4">
+        <button
+          onClick={() =>
+            markEquipmentReturned(
+              termination.id,
+              termination.trackingNumber!,
+              termination.equipmentDisposition,
+              termination.completedByUserId
+            )
+          }
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
+        >
+          <CheckCircleIcon className="h-4 w-4 mr-2" />
+          Mark Equipment Returned
+          {termination.equipmentDisposition === "return_to_pool" && (
+            <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
+              +1 Laptop to{" "}
+              {
+                itUsers.find((u) => u.id === termination.completedByUserId)?.name
+              }
+              's Inventory
+            </span>
+          )}
+        </button>
+      </div>
+    )}
+</div>
 
                   {/* IT Checklist Section - Only for Admin/IT */}
                   {isAdminOrIT && termination.checklist && (
