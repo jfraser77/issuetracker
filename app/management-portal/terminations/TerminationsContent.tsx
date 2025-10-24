@@ -528,7 +528,7 @@ export default function TerminationsContent() {
       )
     );
 
-    
+    // Then update in database - but don't wait for it to complete for better UX
     fetch(`/api/terminations/${terminationId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -545,13 +545,13 @@ export default function TerminationsContent() {
     })
     .catch(error => {
       console.error("Error updating termination in database:", error);
-     
+      // Optional: Show a subtle error notification instead of alert
       console.warn("Failed to sync changes with server. Changes are saved locally.");
     });
     
   } catch (error) {
     console.error("Error in updateTermination:", error);
-    
+    // Don't show alert for every minor error - it disrupts user experience
   }
 };
 
@@ -1287,7 +1287,7 @@ export default function TerminationsContent() {
               {termination.isExpanded && (
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                   {/* Equipment Return Section */}
-                  // Equipment Return Section - Decoupled from IT Checklist
+                  
 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
   <h3 className="font-medium text-gray-900 mb-3 flex items-center">
     <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
