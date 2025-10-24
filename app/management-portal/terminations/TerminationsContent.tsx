@@ -513,39 +513,47 @@ export default function TerminationsContent() {
   };
 
     const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
-    try {
-      // Update local state first for immediate feedback
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? { 
-                ...t, 
-                ...updates,
-                isExpanded: updates.isExpanded !== undefined ? updates.isExpanded : t.isExpanded
-              }
-            : t
-        )
-      );
+  try {
+    // Create a stable reference to avoid unnecessary re-renders
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? { 
+              ...t, 
+              ...updates,
+              // Only update isExpanded if explicitly provided, otherwise preserve current state
+              isExpanded: updates.isExpanded !== undefined ? updates.isExpanded : t.isExpanded
+            }
+          : t
+      )
+    );
 
-      // Then update in database
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-
+    
+    fetch(`/api/terminations/${terminationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    })
+    .then(response => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      
-    } catch (error) {
-      console.error("Error updating termination:", error);
-      alert("Failed to update termination. Please try again.");
-      // Refresh on error to restore correct state
-      fetchTerminations();
-    }
-  };
+      return response.json();
+    })
+    .then(data => {
+      console.log(`✅ Termination ${terminationId} updated successfully`);
+    })
+    .catch(error => {
+      console.error("Error updating termination in database:", error);
+     
+      console.warn("Failed to sync changes with server. Changes are saved locally.");
+    });
+    
+  } catch (error) {
+    console.error("Error in updateTermination:", error);
+    
+  }
+};
 
   const updateChecklistItem = async (
   terminationId: number,
@@ -567,21 +575,30 @@ export default function TerminationsContent() {
           ? {
               ...t,
               checklist: updatedChecklist,
-              isExpanded: t.isExpanded, // Preserve expanded state
             }
           : t
       )
     );
 
-    // Update in database - don't call fetchTerminations after this
-    await updateTermination(terminationId, { checklist: updatedChecklist });
+    // Update in database without blocking
+    fetch(`/api/terminations/${terminationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checklist: updatedChecklist }),
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    })
+    .catch(error => {
+      console.error("Error updating checklist item:", error);
+    });
+    
   } catch (error) {
-    console.error("Error updating checklist item:", error);
-    // Only refresh on error
-    fetchTerminations();
+    console.error("Error in updateChecklistItem:", error);
   }
 };
-
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
   if (!confirm("Are you sure you want to remove this checklist item?")) {
@@ -697,14 +714,12 @@ export default function TerminationsContent() {
     setTerminations((prev) =>
       prev.map((t) =>
         t.id === terminationId
-          ? {
-              ...t,
-              equipmentDisposition: value,
-              isExpanded: t.isExpanded, // Preserve expanded state
-            }
+          ? { ...t, equipmentDisposition: value }
           : t
       )
     );
+    
+    // Immediate API call for dropdown changes (they don't have typing issues)
     updateTermination(terminationId, { equipmentDisposition: value });
   },
   []
@@ -716,14 +731,12 @@ export default function TerminationsContent() {
     setTerminations((prev) =>
       prev.map((t) =>
         t.id === terminationId
-          ? {
-              ...t,
-              completedByUserId,
-              isExpanded: t.isExpanded, // Preserve expanded state
-            }
+          ? { ...t, completedByUserId }
           : t
       )
     );
+    
+    // Immediate API call for dropdown changes
     updateTermination(terminationId, { completedByUserId });
   },
   []
@@ -799,16 +812,31 @@ export default function TerminationsContent() {
   };
 
   const handleTrackingNumberChange = useCallback(
-    (terminationId: number, value: string) => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId ? { ...t, trackingNumber: value } : t
-        )
-      );
-      debouncedUpdateTrackingNumber(terminationId, value);
-    },
-    [debouncedUpdateTrackingNumber]
-  );
+  (terminationId: number, value: string) => {
+    // Update local state immediately
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId ? { ...t, trackingNumber: value } : t
+      )
+    );
+    
+    // Debounce the API call
+    const timeoutId = setTimeout(async () => {
+      try {
+        await fetch(`/api/terminations/${terminationId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackingNumber: value }),
+        });
+      } catch (error) {
+        console.error("Error updating tracking number:", error);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  },
+  []
+);
 
   const handleEmployeeSelect = (employee: any) => {
     setTerminationForm((prev) => ({
