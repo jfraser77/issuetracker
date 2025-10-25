@@ -62,6 +62,33 @@ interface Termination {
   isExpanded?: boolean;
 }
 
+// Custom hook to manage notes state locally
+function useChecklistNotes(initialTerminations: Termination[]) {
+  const [notesState, setNotesState] = useState<{[key: string]: string}>({});
+
+  // Initialize notes state from terminations
+  useEffect(() => {
+    const initialNotes: {[key: string]: string} = {};
+    initialTerminations.forEach(termination => {
+      termination.checklist?.forEach(item => {
+        const key = `${termination.id}-${item.id}`;
+        initialNotes[key] = item.notes || '';
+      });
+    });
+    setNotesState(initialNotes);
+  }, [initialTerminations]);
+
+  const updateNote = (terminationId: number, itemId: string, note: string) => {
+    const key = `${terminationId}-${itemId}`;
+    setNotesState(prev => ({
+      ...prev,
+      [key]: note
+    }));
+  };
+
+  return { notesState, updateNote };
+}
+
 export default function TerminationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,6 +97,8 @@ export default function TerminationsContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itUsers, setItUsers] = useState<User[]>([]);
   const [showTerminationForm, setShowTerminationForm] = useState(false);
+  // Use local state for notes to prevent re-renders
+const { notesState, updateNote } = useChecklistNotes(terminations);
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
     employeeEmail: "",
@@ -591,6 +620,8 @@ export default function TerminationsContent() {
       return updated;
     });
 
+    
+
     // Simple API call without debounce for testing
     setTimeout(() => {
       const currentTermination = terminations.find((t) => t.id === terminationId);
@@ -869,6 +900,12 @@ export default function TerminationsContent() {
       description: "",
     });
 
+    // Get the current note from local state
+  const getCurrentNote = (itemId: string) => {
+    const key = `${termination.id}-${itemId}`;
+    return notesState[key] || '';
+  };
+
     const handleAddChecklistItem = async () => {
       if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
         alert("Please enter both category and description");
@@ -906,6 +943,45 @@ export default function TerminationsContent() {
         fetchTerminations();
       }
     };
+
+    const updateChecklistItemNotes = useCallback((
+  terminationId: number,
+  itemId: string,
+  notes: string
+) => {
+  // Update local state immediately (this doesn't cause re-renders of other items)
+  updateNote(terminationId, itemId, notes);
+
+  // Debounce API call
+  const timeoutId = setTimeout(() => {
+    const currentTermination = terminations.find((t) => t.id === terminationId);
+    if (!currentTermination?.checklist) return;
+
+    const updatedChecklist = currentTermination.checklist.map((item) =>
+      item.id === itemId ? { ...item, notes } : item
+    );
+
+    // Update the main state with the final notes value
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? { ...t, checklist: updatedChecklist }
+          : t
+      )
+    );
+
+    // Sync with database
+    fetch(`/api/terminations/${terminationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checklist: updatedChecklist }),
+    }).catch(error => {
+      console.error("Error updating checklist notes:", error);
+    });
+  }, 1000);
+
+  return () => clearTimeout(timeoutId);
+}, [ updateNote]);
 
     const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
       const grouped: { [key: string]: ChecklistItem[] } = {};
@@ -1059,16 +1135,51 @@ export default function TerminationsContent() {
                       </p>
                     )}
                     <textarea
-                      placeholder="Add notes..."
-                      value={item.notes || ""}
-                      onChange={(e) =>
-                        updateChecklistItem(termination.id, item.id, {
-                          notes: e.target.value,
-                        })
-                      }
-                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                      rows={2}
-                    />
+  placeholder="Add notes..."
+  value={getCurrentNote(item.id)}
+  onChange={(e) => {
+    // Only update local state for fast typing
+    updateNote(termination.id, item.id, e.target.value);
+  }}
+  onBlur={(e) => {
+    // Only update main state and database when user leaves the field
+    const notes = e.target.value;
+    
+    // Update main state
+    setTerminations((prev) =>
+      prev.map((t) => {
+        if (t.id !== termination.id || !t.checklist) return t;
+        
+        const updatedChecklist = t.checklist.map((i) =>
+          i.id === item.id ? { ...i, notes } : i
+        );
+
+        return {
+          ...t,
+          checklist: updatedChecklist,
+        };
+      })
+    );
+
+    // Sync with database
+    const currentTermination = terminations.find((t) => t.id === termination.id);
+    if (!currentTermination?.checklist) return;
+
+    const updatedChecklist = currentTermination.checklist.map((i) =>
+      i.id === item.id ? { ...i, notes } : i
+    );
+
+    fetch(`/api/terminations/${termination.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checklist: updatedChecklist }),
+    }).catch(error => {
+      console.error("Error updating checklist notes:", error);
+    });
+  }}
+  className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
+  rows={2}
+/>
                   </div>
                   <button
                     onClick={() => removeChecklistItem(termination.id, item.id)}
@@ -1149,7 +1260,7 @@ export default function TerminationsContent() {
         </div>
       </div>
     );
-  }; // FIXED: Added missing closing brace for ChecklistSection
+  }; 
 
   if (!isClient || loading) {
     return (
