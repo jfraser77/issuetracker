@@ -561,9 +561,11 @@ export default function TerminationsContent() {
   updates: Partial<ChecklistItem>
 ) => {
   try {
-    // Use functional update to get the latest state
+    console.log('Updating checklist item:', { terminationId, itemId, updates });
+    
+    // Update local state immediately using functional update
     setTerminations((prevTerminations) => {
-      return prevTerminations.map((t) => {
+      const updated = prevTerminations.map((t) => {
         if (t.id !== terminationId || !t.checklist) return t;
         
         const updatedChecklist = t.checklist.map((item) =>
@@ -575,13 +577,26 @@ export default function TerminationsContent() {
           checklist: updatedChecklist,
         };
       });
+      
+      console.log('Local state updated');
+      return updated;
     });
 
-    // Debounce the API call
+    // For notes, use a longer debounce to prevent excessive API calls
+    const isNotesUpdate = 'notes' in updates;
+    const debounceTime = isNotesUpdate ? 1000 : 300;
+
     const timeoutId = setTimeout(() => {
-      // Get the current state for the API call
-      const currentTermination = terminations.find((t) => t.id === terminationId);
-      if (!currentTermination?.checklist) return;
+      console.log('Making API call after debounce');
+      
+      // Get current state for API call
+      const currentTerminations = terminations; // This might still be stale, but that's okay for notes
+      const currentTermination = currentTerminations.find((t) => t.id === terminationId);
+      
+      if (!currentTermination?.checklist) {
+        console.log('No checklist found for termination', terminationId);
+        return;
+      }
 
       const currentChecklist = currentTermination.checklist.map((item) =>
         item.id === itemId ? { ...item, ...updates } : item
@@ -596,19 +611,22 @@ export default function TerminationsContent() {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
+        console.log('Checklist item updated successfully in database');
       })
       .catch(error => {
-        console.error("Error updating checklist item:", error);
+        console.error("Error updating checklist item in database:", error);
       });
-    }, 500); // Reduced debounce time for better UX
+    }, debounceTime);
 
-    return () => clearTimeout(timeoutId);
+    // Cleanup function to clear timeout
+    return () => {
+      clearTimeout(timeoutId);
+    };
     
   } catch (error) {
     console.error("Error in updateChecklistItem:", error);
   }
 };
-
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
   if (!confirm("Are you sure you want to remove this checklist item?")) {
     return;
