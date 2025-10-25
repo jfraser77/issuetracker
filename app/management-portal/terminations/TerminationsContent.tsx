@@ -561,39 +561,48 @@ export default function TerminationsContent() {
   updates: Partial<ChecklistItem>
 ) => {
   try {
-    const termination = terminations.find((t) => t.id === terminationId);
-    if (!termination?.checklist) return;
+    // Use functional update to get the latest state
+    setTerminations((prevTerminations) => {
+      return prevTerminations.map((t) => {
+        if (t.id !== terminationId || !t.checklist) return t;
+        
+        const updatedChecklist = t.checklist.map((item) =>
+          item.id === itemId ? { ...item, ...updates } : item
+        );
 
-    const updatedChecklist = termination.checklist.map((item) =>
-      item.id === itemId ? { ...item, ...updates } : item
-    );
-
-    // Update local state immediately for better UX
-    setTerminations((prev) =>
-      prev.map((t) =>
-        t.id === terminationId
-          ? {
-              ...t,
-              checklist: updatedChecklist,
-            }
-          : t
-      )
-    );
-
-    // Update in database without blocking
-    fetch(`/api/terminations/${terminationId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ checklist: updatedChecklist }),
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-    })
-    .catch(error => {
-      console.error("Error updating checklist item:", error);
+        return {
+          ...t,
+          checklist: updatedChecklist,
+        };
+      });
     });
+
+    // Debounce the API call
+    const timeoutId = setTimeout(() => {
+      // Get the current state for the API call
+      const currentTermination = terminations.find((t) => t.id === terminationId);
+      if (!currentTermination?.checklist) return;
+
+      const currentChecklist = currentTermination.checklist.map((item) =>
+        item.id === itemId ? { ...item, ...updates } : item
+      );
+
+      fetch(`/api/terminations/${terminationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist: currentChecklist }),
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      })
+      .catch(error => {
+        console.error("Error updating checklist item:", error);
+      });
+    }, 500); // Reduced debounce time for better UX
+
+    return () => clearTimeout(timeoutId);
     
   } catch (error) {
     console.error("Error in updateChecklistItem:", error);
