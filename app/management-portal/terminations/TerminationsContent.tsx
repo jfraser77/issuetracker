@@ -560,17 +560,26 @@ export default function TerminationsContent() {
   itemId: string,
   updates: Partial<ChecklistItem>
 ) => {
+  console.log('🔧 updateChecklistItem called:', { terminationId, itemId, updates });
+  
   try {
-    console.log('Updating checklist item:', { terminationId, itemId, updates });
-    
-    // Update local state immediately using functional update
+    // Update local state immediately
     setTerminations((prevTerminations) => {
+      console.log('📝 Previous terminations state:', prevTerminations.length);
+      
       const updated = prevTerminations.map((t) => {
-        if (t.id !== terminationId || !t.checklist) return t;
+        if (t.id !== terminationId) return t;
+        if (!t.checklist) return t;
         
-        const updatedChecklist = t.checklist.map((item) =>
-          item.id === itemId ? { ...item, ...updates } : item
-        );
+        console.log('📋 Current checklist length:', t.checklist.length);
+        
+        const updatedChecklist = t.checklist.map((item) => {
+          if (item.id === itemId) {
+            console.log('🔄 Updating item:', item.id, 'with:', updates);
+            return { ...item, ...updates };
+          }
+          return item;
+        });
 
         return {
           ...t,
@@ -578,25 +587,14 @@ export default function TerminationsContent() {
         };
       });
       
-      console.log('Local state updated');
+      console.log('✅ Local state update complete');
       return updated;
     });
 
-    // For notes, use a longer debounce to prevent excessive API calls
-    const isNotesUpdate = 'notes' in updates;
-    const debounceTime = isNotesUpdate ? 1000 : 300;
-
-    const timeoutId = setTimeout(() => {
-      console.log('Making API call after debounce');
-      
-      // Get current state for API call
-      const currentTerminations = terminations; // This might still be stale, but that's okay for notes
-      const currentTermination = currentTerminations.find((t) => t.id === terminationId);
-      
-      if (!currentTermination?.checklist) {
-        console.log('No checklist found for termination', terminationId);
-        return;
-      }
+    // Simple API call without debounce for testing
+    setTimeout(() => {
+      const currentTermination = terminations.find((t) => t.id === terminationId);
+      if (!currentTermination?.checklist) return;
 
       const currentChecklist = currentTermination.checklist.map((item) =>
         item.id === itemId ? { ...item, ...updates } : item
@@ -606,27 +604,17 @@ export default function TerminationsContent() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ checklist: currentChecklist }),
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        console.log('Checklist item updated successfully in database');
-      })
-      .catch(error => {
-        console.error("Error updating checklist item in database:", error);
+      }).catch(error => {
+        console.error("API Error:", error);
       });
-    }, debounceTime);
-
-    // Cleanup function to clear timeout
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    }, 500);
     
   } catch (error) {
-    console.error("Error in updateChecklistItem:", error);
+    console.error("❌ Error in updateChecklistItem:", error);
   }
 };
+
+
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
   if (!confirm("Are you sure you want to remove this checklist item?")) {
     return;
