@@ -565,7 +565,9 @@ export default function TerminationsContent() {
   updates: Partial<ChecklistItem>
 ) => {
   try {
-    // Update local state immediately
+    // Update local state immediately and capture the updated checklist
+    let updatedChecklistForApi: ChecklistItem[] | null = null;
+    
     setTerminations((prevTerminations) => {
       return prevTerminations.map((t) => {
         if (t.id !== terminationId || !t.checklist) return t;
@@ -574,6 +576,9 @@ export default function TerminationsContent() {
           item.id === itemId ? { ...item, ...updates } : item
         );
 
+        // Store the updated checklist for the API call
+        updatedChecklistForApi = updatedChecklist;
+
         return {
           ...t,
           checklist: updatedChecklist,
@@ -581,23 +586,22 @@ export default function TerminationsContent() {
       });
     });
 
-    // For notes, update immediately without debounce
-    if ('notes' in updates) {
-      const currentTermination = terminations.find((t) => t.id === terminationId);
-      if (!currentTermination?.checklist) return;
+    // Debounced API call using the captured updated checklist
+    const timeoutId = setTimeout(async () => {
+      try {
+        if (!updatedChecklistForApi) return;
 
-      const currentChecklist = currentTermination.checklist.map((item) =>
-        item.id === itemId ? { ...item, ...updates } : item
-      );
+        await fetch(`/api/terminations/${terminationId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checklist: updatedChecklistForApi }),
+        });
+      } catch (error) {
+        console.error("Error updating checklist item:", error);
+      }
+    }, 500); // Reduced to 500ms for better responsiveness
 
-      fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checklist: currentChecklist }),
-      }).catch(error => {
-        console.error("Error updating checklist notes:", error);
-      });
-    }
+    return () => clearTimeout(timeoutId);
     
   } catch (error) {
     console.error("Error in updateChecklistItem:", error);
@@ -1050,24 +1054,6 @@ export default function TerminationsContent() {
   placeholder="Add notes..."
   value={item.notes || ""}
   onChange={(e) => {
-    // Only update local state for immediate feedback
-    setTerminations((prev) =>
-      prev.map((t) => {
-        if (t.id !== termination.id || !t.checklist) return t;
-        
-        const updatedChecklist = t.checklist.map((i) =>
-          i.id === item.id ? { ...i, notes: e.target.value } : i
-        );
-
-        return {
-          ...t,
-          checklist: updatedChecklist,
-        };
-      })
-    );
-  }}
-  onBlur={(e) => {
-    // Update API when user leaves the field
     updateChecklistItem(termination.id, item.id, {
       notes: e.target.value
     });
