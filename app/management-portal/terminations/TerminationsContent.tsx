@@ -62,8 +62,6 @@ interface Termination {
   isExpanded?: boolean;
 }
 
-
-
 export default function TerminationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,8 +70,6 @@ export default function TerminationsContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itUsers, setItUsers] = useState<User[]>([]);
   const [showTerminationForm, setShowTerminationForm] = useState(false);
-  // Use local state for notes to prevent re-renders
-
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
     employeeEmail: "",
@@ -332,8 +328,6 @@ export default function TerminationsContent() {
     }
   };
 
-
-
   const generatePrintReport = (termination: Termination) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -443,7 +437,6 @@ export default function TerminationsContent() {
                 ${item.completed ? 'Completed' : 'Pending'}
               </span>
               ${item.completed && item.completedBy ? `<br><small>Completed by ${item.completedBy} on ${item.completedDate ? new Date(item.completedDate).toLocaleDateString() : 'unknown date'}</small>` : ''}
-              ${item.notes ? `<br><small>Notes: ${item.notes}</small>` : ''}
             </div>
           `).join('') || 'No checklist items'}
         </div>
@@ -608,7 +601,6 @@ export default function TerminationsContent() {
   }
 };
 
-
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
   if (!confirm("Are you sure you want to remove this checklist item?")) {
     return;
@@ -715,8 +707,6 @@ export default function TerminationsContent() {
     fetchTerminations();
   }
 };
-
-  
 
   const handleEquipmentDispositionChange = useCallback(
   (terminationId: number, value: "return_to_pool" | "retire") => {
@@ -1050,17 +1040,6 @@ export default function TerminationsContent() {
                         : "unknown date"}
                     </p>
                   )}
-                  <textarea
-  placeholder="Add notes..."
-  value={item.notes || ""}
-  onChange={(e) => {
-    updateChecklistItem(termination.id, item.id, {
-      notes: e.target.value
-    });
-  }}
-  className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-  rows={2}
-/>
                 </div>
                 <button
                   onClick={() => removeChecklistItem(termination.id, item.id)}
