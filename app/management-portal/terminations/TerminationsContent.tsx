@@ -857,296 +857,291 @@ export default function TerminationsContent() {
     }));
   };
 
-  const ChecklistSection = ({ termination }: { termination: Termination }) => {
-    const [localNewItem, setLocalNewItem] = useState({
-      category: "",
-      description: "",
-    });
+ const ChecklistSection = ({ termination }: { termination: Termination }) => {
+  const [localNewItem, setLocalNewItem] = useState({
+    category: "",
+    description: "",
+  });
 
- 
+  const handleAddChecklistItem = async () => {
+    if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
+      alert("Please enter both category and description");
+      return;
+    }
 
-    const handleAddChecklistItem = async () => {
-      if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
-        alert("Please enter both category and description");
-        return;
-      }
+    try {
+      const newItem: ChecklistItem = {
+        id: `custom-${Date.now()}`,
+        category: localNewItem.category.trim(),
+        description: localNewItem.description.trim(),
+        completed: false,
+      };
 
-      try {
-        const newItem: ChecklistItem = {
-          id: `custom-${Date.now()}`,
-          category: localNewItem.category.trim(),
-          description: localNewItem.description.trim(),
-          completed: false,
-        };
+      const updatedChecklist = [...(termination.checklist || []), newItem];
 
-        const updatedChecklist = [...(termination.checklist || []), newItem];
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === termination.id
+            ? {
+                ...t,
+                checklist: updatedChecklist,
+                isExpanded: t.isExpanded,
+              }
+            : t
+        )
+      );
 
-        setTerminations((prev) =>
-          prev.map((t) =>
-            t.id === termination.id
-              ? {
-                  ...t,
-                  checklist: updatedChecklist,
-                  isExpanded: t.isExpanded,
-                }
-              : t
-          )
-        );
-
-        await updateTermination(termination.id, {
-          checklist: updatedChecklist,
-        });
-        setLocalNewItem({ category: "", description: "" });
-      } catch (error) {
-        console.error("Error adding checklist item:", error);
-        fetchTerminations();
-      }
-    };
-
-    
-
-    const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
-      const grouped: { [key: string]: ChecklistItem[] } = {};
-      checklist.forEach((item) => {
-        if (!grouped[item.category]) {
-          grouped[item.category] = [];
-        }
-        grouped[item.category].push(item);
+      await updateTermination(termination.id, {
+        checklist: updatedChecklist,
       });
-      return grouped;
-    };
+      setLocalNewItem({ category: "", description: "" });
+    } catch (error) {
+      console.error("Error adding checklist item:", error);
+      fetchTerminations();
+    }
+  };
 
-    return (
-      <div className="border-t pt-4">
-        <h3 className="font-medium text-gray-900 mb-3">
-          IT Access Removal Checklist
-        </h3>
+  const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
+    const grouped: { [key: string]: ChecklistItem[] } = {};
+    checklist.forEach((item) => {
+      if (!grouped[item.category]) {
+        grouped[item.category] = [];
+      }
+      grouped[item.category].push(item);
+    });
+    return grouped;
+  };
 
-        
+  return (
+    <div className="border-t pt-4">
+      <h3 className="font-medium text-gray-900 mb-3">
+        IT Access Removal Checklist
+      </h3>
 
-        {/* Global Check All/Uncheck All Buttons */}
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: true,
-                completedBy: currentUser?.name,
-                completedDate: new Date().toISOString(),
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <CheckCircleIcon className="h-4 w-4 mr-1" />
-            Check All
-          </button>
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: false,
-                completedBy: undefined,
-                completedDate: undefined,
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <MinusIcon className="h-4 w-4 mr-1" />
-            Uncheck All
-          </button>
-        </div>
+      {/* Global Check All/Uncheck All Buttons */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => {
+            const updatedChecklist = termination.checklist!.map((item) => ({
+              ...item,
+              completed: true,
+              completedBy: currentUser?.name,
+              completedDate: new Date().toISOString(),
+            }));
+            updateTermination(termination.id, {
+              checklist: updatedChecklist,
+            });
+          }}
+          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <CheckCircleIcon className="h-4 w-4 mr-1" />
+          Check All
+        </button>
+        <button
+          onClick={() => {
+            const updatedChecklist = termination.checklist!.map((item) => ({
+              ...item,
+              completed: false,
+              completedBy: undefined,
+              completedDate: undefined,
+            }));
+            updateTermination(termination.id, {
+              checklist: updatedChecklist,
+            });
+          }}
+          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <MinusIcon className="h-4 w-4 mr-1" />
+          Uncheck All
+        </button>
+      </div>
 
-        {/* Checklist Items */}
-        {Object.entries(
-          groupChecklistByCategory(termination.checklist || [])
-        ).map(([category, items]) => (
-          <div key={category} className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-gray-800">{category}</h4>
-              <div className="flex gap-1">
+      {/* Checklist Items */}
+      {Object.entries(
+        groupChecklistByCategory(termination.checklist || [])
+      ).map(([category, items]) => (
+        <div key={category} className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-800">{category}</h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(
+                    (item) =>
+                      item.category === category
+                        ? {
+                            ...item,
+                            completed: true,
+                            completedBy: currentUser?.name,
+                            completedDate: new Date().toISOString(),
+                          }
+                        : item
+                  );
+                  updateTermination(termination.id, {
+                    checklist: updatedChecklist,
+                  });
+                }}
+                className="text-green-600 hover:text-green-800 text-xs flex items-center"
+              >
+                <CheckCircleIcon className="h-3 w-3 mr-1" />
+                Check All
+              </button>
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(
+                    (item) =>
+                      item.category === category
+                        ? {
+                            ...item,
+                            completed: false,
+                            completedBy: undefined,
+                            completedDate: undefined,
+                          }
+                        : item
+                  );
+                  updateTermination(termination.id, {
+                    checklist: updatedChecklist,
+                  });
+                }}
+                className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
+              >
+                <MinusIcon className="h-3 w-3 mr-1" />
+                Uncheck All
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
+              >
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={(e) =>
+                    updateChecklistItem(termination.id, item.id, {
+                      completed: e.target.checked,
+                      completedBy: e.target.checked
+                        ? currentUser?.name
+                        : undefined,
+                      completedDate: e.target.checked
+                        ? new Date().toISOString()
+                        : undefined,
+                    })
+                  }
+                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div className="flex-1">
+                  <label
+                    className={`text-sm ${
+                      item.completed
+                        ? "text-gray-500 line-through"
+                        : "text-gray-700"
+                    }`}
+                  >
+                    {item.description}
+                  </label>
+                  {item.completed && item.completedBy && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Completed by {item.completedBy} on{" "}
+                      {item.completedDate
+                        ? new Date(item.completedDate).toLocaleDateString()
+                        : "unknown date"}
+                    </p>
+                  )}
+                  <textarea
+                    placeholder="Add notes..."
+                    value={item.notes || ""}
+                    onChange={(e) => {
+                      updateChecklistItem(termination.id, item.id, {
+                        notes: e.target.value
+                      });
+                    }}
+                    className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                    rows={2}
+                  />
+                </div>
                 <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: true,
-                              completedBy: currentUser?.name,
-                              completedDate: new Date().toISOString(),
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-green-600 hover:text-green-800 text-xs flex items-center"
+                  onClick={() => removeChecklistItem(termination.id, item.id)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Remove item"
                 >
-                  <CheckCircleIcon className="h-3 w-3 mr-1" />
-                  Check All
-                </button>
-                <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: false,
-                              completedBy: undefined,
-                              completedDate: undefined,
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
-                >
-                  <MinusIcon className="h-3 w-3 mr-1" />
-                  Uncheck All
+                  <MinusIcon className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-            <div className="space-y-2">
-              {items.map((item) => (
-  <div
-    key={item.id}
-    className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
-  >
-    <input
-      type="checkbox"
-      checked={item.completed}
-      onChange={(e) =>
-        updateChecklistItem(termination.id, item.id, {
-          completed: e.target.checked,
-          completedBy: e.target.checked
-            ? currentUser?.name
-            : undefined,
-          completedDate: e.target.checked
-            ? new Date().toISOString()
-            : undefined,
-        })
-      }
-      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-    />
-    <div className="flex-1">
-      <label
-        className={`text-sm ${
-          item.completed
-            ? "text-gray-500 line-through"
-            : "text-gray-700"
-        }`}
-      >
-        {item.description}
-      </label>
-      {item.completed && item.completedBy && (
-        <p className="text-xs text-green-600 mt-1">
-          Completed by {item.completedBy} on{" "}
-          {item.completedDate
-            ? new Date(item.completedDate).toLocaleDateString()
-            : "unknown date"}
-        </p>
-      )}
-      
-      <textarea
-        placeholder="Add notes..."
-        value={item.notes || ""}
-        onChange={(e) => {
-          updateChecklistItem(termination.id, item.id, {
-            notes: e.target.value
-          });
-        }}
-        className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-        rows={2}
-      />
-    </div>
-    <button
-      onClick={() => removeChecklistItem(termination.id, item.id)}
-      className="text-red-500 hover:text-red-700"
-      title="Remove item"
-    >
-      <MinusIcon className="h-4 w-4" />
-    </button>
-  </div>
-))}
-        
-
-        {/* Progress Summary */}
-        {termination.checklist && (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-blue-800">
-                Checklist Progress
-              </span>
-              <span className="text-sm text-blue-700">
-                {termination.checklist.filter((item) => item.completed).length}{" "}
-                of {termination.checklist.length} completed
-              </span>
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${
-                    (termination.checklist.filter((item) => item.completed)
-                      .length /
-                      termination.checklist.length) *
-                    100
-                  }%`,
-                }}
-              ></div>
-            </div>
+            ))}
           </div>
-        )}
-
-        {/* Add New Checklist Item */}
-        <div className="border-t pt-4">
-          <h4 className="font-medium text-gray-800 mb-2">
-            Add New Checklist Item
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-            <input
-              type="text"
-              placeholder="Category (e.g., Software Access)"
-              value={localNewItem.category}
-              onChange={(e) =>
-                setLocalNewItem({ ...localNewItem, category: e.target.value })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={localNewItem.description}
-              onChange={(e) =>
-                setLocalNewItem({
-                  ...localNewItem,
-                  description: e.target.value,
-                })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-          </div>
-          <button
-            onClick={handleAddChecklistItem}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Add Item
-          </button>
         </div>
+      ))} 
+
+      {/* Progress Summary */}
+      {termination.checklist && (
+        <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-blue-800">
+              Checklist Progress
+            </span>
+            <span className="text-sm text-blue-700">
+              {termination.checklist.filter((item) => item.completed).length}{" "}
+              of {termination.checklist.length} completed
+            </span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{
+                width: `${
+                  (termination.checklist.filter((item) => item.completed)
+                    .length /
+                    termination.checklist.length) *
+                  100
+                }%`,
+              }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Checklist Item */}
+      <div className="border-t pt-4">
+        <h4 className="font-medium text-gray-800 mb-2">
+          Add New Checklist Item
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+          <input
+            type="text"
+            placeholder="Category (e.g., Software Access)"
+            value={localNewItem.category}
+            onChange={(e) =>
+              setLocalNewItem({ ...localNewItem, category: e.target.value })
+            }
+            className="px-3 py-2 border border-gray-300 rounded text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Description"
+            value={localNewItem.description}
+            onChange={(e) =>
+              setLocalNewItem({
+                ...localNewItem,
+                description: e.target.value,
+              })
+            }
+            className="px-3 py-2 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <button
+          onClick={handleAddChecklistItem}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <PlusIcon className="h-4 w-4 mr-1" />
+          Add Item
+        </button>
       </div>
-    );
-  }; 
+    </div>
+  );
+}; 
 
   if (!isClient || loading) {
     return (
@@ -1300,6 +1295,7 @@ export default function TerminationsContent() {
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                   {/* Equipment Return Section */}
                   
+{/* Equipment Return Section */}
 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
   <h3 className="font-medium text-gray-900 mb-3 flex items-center">
     <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
