@@ -559,7 +559,7 @@ export default function TerminationsContent() {
   }
 };
 
-  const updateChecklistItem = async (
+ const updateChecklistItem = async (
   terminationId: number,
   itemId: string,
   updates: Partial<ChecklistItem>
@@ -581,27 +581,23 @@ export default function TerminationsContent() {
       });
     });
 
-    // Debounced API call
-    const timeoutId = setTimeout(async () => {
-      try {
-        const currentTermination = terminations.find((t) => t.id === terminationId);
-        if (!currentTermination?.checklist) return;
+    // For notes, update immediately without debounce
+    if ('notes' in updates) {
+      const currentTermination = terminations.find((t) => t.id === terminationId);
+      if (!currentTermination?.checklist) return;
 
-        const currentChecklist = currentTermination.checklist.map((item) =>
-          item.id === itemId ? { ...item, ...updates } : item
-        );
+      const currentChecklist = currentTermination.checklist.map((item) =>
+        item.id === itemId ? { ...item, ...updates } : item
+      );
 
-        await fetch(`/api/terminations/${terminationId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checklist: currentChecklist }),
-        });
-      } catch (error) {
-        console.error("Error updating checklist item:", error);
-      }
-    }, 1000); // 1 second debounce
-
-    return () => clearTimeout(timeoutId);
+      fetch(`/api/terminations/${terminationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist: currentChecklist }),
+      }).catch(error => {
+        console.error("Error updating checklist notes:", error);
+      });
+    }
     
   } catch (error) {
     console.error("Error in updateChecklistItem:", error);
@@ -1051,16 +1047,34 @@ export default function TerminationsContent() {
                     </p>
                   )}
                   <textarea
-                    placeholder="Add notes..."
-                    value={item.notes || ""}
-                    onChange={(e) => {
-                      updateChecklistItem(termination.id, item.id, {
-                        notes: e.target.value
-                      });
-                    }}
-                    className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                    rows={2}
-                  />
+  placeholder="Add notes..."
+  value={item.notes || ""}
+  onChange={(e) => {
+    // Only update local state for immediate feedback
+    setTerminations((prev) =>
+      prev.map((t) => {
+        if (t.id !== termination.id || !t.checklist) return t;
+        
+        const updatedChecklist = t.checklist.map((i) =>
+          i.id === item.id ? { ...i, notes: e.target.value } : i
+        );
+
+        return {
+          ...t,
+          checklist: updatedChecklist,
+        };
+      })
+    );
+  }}
+  onBlur={(e) => {
+    // Update API when user leaves the field
+    updateChecklistItem(termination.id, item.id, {
+      notes: e.target.value
+    });
+  }}
+  className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
+  rows={2}
+/>
                 </div>
                 <button
                   onClick={() => removeChecklistItem(termination.id, item.id)}
