@@ -9,19 +9,6 @@ export async function POST(
   try {
     const { id } = await params;
     const terminationId = parseInt(id);
-<<<<<<< HEAD
-    const pool = await connectToDatabase();
-
-    // Get termination data before archiving
-    const terminationResult = await pool
-      .request()
-      .input("id", sql.Int, terminationId)
-      .query("SELECT * FROM Terminations WHERE id = @id");
-
-    if (terminationResult.recordset.length === 0) {
-      return NextResponse.json(
-        { error: "Termination record not found" },
-=======
 
     console.log(`🔵 Archiving termination ${terminationId}`);
 
@@ -31,56 +18,26 @@ export async function POST(
     const existingResult = await pool
       .request()
       .input("terminationId", sql.Int, terminationId)
-      .query("SELECT status, employeeName FROM Terminations WHERE id = @terminationId");
+      .query(
+        "SELECT status, employeeName FROM Terminations WHERE id = @terminationId"
+      );
 
     if (existingResult.recordset.length === 0) {
       return NextResponse.json(
         { error: "Termination not found" },
->>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
         { status: 404 }
       );
     }
 
-<<<<<<< HEAD
-    const termination = terminationResult.recordset[0];
-
-    // Update termination status to archived
-    await pool
-      .request()
-      .input("id", sql.Int, terminationId)
-      .input("status", sql.NVarChar, "archived").query(`
-        UPDATE Terminations 
-        SET status = @status 
-        WHERE id = @id
-      `);
-
-    console.log(
-      `Termination ${terminationId} archived for employee: ${termination.employeeName}`
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: "Termination archived successfully",
-      employeeName: termination.employeeName,
-    });
-  } catch (error: any) {
-    console.error("Error archiving termination:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to archive termination",
-      },
-      { status: 500 }
-    );
-  }
-}
-=======
     const currentStatus = existingResult.recordset[0].status;
     const employeeName = existingResult.recordset[0].employeeName;
 
     // validation to prevent archiving pending terminations
-    if (currentStatus === 'pending') {
+    if (currentStatus === "pending") {
       return NextResponse.json(
-        { error: "Cannot archive termination until equipment has been returned" },
+        {
+          error: "Cannot archive termination until equipment has been returned",
+        },
         { status: 400 }
       );
     }
@@ -88,8 +45,7 @@ export async function POST(
     // Archive the termination
     const result = await pool
       .request()
-      .input("terminationId", sql.Int, terminationId)
-      .query(`
+      .input("terminationId", sql.Int, terminationId).query(`
         UPDATE Terminations 
         SET status = 'archived',
             timestamp = GETDATE()
@@ -105,13 +61,15 @@ export async function POST(
     }
 
     const archivedTermination = result.recordset[0];
-    
-    console.log(`✅ Successfully archived termination ${terminationId} for ${employeeName}`);
 
-    return NextResponse.json({ 
+    console.log(
+      `✅ Successfully archived termination ${terminationId} for ${employeeName}`
+    );
+
+    return NextResponse.json({
       success: true,
       message: `Termination for ${employeeName} archived successfully`,
-      termination: archivedTermination
+      termination: archivedTermination,
     });
   } catch (error: any) {
     console.error("❌ Error archiving termination:", error);
@@ -121,4 +79,3 @@ export async function POST(
     );
   }
 }
->>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
