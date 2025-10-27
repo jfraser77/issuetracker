@@ -419,6 +419,23 @@ export default function TerminationsContent() {
     }
   };
 
+  const archiveTermination = async (terminationId: number) => {
+    try {
+      const response = await fetch(
+        `/api/terminations/${terminationId}/archive`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (response.ok) {
+        fetchTerminations();
+      }
+    } catch (error) {
+      console.error("Error archiving termination:", error);
+    }
+  };
+
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
     if (!confirm("Are you sure you want to remove this checklist item?")) {
       return;
@@ -435,7 +452,13 @@ export default function TerminationsContent() {
       // Update local state immediately
       setTerminations((prev) =>
         prev.map((t) =>
-          t.id === terminationId ? { ...t, checklist: updatedChecklist } : t
+          t.id === terminationId
+            ? {
+                ...t,
+                checklist: updatedChecklist,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
         )
       );
 
@@ -504,8 +527,11 @@ export default function TerminationsContent() {
     }
   };
 
-  const archiveTermination = async (terminationId: number) => {
+  const archiveTerminationWithNotification = async (terminationId: number) => {
     try {
+      const termination = terminations.find((t) => t.id === terminationId);
+      if (!termination) return;
+
       const response = await fetch(
         `/api/terminations/${terminationId}/archive`,
         {
@@ -514,10 +540,108 @@ export default function TerminationsContent() {
       );
 
       if (response.ok) {
+        const hrEmails = [
+          "aogden@nsnrevenue.com",
+          "aevans@nsnrevenue.com",
+          "anwaters@uspi.com",
+        ];
+
+        // If archiving a termination that was overdue, notify HR
+        if (termination.status === "overdue" || termination.isOverdue) {
+          try {
+            await fetch("/api/email/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: hrEmails,
+                subject: `Termination Archived - ${termination.employeeName}`,
+                html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <div style="background: linear-gradient(135deg, #059669, #047857); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
+                    <h1 style="margin: 0; font-size: 24px;">Termination Process Completed</h1>
+                  </div>
+                  <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                    <p style="font-size: 16px; color: #374151;">Dear HR Team,</p>
+                    
+                    <div style="background-color: #f0fdf4; padding: 20px; margin: 25px 0; border: 2px solid #bbf7d0; border-radius: 8px;">
+                      <p style="font-size: 18px; color: #059669; font-weight: bold; text-align: center;">
+                        ✅ TERMINATION PROCESS COMPLETED
+                      </p>
+                    </div>
+                    
+                    <p style="font-size: 16px; color: #374151;">
+                      The termination process for the following employee has been completed and archived:
+                    </p>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                      <tr>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Employee Name:</td>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb;">${
+                          termination.employeeName
+                        }</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Email:</td>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb;">${
+                          termination.employeeEmail
+                        }</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Termination Date:</td>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb;">${new Date(
+                          termination.terminationDate
+                        ).toLocaleDateString()}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Department:</td>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb;">${
+                          termination.department
+                        }</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Final Status:</td>
+                        <td style="padding: 10px; border: 1px solid #e5e7eb;">Archived - Process Complete</td>
+                      </tr>
+                    </table>
+                    
+                    <p style="font-size: 14px; color: #6b7280;">
+                      This termination record has been moved to the archived section of the system.
+                    </p>
+                    
+                    ${
+                      termination.isOverdue
+                        ? `
+                    <div style="background-color: #fef3f2; padding: 15px; margin: 20px 0; border-left: 4px solid #f04438; border-radius: 4px;">
+                      <p style="font-size: 14px; color: #b42318; margin: 0;">
+                        <strong>Note:</strong> This termination was previously marked as OVERDUE for equipment return.
+                      </p>
+                    </div>
+                    `
+                        : ""
+                    }
+                  </div>
+                </div>
+              `,
+              }),
+            });
+            console.log(
+              `✅ Archive notification sent to HR for ${termination.employeeName}`
+            );
+          } catch (emailError) {
+            console.error("Failed to send archive notification:", emailError);
+          }
+        }
+
+        // Refresh the terminations list
         fetchTerminations();
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to archive termination:", errorData.error);
+        alert(`Failed to archive termination: ${errorData.error}`);
       }
     } catch (error) {
       console.error("Error archiving termination:", error);
+      alert("Error archiving termination. Please try again.");
     }
   };
 
@@ -529,7 +653,7 @@ export default function TerminationsContent() {
             ? {
                 ...t,
                 equipmentDisposition: value,
-                isExpanded: t.isExpanded,
+                isExpanded: t.isExpanded, // Preserve expanded state
               }
             : t
         )
@@ -548,7 +672,7 @@ export default function TerminationsContent() {
             ? {
                 ...t,
                 completedByUserId,
-                isExpanded: t.isExpanded,
+                isExpanded: t.isExpanded, // Preserve expanded state
               }
             : t
         )
@@ -631,7 +755,13 @@ export default function TerminationsContent() {
     (terminationId: number, value: string) => {
       setTerminations((prev) =>
         prev.map((t) =>
-          t.id === terminationId ? { ...t, trackingNumber: value } : t
+          t.id === terminationId
+            ? {
+                ...t,
+                trackingNumber: value,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
         )
       );
       debouncedUpdateTrackingNumber(terminationId, value);
@@ -654,6 +784,20 @@ export default function TerminationsContent() {
       category: "",
       description: "",
     });
+
+    const groupChecklistByCategory = useCallback(
+      (checklist: ChecklistItem[]) => {
+        const grouped: { [key: string]: ChecklistItem[] } = {};
+        checklist.forEach((item) => {
+          if (!grouped[item.category]) {
+            grouped[item.category] = [];
+          }
+          grouped[item.category].push(item);
+        });
+        return grouped;
+      },
+      []
+    );
 
     const handleAddChecklistItem = async () => {
       if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
@@ -691,17 +835,6 @@ export default function TerminationsContent() {
         console.error("Error adding checklist item:", error);
         fetchTerminations();
       }
-    };
-
-    const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
-      const grouped: { [key: string]: ChecklistItem[] } = {};
-      checklist.forEach((item) => {
-        if (!grouped[item.category]) {
-          grouped[item.category] = [];
-        }
-        grouped[item.category].push(item);
-      });
-      return grouped;
     };
 
     return (
@@ -954,7 +1087,7 @@ export default function TerminationsContent() {
         </div>
       </div>
     );
-  }; // FIXED: Added missing closing brace for ChecklistSection
+  };
 
   if (!isClient || loading) {
     return (
@@ -989,7 +1122,146 @@ export default function TerminationsContent() {
               Initiate Termination Process
             </h3>
             <form onSubmit={createTermination}>
-              {/* ... your form JSX remains the same ... */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={terminationForm.employeeName}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        employeeName: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Employee Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={terminationForm.employeeEmail}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        employeeEmail: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Job Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={terminationForm.jobTitle}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        jobTitle: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department *
+                  </label>
+                  <input
+                    type="text"
+                    value={terminationForm.department}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        department: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Termination Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={terminationForm.terminationDate}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        terminationDate: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Equipment Disposition *
+                  </label>
+                  <select
+                    value={terminationForm.equipmentDisposition}
+                    onChange={(e) =>
+                      setTerminationForm({
+                        ...terminationForm,
+                        equipmentDisposition: e.target.value as any,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  >
+                    <option value="return_to_pool">
+                      Return to Available Pool
+                    </option>
+                    <option value="retire">Retire Equipment</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Termination Reason *
+                </label>
+                <textarea
+                  value={terminationForm.terminationReason}
+                  onChange={(e) =>
+                    setTerminationForm({
+                      ...terminationForm,
+                      terminationReason: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                  rows={3}
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTerminationForm(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+                >
+                  Initiate Termination
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -1237,7 +1509,9 @@ export default function TerminationsContent() {
                     <div className="flex gap-2">
                       {termination.status === "equipment_returned" && (
                         <button
-                          onClick={() => archiveTermination(termination.id)}
+                          onClick={() =>
+                            archiveTerminationWithNotification(termination.id)
+                          }
                           className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
                         >
                           Archive
