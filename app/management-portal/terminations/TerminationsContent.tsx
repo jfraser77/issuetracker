@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   PlusIcon,
   MinusIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 
 interface User {
@@ -300,13 +301,175 @@ export default function TerminationsContent() {
     []
   );
 
-  const toggleTerminationExpanded = useCallback((terminationId: number) => {
+   const toggleTerminationExpanded = useCallback((terminationId: number) => {
     setTerminations((prev) =>
       prev.map((t) =>
         t.id === terminationId ? { ...t, isExpanded: !t.isExpanded } : t
       )
     );
   }, []);
+
+  const archiveTermination = async (terminationId: number) => {
+    try {
+      const response = await fetch(`/api/terminations/${terminationId}/archive`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        fetchTerminations();
+        alert("Termination archived successfully!");
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to archive termination: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error("Error archiving termination:", error);
+      alert("Failed to archive termination. Please try again.");
+    }
+  };
+
+  const generatePrintReport = (termination: Termination) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const completedChecklistItems = termination.checklist?.filter(item => item.completed) || [];
+    const totalChecklistItems = termination.checklist?.length || 0;
+    const progress = totalChecklistItems > 0 ? Math.round((completedChecklistItems.length / totalChecklistItems) * 100) : 0;
+
+    const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Termination Report - ${termination.employeeName}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; line-height: 1.4; }
+        .header { border-bottom: 2px solid #dc2626; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #dc2626; margin: 0; font-size: 28px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; }
+        .employee-info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .info-item { margin-bottom: 8px; }
+        .info-label { font-weight: bold; color: #6b7280; display: inline-block; width: 180px; }
+        .progress-bar { background: #e5e7eb; height: 24px; border-radius: 12px; margin: 15px 0; overflow: hidden; }
+        .progress-fill { background: #dc2626; height: 100%; border-radius: 12px; text-align: center; color: white; font-size: 14px; line-height: 24px; font-weight: bold; }
+        .checklist { margin: 15px 0; }
+        .checklist-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+        .completed { color: #059669; }
+        .pending { color: #6b7280; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 10px; font-weight: 500; }
+        .completed-badge { background: #d1fae5; color: #065f46; }
+        .pending-badge { background: #f3f4f6; color: #374151; }
+        .print-date { text-align: right; color: #6b7280; font-size: 14px; margin-top: 30px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+        .stat-card { background: #f8fafc; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #dc2626; margin-bottom: 4px; }
+        .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        @media print { body { margin: 20px; } .no-print { display: none; } .section { break-inside: avoid; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Employee Termination Report</h1>
+        <div class="print-date">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+      </div>
+
+      <div class="section">
+        <h2>Employee Information</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Employee Name:</span> ${termination.employeeName}</div>
+            <div class="info-item"><span class="info-label">Job Title:</span> ${termination.jobTitle}</div>
+            <div class="info-item"><span class="info-label">Department:</span> ${termination.department}</div>
+            <div class="info-item"><span class="info-label">Email:</span> ${termination.employeeEmail}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Termination Date:</span> ${new Date(termination.terminationDate).toLocaleDateString()}</div>
+            <div class="info-item"><span class="info-label">Reason:</span> ${termination.terminationReason}</div>
+            <div class="info-item"><span class="info-label">Initiated By:</span> ${termination.initiatedBy}</div>
+            <div class="info-item"><span class="info-label">Status:</span> ${termination.status}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Equipment Return</h2>
+        <div class="employee-info">
+          <div>
+            <div class="info-item"><span class="info-label">Tracking Number:</span> ${termination.trackingNumber || 'Not provided'}</div>
+            <div class="info-item"><span class="info-label">Disposition:</span> ${termination.equipmentDisposition === 'return_to_pool' ? 'Return to Available Pool' : 'Retire Equipment'}</div>
+          </div>
+          <div>
+            <div class="info-item"><span class="info-label">Completed By:</span> ${termination.completedByUser?.name || 'Not assigned'}</div>
+            <div class="info-item"><span class="info-label">Days Remaining:</span> ${termination.daysRemaining}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Checklist Progress</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number">${progress}%</div>
+            <div class="stat-label">Overall Progress</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${completedChecklistItems.length}</div>
+            <div class="stat-label">Completed Items</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${totalChecklistItems}</div>
+            <div class="stat-label">Total Items</div>
+          </div>
+        </div>
+        
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>IT Access Removal Checklist</h2>
+        <div class="checklist">
+          ${termination.checklist?.map(item => `
+            <div class="checklist-item ${item.completed ? 'completed' : 'pending'}">
+              ${item.completed ? '✓' : '○'} ${item.description}
+              <span class="status-badge ${item.completed ? 'completed-badge' : 'pending-badge'}">
+                ${item.completed ? 'Completed' : 'Pending'}
+              </span>
+              ${item.completed && item.completedBy ? `<br><small>Completed by ${item.completedBy} on ${item.completedDate ? new Date(item.completedDate).toLocaleDateString() : 'unknown date'}</small>` : ''}
+            </div>
+          `).join('') || 'No checklist items'}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="print-date">
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0 20px 0;">
+          Report generated by NSN IT Management Portal<br>
+          Termination ID: ${termination.id} | Report ID: ${Date.now()}
+        </div>
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(() => {
+            if (!window.closed) {
+              window.close();
+            }
+          }, 1000);
+        }
+      </script>
+    </body>
+    </html>`;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  };
+
+  const handleEditTermination = (terminationId: number) => {
+    router.push(`/management-portal/terminations/${terminationId}/edit`);
+  };
 
   const createTermination = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,78 +509,97 @@ export default function TerminationsContent() {
     }
   };
 
-  const updateTermination = async (
-    terminationId: number,
-    updates: Partial<Termination>
-  ) => {
-    try {
-      // Preserve expanded state during updates
-      const currentTermination = terminations.find(
-        (t) => t.id === terminationId
-      );
-      const updatesWithState = {
-        ...updates,
-        isExpanded: currentTermination?.isExpanded, // Preserve current expanded state
-      };
+    const updateTermination = async (terminationId: number, updates: Partial<Termination>) => {
+  try {
+    // Create a stable reference to avoid unnecessary re-renders
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? { 
+              ...t, 
+              ...updates,
+              // Only update isExpanded if explicitly provided, otherwise preserve current state
+              isExpanded: updates.isExpanded !== undefined ? updates.isExpanded : t.isExpanded
+            }
+          : t
+      )
+    );
 
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatesWithState),
-      });
-
+    // Then update in database - but don't wait for it to complete for better UX
+    fetch(`/api/terminations/${terminationId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    })
+    .then(response => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      return response.json();
+    })
+    .then(data => {
+      console.log(`✅ Termination ${terminationId} updated successfully`);
+    })
+    .catch(error => {
+      console.error("Error updating termination in database:", error);
+      // Optional: Show a subtle error notification instead of alert
+      console.warn("Failed to sync changes with server. Changes are saved locally.");
+    });
+    
+  } catch (error) {
+    console.error("Error in updateTermination:", error);
+    // Don't show alert for every minor error - it disrupts user experience
+  }
+};
 
-      const result = await response.json();
+ const updateChecklistItem = async (
+  terminationId: number,
+  itemId: string,
+  updates: Partial<ChecklistItem>
+) => {
+  try {
+    // Update local state immediately and capture the updated checklist
+    let updatedChecklistForApi: ChecklistItem[] | null = null;
+    
+    setTerminations((prevTerminations) => {
+      return prevTerminations.map((t) => {
+        if (t.id !== terminationId || !t.checklist) return t;
+        
+        const updatedChecklist = t.checklist.map((item) =>
+          item.id === itemId ? { ...item, ...updates } : item
+        );
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update termination");
+        // Store the updated checklist for the API call
+        updatedChecklistForApi = updatedChecklist;
+
+        return {
+          ...t,
+          checklist: updatedChecklist,
+        };
+      });
+    });
+
+    // Debounced API call using the captured updated checklist
+    const timeoutId = setTimeout(async () => {
+      try {
+        if (!updatedChecklistForApi) return;
+
+        await fetch(`/api/terminations/${terminationId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checklist: updatedChecklistForApi }),
+        });
+      } catch (error) {
+        console.error("Error updating checklist item:", error);
       }
+    }, 500); // Reduced to 500ms for better responsiveness
 
-      // Only refresh if the update was successful
-      fetchTerminations();
-    } catch (error) {
-      console.error("Error updating termination:", error);
-      alert("Failed to update termination. Please try again.");
-      fetchTerminations();
-    }
-  };
-
-  const updateChecklistItem = async (
-    terminationId: number,
-    itemId: string,
-    updates: Partial<ChecklistItem>
-  ) => {
-    try {
-      const termination = terminations.find((t) => t.id === terminationId);
-      if (!termination?.checklist) return;
-
-      const updatedChecklist = termination.checklist.map((item) =>
-        item.id === itemId ? { ...item, ...updates } : item
-      );
-
-      // Update local state immediately for better UX
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                checklist: updatedChecklist,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // Update in database
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error updating checklist item:", error);
-      fetchTerminations();
-    }
-  };
+    return () => clearTimeout(timeoutId);
+    
+  } catch (error) {
+    console.error("Error in updateChecklistItem:", error);
+  }
+};
 
   const archiveTermination = async (terminationId: number) => {
     try {
@@ -437,18 +619,19 @@ export default function TerminationsContent() {
   };
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
-    if (!confirm("Are you sure you want to remove this checklist item?")) {
-      return;
-    }
+  if (!confirm("Are you sure you want to remove this checklist item?")) {
+    return;
+  }
 
-    try {
-      const termination = terminations.find((t) => t.id === terminationId);
-      if (!termination?.checklist) return;
+  try {
+    const termination = terminations.find((t) => t.id === terminationId);
+    if (!termination?.checklist) return;
 
-      const updatedChecklist = termination.checklist.filter(
-        (item) => item.id !== itemId
-      );
+    const updatedChecklist = termination.checklist.filter(
+      (item) => item.id !== itemId
+    );
 
+<<<<<<< HEAD
       // Update local state immediately
       setTerminations((prev) =>
         prev.map((t) =>
@@ -461,72 +644,89 @@ export default function TerminationsContent() {
             : t
         )
       );
+=======
+    // Update local state immediately
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId 
+          ? { 
+              ...t, 
+              checklist: updatedChecklist,
+              isExpanded: t.isExpanded // Preserve expanded state
+            } 
+          : t
+      )
+    );
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
-      // Update in database
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error removing checklist item:", error);
-      fetchTerminations(); // Refresh on error
-    }
-  };
+    // Update in database - don't call fetchTerminations after this
+    await updateTermination(terminationId, { checklist: updatedChecklist });
+  } catch (error) {
+    console.error("Error removing checklist item:", error);
+    // Only refresh on error
+    fetchTerminations();
+  }
+};
 
   const markEquipmentReturned = async (
-    terminationId: number,
-    trackingNumber: string,
-    equipmentDisposition: string,
-    completedByUserId?: number
-  ) => {
-    try {
-      const response = await fetch(
-        `/api/terminations/${terminationId}/return`,
-        {
-          method: "POST",
+  terminationId: number,
+  trackingNumber: string,
+  equipmentDisposition: string,
+  completedByUserId?: number
+) => {
+  try {
+    const response = await fetch(
+      `/api/terminations/${terminationId}/return`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingNumber,
+          equipmentDisposition,
+          completedByUserId,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to mark equipment returned");
+    }
+
+    const result = await response.json();
+    const updatedTermination = result.termination; // FIX: Get termination from result object
+
+    // Update local state immediately
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? {
+              ...updatedTermination,
+              isExpanded: t.isExpanded, // Preserve expanded state
+            }
+          : t
+      )
+    );
+
+    // If equipment is being returned to pool, update IT Staff inventory
+    if (equipmentDisposition === "return_to_pool" && completedByUserId) {
+      try {
+        await fetch("/api/it-assets/inventory", {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            trackingNumber,
-            equipmentDisposition,
-            completedByUserId,
+            userId: completedByUserId,
+            change: 1,
           }),
-        }
-      );
-
-      if (response.ok) {
-        // If equipment is being returned to pool, update IT Staff inventory
-        if (equipmentDisposition === "return_to_pool" && completedByUserId) {
-          try {
-            await fetch("/api/it-assets/inventory", {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: completedByUserId,
-                change: 1,
-              }),
-            });
-            console.log(
-              `Updated IT Staff inventory for user ${completedByUserId}`
-            );
-          } catch (inventoryError) {
-            console.error("Error updating IT Staff inventory:", inventoryError);
-            // Continue even if inventory update fails
-          }
-        }
-
-        fetchTerminations();
-        alert("Equipment return recorded successfully and inventory updated.");
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to mark equipment returned");
+        });
+        console.log(`Updated IT Staff inventory for user ${completedByUserId}`);
+      } catch (inventoryError) {
+        console.error("Error updating IT Staff inventory:", inventoryError);
+        // Continue even if inventory update fails
       }
-    } catch (error) {
-      console.error("Error marking equipment returned:", error);
-      alert(
-        `Failed to record equipment return: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
     }
-  };
 
+<<<<<<< HEAD
   const archiveTerminationWithNotification = async (terminationId: number) => {
     try {
       const termination = terminations.find((t) => t.id === terminationId);
@@ -681,6 +881,54 @@ export default function TerminationsContent() {
     },
     []
   );
+=======
+    alert("Equipment return recorded successfully and inventory updated.");
+    
+  } catch (error) {
+    console.error("Error marking equipment returned:", error);
+    alert(
+      `Failed to record equipment return: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+    // Refresh on error to restore correct state
+    fetchTerminations();
+  }
+};
+
+  const handleEquipmentDispositionChange = useCallback(
+  (terminationId: number, value: "return_to_pool" | "retire") => {
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? { ...t, equipmentDisposition: value }
+          : t
+      )
+    );
+    
+    // Immediate API call for dropdown changes (they don't have typing issues)
+    updateTermination(terminationId, { equipmentDisposition: value });
+  },
+  []
+);
+
+  const handleCompletedByChange = useCallback(
+  (terminationId: number, value: string) => {
+    const completedByUserId = value ? parseInt(value) : undefined;
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId
+          ? { ...t, completedByUserId }
+          : t
+      )
+    );
+    
+    // Immediate API call for dropdown changes
+    updateTermination(terminationId, { completedByUserId });
+  },
+  []
+);
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
   const deleteTermination = async (terminationId: number) => {
     if (
@@ -752,6 +1000,7 @@ export default function TerminationsContent() {
   };
 
   const handleTrackingNumberChange = useCallback(
+<<<<<<< HEAD
     (terminationId: number, value: string) => {
       setTerminations((prev) =>
         prev.map((t) =>
@@ -768,6 +1017,33 @@ export default function TerminationsContent() {
     },
     [debouncedUpdateTrackingNumber]
   );
+=======
+  (terminationId: number, value: string) => {
+    // Update local state immediately
+    setTerminations((prev) =>
+      prev.map((t) =>
+        t.id === terminationId ? { ...t, trackingNumber: value } : t
+      )
+    );
+    
+    // Debounce the API call
+    const timeoutId = setTimeout(async () => {
+      try {
+        await fetch(`/api/terminations/${terminationId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trackingNumber: value }),
+        });
+      } catch (error) {
+        console.error("Error updating tracking number:", error);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  },
+  []
+);
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
   const handleEmployeeSelect = (employee: any) => {
     setTerminationForm((prev) => ({
@@ -779,12 +1055,13 @@ export default function TerminationsContent() {
     }));
   };
 
-  const ChecklistSection = ({ termination }: { termination: Termination }) => {
-    const [localNewItem, setLocalNewItem] = useState({
-      category: "",
-      description: "",
-    });
+ const ChecklistSection = ({ termination }: { termination: Termination }) => {
+  const [localNewItem, setLocalNewItem] = useState({
+    category: "",
+    description: "",
+  });
 
+<<<<<<< HEAD
     const groupChecklistByCategory = useCallback(
       (checklist: ChecklistItem[]) => {
         const grouped: { [key: string]: ChecklistItem[] } = {};
@@ -804,29 +1081,37 @@ export default function TerminationsContent() {
         alert("Please enter both category and description");
         return;
       }
+=======
+  const handleAddChecklistItem = async () => {
+    if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
+      alert("Please enter both category and description");
+      return;
+    }
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
-      try {
-        const newItem: ChecklistItem = {
-          id: `custom-${Date.now()}`,
-          category: localNewItem.category.trim(),
-          description: localNewItem.description.trim(),
-          completed: false,
-        };
+    try {
+      const newItem: ChecklistItem = {
+        id: `custom-${Date.now()}`,
+        category: localNewItem.category.trim(),
+        description: localNewItem.description.trim(),
+        completed: false,
+      };
 
-        const updatedChecklist = [...(termination.checklist || []), newItem];
+      const updatedChecklist = [...(termination.checklist || []), newItem];
 
-        setTerminations((prev) =>
-          prev.map((t) =>
-            t.id === termination.id
-              ? {
-                  ...t,
-                  checklist: updatedChecklist,
-                  isExpanded: t.isExpanded,
-                }
-              : t
-          )
-        );
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === termination.id
+            ? {
+                ...t,
+                checklist: updatedChecklist,
+                isExpanded: t.isExpanded,
+              }
+            : t
+        )
+      );
 
+<<<<<<< HEAD
         await updateTermination(termination.id, {
           checklist: updatedChecklist,
         });
@@ -842,252 +1127,253 @@ export default function TerminationsContent() {
         <h3 className="font-medium text-gray-900 mb-3">
           IT Access Removal Checklist
         </h3>
+=======
+      await updateTermination(termination.id, {
+        checklist: updatedChecklist,
+      });
+      setLocalNewItem({ category: "", description: "" });
+    } catch (error) {
+      console.error("Error adding checklist item:", error);
+      fetchTerminations();
+    }
+  };
 
-        {/* Completed By Dropdown */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Completed By
-          </label>
-          <select
-            value={termination.completedByUserId || ""}
-            onChange={(e) =>
-              handleCompletedByChange(termination.id, e.target.value)
-            }
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="">Select IT Staff</option>
-            {itUsers.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name} ({user.role})
-              </option>
-            ))}
-          </select>
-        </div>
+  const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
+    const grouped: { [key: string]: ChecklistItem[] } = {};
+    checklist.forEach((item) => {
+      if (!grouped[item.category]) {
+        grouped[item.category] = [];
+      }
+      grouped[item.category].push(item);
+    });
+    return grouped;
+  };
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
-        {/* Global Check All/Uncheck All Buttons */}
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: true,
-                completedBy: currentUser?.name,
-                completedDate: new Date().toISOString(),
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <CheckCircleIcon className="h-4 w-4 mr-1" />
-            Check All
-          </button>
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: false,
-                completedBy: undefined,
-                completedDate: undefined,
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <MinusIcon className="h-4 w-4 mr-1" />
-            Uncheck All
-          </button>
-        </div>
+  return (
+    <div className="border-t pt-4">
+      <h3 className="font-medium text-gray-900 mb-3">
+        IT Access Removal Checklist
+      </h3>
 
-        {/* Checklist Items */}
-        {Object.entries(
-          groupChecklistByCategory(termination.checklist || [])
-        ).map(([category, items]) => (
-          <div key={category} className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-gray-800">{category}</h4>
-              <div className="flex gap-1">
+      {/* Global Check All/Uncheck All Buttons */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => {
+            const updatedChecklist = termination.checklist!.map((item) => ({
+              ...item,
+              completed: true,
+              completedBy: currentUser?.name,
+              completedDate: new Date().toISOString(),
+            }));
+            updateTermination(termination.id, {
+              checklist: updatedChecklist,
+            });
+          }}
+          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <CheckCircleIcon className="h-4 w-4 mr-1" />
+          Check All
+        </button>
+        <button
+          onClick={() => {
+            const updatedChecklist = termination.checklist!.map((item) => ({
+              ...item,
+              completed: false,
+              completedBy: undefined,
+              completedDate: undefined,
+            }));
+            updateTermination(termination.id, {
+              checklist: updatedChecklist,
+            });
+          }}
+          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <MinusIcon className="h-4 w-4 mr-1" />
+          Uncheck All
+        </button>
+      </div>
+
+      {/* Checklist Items */}
+      {Object.entries(
+        groupChecklistByCategory(termination.checklist || [])
+      ).map(([category, items]) => (
+        <div key={category} className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-gray-800">{category}</h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(
+                    (item) =>
+                      item.category === category
+                        ? {
+                            ...item,
+                            completed: true,
+                            completedBy: currentUser?.name,
+                            completedDate: new Date().toISOString(),
+                          }
+                        : item
+                  );
+                  updateTermination(termination.id, {
+                    checklist: updatedChecklist,
+                  });
+                }}
+                className="text-green-600 hover:text-green-800 text-xs flex items-center"
+              >
+                <CheckCircleIcon className="h-3 w-3 mr-1" />
+                Check All
+              </button>
+              <button
+                onClick={() => {
+                  const updatedChecklist = termination.checklist!.map(
+                    (item) =>
+                      item.category === category
+                        ? {
+                            ...item,
+                            completed: false,
+                            completedBy: undefined,
+                            completedDate: undefined,
+                          }
+                        : item
+                  );
+                  updateTermination(termination.id, {
+                    checklist: updatedChecklist,
+                  });
+                }}
+                className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
+              >
+                <MinusIcon className="h-3 w-3 mr-1" />
+                Uncheck All
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
+              >
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={(e) =>
+                    updateChecklistItem(termination.id, item.id, {
+                      completed: e.target.checked,
+                      completedBy: e.target.checked
+                        ? currentUser?.name
+                        : undefined,
+                      completedDate: e.target.checked
+                        ? new Date().toISOString()
+                        : undefined,
+                    })
+                  }
+                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <div className="flex-1">
+                  <label
+                    className={`text-sm ${
+                      item.completed
+                        ? "text-gray-500 line-through"
+                        : "text-gray-700"
+                    }`}
+                  >
+                    {item.description}
+                  </label>
+                  {item.completed && item.completedBy && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Completed by {item.completedBy} on{" "}
+                      {item.completedDate
+                        ? new Date(item.completedDate).toLocaleDateString()
+                        : "unknown date"}
+                    </p>
+                  )}
+                </div>
                 <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: true,
-                              completedBy: currentUser?.name,
-                              completedDate: new Date().toISOString(),
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-green-600 hover:text-green-800 text-xs flex items-center"
+                  onClick={() => removeChecklistItem(termination.id, item.id)}
+                  className="text-red-500 hover:text-red-700"
+                  title="Remove item"
                 >
-                  <CheckCircleIcon className="h-3 w-3 mr-1" />
-                  Check All
-                </button>
-                <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: false,
-                              completedBy: undefined,
-                              completedDate: undefined,
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
-                >
-                  <MinusIcon className="h-3 w-3 mr-1" />
-                  Uncheck All
+                  <MinusIcon className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={(e) =>
-                      updateChecklistItem(termination.id, item.id, {
-                        completed: e.target.checked,
-                        completedBy: e.target.checked
-                          ? currentUser?.name
-                          : undefined,
-                        completedDate: e.target.checked
-                          ? new Date().toISOString()
-                          : undefined,
-                      })
-                    }
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div className="flex-1">
-                    <label
-                      className={`text-sm ${
-                        item.completed
-                          ? "text-gray-500 line-through"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      {item.description}
-                    </label>
-                    {item.completed && item.completedBy && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Completed by {item.completedBy} on{" "}
-                        {item.completedDate
-                          ? new Date(item.completedDate).toLocaleDateString()
-                          : "unknown date"}
-                      </p>
-                    )}
-                    <textarea
-                      placeholder="Add notes..."
-                      value={item.notes || ""}
-                      onChange={(e) =>
-                        updateChecklistItem(termination.id, item.id, {
-                          notes: e.target.value,
-                        })
-                      }
-                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                      rows={2}
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeChecklistItem(termination.id, item.id)}
-                    className="text-red-500 hover:text-red-700"
-                    title="Remove item"
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
-        ))}
-
-        {/* Progress Summary */}
-        {termination.checklist && (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-blue-800">
-                Checklist Progress
-              </span>
-              <span className="text-sm text-blue-700">
-                {termination.checklist.filter((item) => item.completed).length}{" "}
-                of {termination.checklist.length} completed
-              </span>
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${
-                    (termination.checklist.filter((item) => item.completed)
-                      .length /
-                      termination.checklist.length) *
-                    100
-                  }%`,
-                }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {/* Add New Checklist Item */}
-        <div className="border-t pt-4">
-          <h4 className="font-medium text-gray-800 mb-2">
-            Add New Checklist Item
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-            <input
-              type="text"
-              placeholder="Category (e.g., Software Access)"
-              value={localNewItem.category}
-              onChange={(e) =>
-                setLocalNewItem({ ...localNewItem, category: e.target.value })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={localNewItem.description}
-              onChange={(e) =>
-                setLocalNewItem({
-                  ...localNewItem,
-                  description: e.target.value,
-                })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-          </div>
-          <button
-            onClick={handleAddChecklistItem}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Add Item
-          </button>
         </div>
+      ))} 
+
+      {/* Progress Summary */}
+      {termination.checklist && (
+        <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-blue-800">
+              Checklist Progress
+            </span>
+            <span className="text-sm text-blue-700">
+              {termination.checklist.filter((item) => item.completed).length}{" "}
+              of {termination.checklist.length} completed
+            </span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{
+                width: `${
+                  (termination.checklist.filter((item) => item.completed)
+                    .length /
+                    termination.checklist.length) *
+                  100
+                }%`,
+              }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Checklist Item */}
+      <div className="border-t pt-4">
+        <h4 className="font-medium text-gray-800 mb-2">
+          Add New Checklist Item
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+          <input
+            type="text"
+            placeholder="Category (e.g., Software Access)"
+            value={localNewItem.category}
+            onChange={(e) =>
+              setLocalNewItem({ ...localNewItem, category: e.target.value })
+            }
+            className="px-3 py-2 border border-gray-300 rounded text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Description"
+            value={localNewItem.description}
+            onChange={(e) =>
+              setLocalNewItem({
+                ...localNewItem,
+                description: e.target.value,
+              })
+            }
+            className="px-3 py-2 border border-gray-300 rounded text-sm"
+          />
+        </div>
+        <button
+          onClick={handleAddChecklistItem}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+        >
+          <PlusIcon className="h-4 w-4 mr-1" />
+          Add Item
+        </button>
       </div>
+<<<<<<< HEAD
     );
   };
+=======
+    </div>
+  );
+}; 
+>>>>>>> befc8065b152f16cf2d065f02228016cb0e9965e
 
   if (!isClient || loading) {
     return (
@@ -1313,16 +1599,19 @@ export default function TerminationsContent() {
                           {termination.employeeName}
                         </h3>
                         <button
-                          onClick={() =>
-                            router.push(
-                              `/management-portal/terminations/${termination.id}/edit`
-                            )
-                          }
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Edit Termination"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
+        onClick={() => handleEditTermination(termination.id)}
+        className="text-gray-400 hover:text-blue-600"
+        title="Edit Termination"
+      >
+        <PencilIcon className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => generatePrintReport(termination)}
+        className="text-gray-400 hover:text-green-600"
+        title="Print Report"
+      >
+        <PrinterIcon className="h-4 w-4" />
+      </button>
                         <button
                           onClick={() => deleteTermination(termination.id)}
                           className="text-gray-400 hover:text-red-600"
@@ -1376,114 +1665,104 @@ export default function TerminationsContent() {
               {termination.isExpanded && (
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                   {/* Equipment Return Section */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-                      <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
-                      Equipment Return Process
-                    </h3>
+                  
+{/* Equipment Return Section */}
+<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+    <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
+    Equipment Return Process
+  </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Tracking Number */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tracking Number
-                        </label>
-                        <input
-                          type="text"
-                          value={termination.trackingNumber || ""}
-                          onChange={(e) =>
-                            handleTrackingNumberChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          placeholder="Enter return tracking number"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {/* Tracking Number */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Tracking Number
+      </label>
+      <input
+        type="text"
+        value={termination.trackingNumber || ""}
+        onChange={(e) =>
+          handleTrackingNumberChange(termination.id, e.target.value)
+        }
+        placeholder="Enter return tracking number"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      />
+    </div>
 
-                      {/* Equipment Disposition */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Equipment Disposition
-                        </label>
-                        <select
-                          value={termination.equipmentDisposition}
-                          onChange={(e) =>
-                            handleEquipmentDispositionChange(
-                              termination.id,
-                              e.target.value as "return_to_pool" | "retire"
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="return_to_pool">
-                            Return to Available Pool
-                          </option>
-                          <option value="retire">Retire Equipment</option>
-                        </select>
-                      </div>
+    {/* Equipment Disposition */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Equipment Disposition
+      </label>
+      <select
+        value={termination.equipmentDisposition}
+        onChange={(e) =>
+          handleEquipmentDispositionChange(
+            termination.id,
+            e.target.value as "return_to_pool" | "retire"
+          )
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="return_to_pool">Return to Available Pool</option>
+        <option value="retire">Retire Equipment</option>
+      </select>
+    </div>
 
-                      {/* Completed By*/}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Completed By (IT Staff)
-                        </label>
-                        <select
-                          value={termination.completedByUserId || ""}
-                          onChange={(e) =>
-                            handleCompletedByChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select IT Staff</option>
-                          {itUsers.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name} ({user.role})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+    {/* Completed By - SPECIFIC TO EQUIPMENT RETURN */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Return Completed By (IT Staff)
+      </label>
+      <select
+        value={termination.completedByUserId || ""}
+        onChange={(e) =>
+          handleCompletedByChange(termination.id, e.target.value)
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+      >
+        <option value="">Select IT Staff</option>
+        {itUsers.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.name} ({user.role})
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
 
-                    {/* Mark Equipment Returned Button */}
-                    {isAdminOrIT &&
-                      termination.trackingNumber &&
-                      termination.completedByUserId && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() =>
-                              markEquipmentReturned(
-                                termination.id,
-                                termination.trackingNumber!,
-                                termination.equipmentDisposition,
-                                termination.completedByUserId
-                              )
-                            }
-                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
-                          >
-                            <CheckCircleIcon className="h-4 w-4 mr-2" />
-                            Mark Equipment Returned
-                            {termination.equipmentDisposition ===
-                              "return_to_pool" && (
-                              <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
-                                +1 Laptop to{" "}
-                                {
-                                  itUsers.find(
-                                    (u) =>
-                                      u.id === termination.completedByUserId
-                                  )?.name
-                                }
-                                's Inventory
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                  </div>
+  {/* Mark Equipment Returned Button */}
+  {isAdminOrIT &&
+    termination.trackingNumber &&
+    termination.completedByUserId && (
+      <div className="mt-4">
+        <button
+          onClick={() =>
+            markEquipmentReturned(
+              termination.id,
+              termination.trackingNumber!,
+              termination.equipmentDisposition,
+              termination.completedByUserId
+            )
+          }
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
+        >
+          <CheckCircleIcon className="h-4 w-4 mr-2" />
+          Mark Equipment Returned
+          {termination.equipmentDisposition === "return_to_pool" && (
+            <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
+              +1 Laptop to{" "}
+              {
+                itUsers.find((u) => u.id === termination.completedByUserId)?.name
+              }
+              's Inventory
+            </span>
+          )}
+        </button>
+      </div>
+    )}
+</div>
 
                   {/* IT Checklist Section - Only for Admin/IT */}
                   {isAdminOrIT && termination.checklist && (

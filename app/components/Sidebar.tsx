@@ -10,6 +10,9 @@ import {
   ArrowRightOnRectangleIcon,
   UserGroupIcon,
   ArchiveBoxIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,50 +32,105 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+interface CollapsibleMenu {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+  adminOnly?: boolean;
+}
+
 export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const currentPath = usePathname();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
 
-  // Base navigation items (always visible)
+  // Toggle collapsible menu
+  const toggleMenu = (menuName: string) => {
+    setOpenMenus(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(menuName)) {
+        newSet.delete(menuName);
+      } else {
+        newSet.add(menuName);
+      }
+      return newSet;
+    });
+  };
+
+  // Dashboard 
   const baseNavItems: NavItem[] = [
     { name: "Dashboard", href: "/", icon: HomeIcon },
+  ];
+
+  // Employee Onboarding 
+  const collapsibleMenus: CollapsibleMenu[] = [
     {
-      name: "Onboarding",
-      href: "/management-portal/onboarding",
+      name: "Employee Onboarding",
       icon: UserIcon,
-    },
-    {
-      name: "Archived Onboarding",
-      href: "/management-portal/onboarding/archived",
-      icon: ArchiveBoxIcon,
-    },
-    {
-      name: "Terminations",
-      href: "/management-portal/terminations",
-      icon: UserMinusIcon,
+      items: [
+        {
+          name: "Manage Onboarding",
+          href: "/management-portal/onboarding",
+          icon: UserGroupIcon,
+        },
+        {
+          name: "Archived Onboarding",
+          href: "/management-portal/onboarding/archived",
+          icon: ArchiveBoxIcon,
+        },
+      ],
     },
     {
       name: "IT Assets",
-      href: "/management-portal/it-assets",
       icon: ComputerDesktopIcon,
+      items: [
+        {
+          name: "Manage IT Assets",
+          href: "/management-portal/it-assets",
+          icon: ComputerDesktopIcon,
+        },
+      ],
     },
-    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
     {
-      name: "Settings",
-      href: "/management-portal/settings",
-      icon: Cog6ToothIcon,
+      name: "Employee Terminations",
+      icon: UserMinusIcon,
+      items: [
+        {
+          name: "Manage Terminations",
+          href: "/management-portal/terminations",
+          icon: UserMinusIcon,
+        },
+        {
+          name: "Archived Terminations",
+          href: "/management-portal/terminations/archived",
+          icon: ArchiveBoxIcon,
+        },
+      ],
     },
   ];
 
-  // Admin-only navigation items
-  const adminNavItems: NavItem[] = [
+  //Reports and Settings 
+  const endNavItems: NavItem[] = [
+    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
+    { name: "Settings", href: "/management-portal/settings", icon: Cog6ToothIcon },
+  ];
+
+  // Admin-only collapsible menu
+  const adminCollapsibleMenus: CollapsibleMenu[] = [
     {
-      name: "Role Approvals",
-      href: "/management-portal/admin/approvals",
-      icon: UserGroupIcon,
+      name: "Admin Utilities",
+      icon: ShieldCheckIcon,
       adminOnly: true,
+      items: [
+        {
+          name: "Role Approvals",
+          href: "/management-portal/admin/approvals",
+          icon: UserGroupIcon,
+          adminOnly: true,
+        },
+      ],
     },
   ];
 
@@ -107,28 +165,20 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     return role === "Admin" || role === "I.T.";
   };
 
-  // Combine navigation items based on user role
-  const getNavItems = () => {
+  // Get all collapsible menus based on user role
+  const getAllCollapsibleMenus = () => {
     if (!isClient || loading) {
-      return baseNavItems; // Return base items during SSR and initial loading
+      return collapsibleMenus;
     }
 
     if (isAdminUser(userRole)) {
-      // Insert admin items before Settings
-      const settingsIndex = baseNavItems.findIndex(
-        (item) => item.name === "Settings"
-      );
-      return [
-        ...baseNavItems.slice(0, settingsIndex),
-        ...adminNavItems,
-        ...baseNavItems.slice(settingsIndex),
-      ];
+      return [...collapsibleMenus, ...adminCollapsibleMenus];
     }
 
-    return baseNavItems;
+    return collapsibleMenus;
   };
 
-  const navItems = getNavItems();
+  const allCollapsibleMenus = getAllCollapsibleMenus();
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -232,7 +282,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         )}
 
         <nav className="mt-4 px-2">
-          {navItems.map((item) => {
+          {/* Dashboard */}
+          {baseNavItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <Link
@@ -248,11 +299,92 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               >
                 <IconComponent className="h-6 w-6" />
                 <span className="ml-3">{item.name}</span>
-                {item.adminOnly && (
-                  <span className="ml-auto bg-blue-600 text-blue-100 text-xs px-2 py-1 rounded-full">
-                    Admin
-                  </span>
+              </Link>
+            );
+          })}
+
+          {/* Collapsible Menus (Employee Onboarding, IT Assets, Terminations) */}
+          {allCollapsibleMenus.map((menu) => {
+            const IconComponent = menu.icon;
+            const isMenuOpen = openMenus.has(menu.name);
+            
+            return (
+              <div key={menu.name} className="mb-1">
+                {/* Menu Header */}
+                <button
+                  onClick={() => toggleMenu(menu.name)}
+                  className={`flex items-center justify-between px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full transition-colors ${
+                    menu.items.some(item => isActive(item.href)) 
+                      ? "bg-blue-700 border-l-4 border-blue-400" 
+                      : ""
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <IconComponent className="h-6 w-6" />
+                    <span className="ml-3">{menu.name}</span>
+                    {menu.adminOnly && (
+                      <span className="ml-2 bg-blue-600 text-blue-100 text-xs px-2 py-1 rounded-full">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  {isMenuOpen ? (
+                    <ChevronDownIcon className="h-4 w-4" />
+                  ) : (
+                    <ChevronRightIcon className="h-4 w-4" />
+                  )}
+                </button>
+
+                {/* Menu Items */}
+                {isMenuOpen && (
+                  <ul className="mt-1 space-y-1 pl-4">
+                    {menu.items.map((item) => {
+                      const ItemIcon = item.icon;
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            className={`flex items-center px-4 py-2 text-white hover:bg-blue-700 rounded-md transition-colors ${
+                              isActive(item.href)
+                                ? "bg-blue-700 border-l-4 border-blue-400"
+                                : ""
+                            }`}
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <ItemIcon className="h-5 w-5" />
+                            <span className="ml-3 text-sm">-&nbsp;{item.name}</span>
+                            {item.adminOnly && (
+                              <span className="ml-auto bg-blue-600 text-blue-100 text-xs px-1 py-0.5 rounded-full">
+                                Admin
+                              </span>
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
+              </div>
+            );
+          })}
+
+          {/* End Navigation Items  */}
+          {endNavItems.map((item) => {
+            const IconComponent = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors
+                  ${
+                    isActive(item.href)
+                      ? "bg-blue-700 border-l-4 border-blue-400"
+                      : ""
+                  }`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <IconComponent className="h-6 w-6" />
+                <span className="ml-3">{item.name}</span>
               </Link>
             );
           })}

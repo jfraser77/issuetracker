@@ -168,38 +168,58 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
+    const terminationId = parseInt(id);
     const updates = await request.json();
+    
+    console.log(`🔄 Updating termination ${terminationId}:`, updates);
+
+    if (isNaN(terminationId)) {
+      return NextResponse.json(
+        { error: "Invalid termination ID" },
+        { status: 400 }
+      );
+    }
+
     const pool = await connectToDatabase();
 
     // Build dynamic update query
     const updateFields = [];
     const requestObj = pool.request();
 
-    // Add all possible fields
+    // Add all possible fields with proper SQL types
     const fieldMappings = {
-      employeeName: 'employeeName',
-      employeeEmail: 'employeeEmail', 
-      jobTitle: 'jobTitle',
-      department: 'department',
-      terminationDate: 'terminationDate',
-      terminationReason: 'terminationReason',
-      status: 'status',
-      trackingNumber: 'trackingNumber',
-      equipmentDisposition: 'equipmentDisposition',
-      completedByUserId: 'completedByUserId'
+      employeeName: { field: 'employeeName', type: sql.NVarChar },
+      employeeEmail: { field: 'employeeEmail', type: sql.NVarChar },
+      jobTitle: { field: 'jobTitle', type: sql.NVarChar },
+      department: { field: 'department', type: sql.NVarChar },
+      terminationDate: { field: 'terminationDate', type: sql.Date },
+      terminationReason: { field: 'terminationReason', type: sql.NVarChar },
+      status: { field: 'status', type: sql.NVarChar },
+      trackingNumber: { field: 'trackingNumber', type: sql.NVarChar },
+      equipmentDisposition: { field: 'equipmentDisposition', type: sql.NVarChar },
+      completedByUserId: { field: 'completedByUserId', type: sql.Int }
     };
 
-    Object.entries(fieldMappings).forEach(([key, dbField]) => {
+    Object.entries(fieldMappings).forEach(([key, config]) => {
       if (updates[key] !== undefined) {
-        updateFields.push(`${dbField} = @${key}`);
-        requestObj.input(key, updates[key]);
+        updateFields.push(`${config.field} = @${key}`);
+        // Handle null/undefined values properly
+        if (updates[key] === null || updates[key] === undefined || updates[key] === '') {
+          requestObj.input(key, config.type, null);
+        } else {
+          requestObj.input(key, config.type, updates[key]);
+        }
       }
     });
 
     // Handle checklist separately since it needs JSON stringification
     if (updates.checklist !== undefined) {
       updateFields.push("checklist = @checklist");
-      requestObj.input("checklist", sql.NVarChar, JSON.stringify(updates.checklist));
+      requestObj.input("checklist", sql.NVarChar, 
+        updates.checklist && updates.checklist.length > 0 
+          ? JSON.stringify(updates.checklist) 
+          : JSON.stringify(defaultChecklist)
+      );
     }
 
     if (updateFields.length === 0) {
@@ -209,7 +229,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       );
     }
 
-    requestObj.input("id", sql.Int, parseInt(id));
+    // Always update timestamp
+    updateFields.push("timestamp = GETDATE()");
+
+    requestObj.input("id", sql.Int, terminationId);
 
     const query = `
       UPDATE Terminations 
@@ -217,6 +240,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       OUTPUT INSERTED.*
       WHERE id = @id
     `;
+
+    console.log(`📝 Executing update query for termination ${terminationId}`);
 
     const result = await requestObj.query(query);
     
@@ -247,15 +272,22 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       checklist
     };
 
+    console.log(`✅ Termination ${terminationId} updated successfully`);
+    
     return NextResponse.json({ 
       success: true, 
       message: "Termination updated successfully",
       termination: responseTermination
     });
+    
   } catch (error: any) {
-    console.error("Error updating termination:", error);
+    console.error("❌ Error updating termination:", error);
     return NextResponse.json(
-      { error: "Failed to update termination: " + error.message },
+      { 
+        error: "Failed to update termination",
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
