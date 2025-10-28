@@ -101,46 +101,60 @@ body {
   background: #6b7280;
 }
 
-/* Add to your globals.css */
-
 /* Form elements */
 .dark input,
 .dark textarea,
 .dark select {
-  @apply bg-gray-800 border-gray-700 text-white placeholder-gray-400;
+  background-color: #1f2937; /* bg-gray-800 equivalent */
+  border-color: #374151; /* border-gray-700 equivalent */
+  color: white;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder,
+.dark select::placeholder {
+  color: #9ca3af; /* placeholder-gray-400 equivalent */
 }
 
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  @apply border-blue-500 ring-blue-500;
+  border-color: #3b82f6; /* border-blue-500 */
+  --tw-ring-color: #3b82f6; /* ring-blue-500 */
 }
 
 /* Cards and containers */
 .dark .card {
-  @apply bg-gray-800 border-gray-700 text-white;
+  background-color: #1f2937; /* bg-gray-800 */
+  border-color: #374151; /* border-gray-700 */
+  color: white;
 }
 
 /* Tables */
 .dark table {
-  @apply text-gray-200;
+  color: #e5e7eb; /* text-gray-200 */
 }
 
 .dark thead {
-  @apply bg-gray-800 text-gray-200;
+  background-color: #1f2937; /* bg-gray-800 */
+  color: #e5e7eb; /* text-gray-200 */
 }
 
 .dark tbody tr {
-  @apply border-gray-700;
+  border-color: #374151; /* border-gray-700 */
 }
 
 .dark tbody tr:hover {
-  @apply bg-gray-700;
+  background-color: #374151; /* bg-gray-700 */
 }
 
 /* Links */
 .dark a {
-  @apply text-blue-400 hover:text-blue-300;
+  color: #60a5fa; /* text-blue-400 */
+}
+
+.dark a:hover {
+  color: #93c5fd; /* text-blue-300 */
 }
 
 /* Headings */
@@ -150,47 +164,60 @@ body {
 .dark h4,
 .dark h5,
 .dark h6 {
-  @apply text-white;
+  color: white;
 }
 
 /* Text colors */
 .dark .text-muted {
-  @apply text-gray-400;
+  color: #9ca3af; /* text-gray-400 */
 }
 
 /* Modal backdrops */
 .dark .modal-backdrop {
-  @apply bg-gray-900 bg-opacity-75;
+  background-color: #111827; /* bg-gray-900 */
+  opacity: 0.75;
 }
 
 /* Dropdown menus */
 .dark .dropdown {
-  @apply bg-gray-800 border-gray-700;
+  background-color: #1f2937; /* bg-gray-800 */
+  border-color: #374151; /* border-gray-700 */
 }
 
 .dark .dropdown-item {
-  @apply text-gray-200 hover:bg-gray-700;
+  color: #e5e7eb; /* text-gray-200 */
+}
+
+.dark .dropdown-item:hover {
+  background-color: #374151; /* bg-gray-700 */
 }
 
 /* Navigation */
 .dark .nav-item {
-  @apply text-gray-300 hover:text-white hover:bg-gray-700;
+  color: #d1d5db; /* text-gray-300 */
+}
+
+.dark .nav-item:hover {
+  color: white;
+  background-color: #374151; /* bg-gray-700 */
 }
 
 /* Badges and labels */
 .dark .badge {
-  @apply bg-gray-700 text-gray-200;
+  background-color: #374151; /* bg-gray-700 */
+  color: #e5e7eb; /* text-gray-200 */
 }
 
 /* Code and pre elements */
 .dark code,
 .dark pre {
-  @apply bg-gray-800 text-gray-200;
+  background-color: #1f2937; /* bg-gray-800 */
+  color: #e5e7eb; /* text-gray-200 */
 }
 
 /* Loading states */
 .dark .loading {
-  @apply text-gray-400;
+  color: #9ca3af; /* text-gray-400 */
 }
 
 /* Prevent flash of unstyled content */
