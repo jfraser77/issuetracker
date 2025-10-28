@@ -77,7 +77,7 @@ interface OnboardingClass {
 interface BulkOperation {
   classId: string;
   taskType: string;
-  action: 'complete' | 'incomplete';
+  action: "complete" | "incomplete";
   assignedTo?: string;
 }
 
@@ -88,18 +88,22 @@ export default function OnboardingPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itStaff, setItStaff] = useState<User[]>([]);
   const [isClient, setIsClient] = useState(false);
-  
+
   // New state for class-based features
-  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>([]);
+  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>(
+    []
+  );
   const [showBulkOperationsModal, setShowBulkOperationsModal] = useState(false);
   const [showClassNotesModal, setShowClassNotesModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(null);
-  const [classNotes, setClassNotes] = useState('');
+  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(
+    null
+  );
+  const [classNotes, setClassNotes] = useState("");
   const [bulkOperation, setBulkOperation] = useState<BulkOperation>({
-    classId: '',
-    taskType: 'all',
-    action: 'complete',
-    assignedTo: ''
+    classId: "",
+    taskType: "all",
+    action: "complete",
+    assignedTo: "",
   });
 
   const isAdminOrIT =
@@ -291,59 +295,71 @@ export default function OnboardingPage() {
   // Enhanced grouping with weekly options
   const groupEmployeesByClass = (employees: EmployeeWithDetails[]) => {
     const classes: OnboardingClass[] = [];
-    
+
     const groupedByWeek = employees.reduce((acc, employee) => {
       const startDate = new Date(employee.startDate);
       const weekStart = new Date(startDate);
       weekStart.setDate(startDate.getDate() - startDate.getDay() + 1); // Monday
-      
-      const classKey = weekStart.toISOString().split('T')[0];
-      
+
+      const classKey = weekStart.toISOString().split("T")[0];
+
       if (!acc[classKey]) {
         acc[classKey] = {
           id: classKey,
           startDate: classKey,
-          className: `Week of ${weekStart.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric',
-            year: 'numeric' 
+          className: `Week of ${weekStart.toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
           })}`,
           employees: [],
-          classNotes: '',
-          trainerNotes: '',
-          itNotes: ''
+          classNotes: "",
+          trainerNotes: "",
+          itNotes: "",
         };
       }
-      
+
       acc[classKey].employees.push(employee);
       return acc;
     }, {} as Record<string, OnboardingClass>);
 
-    return Object.values(groupedByWeek).sort((a, b) => 
-      new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+    return Object.values(groupedByWeek).sort(
+      (a, b) =>
+        new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
     );
   };
 
   // Bulk Operations
   const performBulkOperation = async (operation: BulkOperation) => {
     try {
-      const classToUpdate = onboardingClasses.find(c => c.id === operation.classId);
+      const classToUpdate = onboardingClasses.find(
+        (c) => c.id === operation.classId
+      );
       if (!classToUpdate) return;
 
       const updatedEmployees = await Promise.all(
         classToUpdate.employees.map(async (employee) => {
           const updatedTasks = employee.onboardingTasks.map((task) => {
             // Apply bulk operation based on task type
-            const shouldUpdate = 
-              operation.taskType === 'all' || 
-              task.name.toLowerCase().includes(operation.taskType.toLowerCase());
+            const shouldUpdate =
+              operation.taskType === "all" ||
+              task.name
+                .toLowerCase()
+                .includes(operation.taskType.toLowerCase());
 
             if (shouldUpdate) {
               return {
                 ...task,
-                status: operation.action === 'complete' ? 'completed' : 'not begun',
-                completedBy: operation.action === 'complete' ? currentUser?.name : undefined,
-                completedAt: operation.action === 'complete' ? new Date().toISOString() : undefined
+                status:
+                  operation.action === "complete" ? "completed" : "not begun",
+                completedBy:
+                  operation.action === "complete"
+                    ? currentUser?.name
+                    : undefined,
+                completedAt:
+                  operation.action === "complete"
+                    ? new Date().toISOString()
+                    : undefined,
               };
             }
             return task;
@@ -354,38 +370,41 @@ export default function OnboardingPage() {
 
           return {
             ...employee,
-            onboardingTasks: updatedTasks
+            onboardingTasks: updatedTasks,
           };
         })
       );
 
       // Update local state
-      setOnboardingClasses(prev => 
-        prev.map(c => 
-          c.id === operation.classId 
-            ? { ...c, employees: updatedEmployees }
-            : c
+      setOnboardingClasses((prev) =>
+        prev.map((c) =>
+          c.id === operation.classId ? { ...c, employees: updatedEmployees } : c
         )
       );
 
       // Also update main employees state
-      setEmployees(prev => 
-        prev.map(emp => {
-          const updatedEmp = updatedEmployees.find(u => u.id === emp.id);
+      setEmployees((prev) =>
+        prev.map((emp) => {
+          const updatedEmp = updatedEmployees.find((u) => u.id === emp.id);
           return updatedEmp || emp;
         })
       );
 
       setShowBulkOperationsModal(false);
-      alert(`Bulk operation completed for ${updatedEmployees.length} employees`);
+      alert(
+        `Bulk operation completed for ${updatedEmployees.length} employees`
+      );
     } catch (error) {
-      console.error('Error performing bulk operation:', error);
-      alert('Failed to perform bulk operation');
+      console.error("Error performing bulk operation:", error);
+      alert("Failed to perform bulk operation");
     }
   };
 
   // Helper function to update employee tasks
-  const updateEmployeeTasks = async (employeeId: number, tasks: OnboardingTask[]) => {
+  const updateEmployeeTasks = async (
+    employeeId: number,
+    tasks: OnboardingTask[]
+  ) => {
     try {
       await fetch(`/api/employees/${employeeId}/onboarding-tasks`, {
         method: "POST",
@@ -399,432 +418,75 @@ export default function OnboardingPage() {
   };
 
   // Class Notes Management
-  const updateClassNotes = async (classId: string, notes: string, noteType: 'classNotes' | 'trainerNotes' | 'itNotes') => {
+  const updateClassNotes = async (
+    classId: string,
+    notes: string,
+    noteType: "classNotes" | "trainerNotes" | "itNotes"
+  ) => {
     try {
-      setOnboardingClasses(prev =>
-        prev.map(c =>
-          c.id === classId
-            ? { ...c, [noteType]: notes }
-            : c
-        )
+      setOnboardingClasses((prev) =>
+        prev.map((c) => (c.id === classId ? { ...c, [noteType]: notes } : c))
       );
 
       // Save to database
       await fetch(`/api/onboarding/classes/${classId}/notes`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [noteType]: notes })
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [noteType]: notes }),
       });
 
       setShowClassNotesModal(false);
     } catch (error) {
-      console.error('Error updating class notes:', error);
+      console.error("Error updating class notes:", error);
     }
   };
 
   // Calculate class progress
   const calculateClassProgress = (classGroup: OnboardingClass) => {
-    const allTasks = classGroup.employees.flatMap(emp => 
-      emp.onboardingTasks.filter(task => task.status !== 'not applicable')
+    const allTasks = classGroup.employees.flatMap((emp) =>
+      emp.onboardingTasks.filter((task) => task.status !== "not applicable")
     );
-    
+
     if (allTasks.length === 0) return 0;
-    
-    const completedTasks = allTasks.filter(task => task.status === 'completed').length;
+
+    const completedTasks = allTasks.filter(
+      (task) => task.status === "completed"
+    ).length;
     return Math.round((completedTasks / allTasks.length) * 100);
   };
 
   // Get completion stats
   const getCompletionStats = (classGroup: OnboardingClass) => {
     const totalEmployees = classGroup.employees.length;
-    const employeesWithProgress = classGroup.employees.filter(emp => 
-      calculateOverallProgress(emp) > 0
+    const employeesWithProgress = classGroup.employees.filter(
+      (emp) => calculateOverallProgress(emp) > 0
     ).length;
-    
+
     return `${employeesWithProgress}/${totalEmployees} employees started`;
   };
 
-  // Enhanced Class Card Component
-  const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
-
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* Class Header with Enhanced Controls */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-4 mb-2">
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="mt-1 text-gray-400 hover:text-gray-600"
-                >
-                  {isExpanded ? (
-                    <ChevronDownIcon className="h-5 w-5" />
-                  ) : (
-                    <ChevronRightIcon className="h-5 w-5" />
-                  )}
-                </button>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {classGroup.className}
-                </h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setBulkOperation(prev => ({ ...prev, classId: classGroup.id }));
-                      setShowBulkOperationsModal(true);
-                    }}
-                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Bulk Operations"
-                  >
-                    <CheckCircleIcon className="h-4 w-4 mr-1" />
-                    Bulk Actions
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setClassNotes(classGroup.classNotes || '');
-                      setShowClassNotesModal(true);
-                    }}
-                    className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Class Notes"
-                  >
-                    <PencilIcon className="h-4 w-4 mr-1" />
-                    Class Notes
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-6 text-sm text-gray-600">
-                <span>{classGroup.employees.length} employees</span>
-                <span>•</span>
-                <span>
-                  Starts {new Date(classGroup.startDate).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </span>
-                {classGroup.classNotes && (
-                  <>
-                    <span>•</span>
-                    <span className="text-blue-600 flex items-center">
-                      <ExclamationCircleIcon className="h-4 w-4 mr-1" />
-                      Has Notes
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Progress and Stats */}
-            <div className="text-right">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="text-sm text-gray-500">Class Progress</div>
-                <div className="w-32 bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${calculateClassProgress(classGroup)}%` }}
-                  ></div>
-                </div>
-                <div className="text-sm font-medium text-gray-700">
-                  {calculateClassProgress(classGroup)}%
-                </div>
-              </div>
-              <div className="text-xs text-gray-500">
-                {getCompletionStats(classGroup)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Class Notes Preview */}
-        {classGroup.classNotes && (
-          <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
-            <div className="flex items-start">
-              <ExclamationCircleIcon className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
-              <p className="text-sm text-yellow-800 line-clamp-2">
-                {classGroup.classNotes}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Employees List - KEEPING YOUR EXISTING EMPLOYEE CARDS */}
-        {isExpanded && (
-          <div className="p-6">
-            <div className="grid gap-6">
-              {classGroup.employees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200"
-                >
-                  {renderEmployeeHeader(employee)}
-
-                  {employee.isExpanded && (
-                    <div className="border-t border-gray-200 px-6 py-4 space-y-6">
-                      {/* Onboarding Tasks Section */}
-                      <div>
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="font-medium text-gray-900">
-                            Onboarding Tasks
-                          </h3>
-                          <button
-                            onClick={() => addCustomTask(employee.id)}
-                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
-                          >
-                            <PlusIcon className="h-4 w-4 mr-1" />
-                            Add Task
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {employee.onboardingTasks.map((task) =>
-                            renderTaskItem(employee, task)
-                          )}
-                        </div>
-                      </div>
-
-                      {/* IT Staff Assignment Section */}
-                      {isAdminOrIT && (
-                        <div className="border-t pt-4">
-                          <h3 className="font-medium text-gray-900 mb-3">
-                            IT Staff Assignment
-                          </h3>
-                          <div className="flex items-end space-x-4">
-                            <div className="flex-1">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Assign to IT Staff
-                              </label>
-                              <select
-                                value={
-                                  employee.itStaffAssignment?.assignedToId || ""
-                                }
-                                onChange={(e) =>
-                                  updateITAssignment(employee.id, {
-                                    ...employee.itStaffAssignment!,
-                                    assignedToId: e.target.value
-                                      ? parseInt(e.target.value)
-                                      : undefined,
-                                  })
-                                }
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                              >
-                                <option value="">Not Assigned</option>
-                                {itStaff.map((staff) => (
-                                  <option key={staff.id} value={staff.id}>
-                                    {staff.name} ({staff.role})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="flex-1">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Status
-                              </label>
-                              <select
-                                value={
-                                  employee.itStaffAssignment?.status ||
-                                  "not assigned"
-                                }
-                                onChange={(e) =>
-                                  updateITAssignment(employee.id, {
-                                    ...employee.itStaffAssignment!,
-                                    status: e.target
-                                      .value as ITStaffAssignment["status"],
-                                  })
-                                }
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                              >
-                                <option value="not assigned">Not Assigned</option>
-                                <option value="in progress">In Progress</option>
-                                <option value="on hold">On Hold</option>
-                                <option value="completed">Completed</option>
-                              </select>
-                            </div>
-                            <div>
-                              <button
-                                onClick={() =>
-                                  updateITAssignment(
-                                    employee.id,
-                                    employee.itStaffAssignment!
-                                  )
-                                }
-                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
-                              >
-                                Apply
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="border-t pt-4 flex justify-between items-center">
-                        <div className="text-sm text-gray-500">
-                          {getDaysSinceAdded(employee.timestamp) >= 25 && (
-                            <span className="text-amber-600 font-medium">
-                              Will be archived in{" "}
-                              {30 - getDaysSinceAdded(employee.timestamp)} days
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => generatePrintReport(employee)}
-                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
-                          >
-                            <PrinterIcon className="h-4 w-4 mr-1" />
-                            Print Report
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Add Employee */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <Link
-                href="/management-portal/onboarding/new"
-                className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Add Employee to this Class
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
+  // FIXED: Update task name function that preserves expanded state
+  const updateTaskName = (
+    employeeId: number,
+    taskId: string,
+    newName: string
+  ) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              onboardingTasks: emp.onboardingTasks.map((task) =>
+                task.id === taskId ? { ...task, name: newName } : task
+              ),
+              isExpanded: emp.isExpanded, // Preserve expanded state
+            }
+          : emp
+      )
     );
   };
 
-  // Bulk Operations Modal
-  const BulkOperationsModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold mb-4">Bulk Operations</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Task Type
-            </label>
-            <select
-              value={bulkOperation.taskType}
-              onChange={(e) => setBulkOperation(prev => ({ ...prev, taskType: e.target.value }))}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            >
-              <option value="all">All Tasks</option>
-              <option value="hr">HR Tasks</option>
-              <option value="it">IT Tasks</option>
-              <option value="training">Training Tasks</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Action
-            </label>
-            <select
-              value={bulkOperation.action}
-              onChange={(e) => setBulkOperation(prev => ({ ...prev, action: e.target.value as 'complete' | 'incomplete' }))}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            >
-              <option value="complete">Mark Complete</option>
-              <option value="incomplete">Mark Incomplete</option>
-            </select>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded p-3">
-            <p className="text-sm text-blue-800">
-              This will affect {selectedClass?.employees.length} employees in {selectedClass?.className}
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            onClick={() => setShowBulkOperationsModal(false)}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => performBulkOperation(bulkOperation)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            Apply to All
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Class Notes Modal
-  const ClassNotesModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-        <h3 className="text-lg font-semibold mb-4">Class Notes - {selectedClass?.className}</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              General Notes
-            </label>
-            <textarea
-              value={classNotes}
-              onChange={(e) => setClassNotes(e.target.value)}
-              placeholder="General notes for the entire class..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32"
-            />
-            <button
-              onClick={() => updateClassNotes(selectedClass!.id, classNotes, 'classNotes')}
-              className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-            >
-              Save Notes
-            </button>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Trainer Notes
-            </label>
-            <textarea
-              placeholder="Training-specific notes..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32"
-              value={selectedClass?.trainerNotes || ''}
-              onChange={(e) => updateClassNotes(selectedClass!.id, e.target.value, 'trainerNotes')}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              IT Notes
-            </label>
-            <textarea
-              placeholder="IT equipment and setup notes..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32"
-              value={selectedClass?.itNotes || ''}
-              onChange={(e) => updateClassNotes(selectedClass!.id, e.target.value, 'itNotes')}
-            />
-          </div>
-        </div>
-        
-        <div className="flex justify-end">
-          <button
-            onClick={() => setShowClassNotesModal(false)}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ALL YOUR EXISTING FUNCTIONS REMAIN EXACTLY THE SAME
+  // FIXED: Add custom task function that preserves expanded state
   const addCustomTask = (employeeId: number) => {
     setEmployees((prev) =>
       prev.map((emp) =>
@@ -841,31 +503,14 @@ export default function OnboardingPage() {
                   isCustom: true,
                 },
               ],
+              isExpanded: emp.isExpanded, // Preserve expanded state
             }
           : emp
       )
     );
   };
 
-  const updateTaskName = (
-    employeeId: number,
-    taskId: string,
-    newName: string
-  ) => {
-    setEmployees((prev) =>
-      prev.map((emp) =>
-        emp.id === employeeId
-          ? {
-              ...emp,
-              onboardingTasks: emp.onboardingTasks.map((task) =>
-                task.id === taskId ? { ...task, name: newName } : task
-              ),
-            }
-          : emp
-      )
-    );
-  };
-
+  // FIXED: Delete task function that preserves expanded state
   const deleteTask = (employeeId: number, taskId: string) => {
     setEmployees((prev) =>
       prev.map((emp) =>
@@ -875,12 +520,14 @@ export default function OnboardingPage() {
               onboardingTasks: emp.onboardingTasks.filter(
                 (task) => task.id !== taskId
               ),
+              isExpanded: emp.isExpanded, // Preserve expanded state
             }
           : emp
       )
     );
   };
 
+  // FIXED: Update task status function that preserves expanded state
   const updateTaskStatus = async (
     employeeId: number,
     taskId: string,
@@ -907,6 +554,7 @@ export default function OnboardingPage() {
                   }
                 : task
             ),
+            isExpanded: emp.isExpanded, // Preserve expanded state
           }
         : emp
     );
@@ -928,6 +576,7 @@ export default function OnboardingPage() {
     }
   };
 
+  // FIXED: Add task note function that preserves expanded state
   const addTaskNote = (
     employeeId: number,
     taskId: string,
@@ -952,6 +601,7 @@ export default function OnboardingPage() {
                   }
                 : task
             ),
+            isExpanded: emp.isExpanded, // Preserve expanded state
           }
         : emp
     );
@@ -969,6 +619,420 @@ export default function OnboardingPage() {
     }
   };
 
+  // Enhanced Class Card Component with Dark Theme
+  const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+        {/* Class Header with Enhanced Controls */}
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 dark:from-blue-900/20 dark:to-purple-900/20 dark:border-gray-600 p-6">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-2">
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="mt-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+                >
+                  {isExpanded ? (
+                    <ChevronDownIcon className="h-5 w-5" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5" />
+                  )}
+                </button>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  {classGroup.className}
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedClass(classGroup);
+                      setBulkOperation((prev) => ({
+                        ...prev,
+                        classId: classGroup.id,
+                      }));
+                      setShowBulkOperationsModal(true);
+                    }}
+                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center dark:bg-blue-600 dark:hover:bg-blue-500"
+                    title="Bulk Operations"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 mr-1" />
+                    Bulk Actions
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedClass(classGroup);
+                      setClassNotes(classGroup.classNotes || "");
+                      setShowClassNotesModal(true);
+                    }}
+                    className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center dark:bg-green-600 dark:hover:bg-green-500"
+                    title="Class Notes"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-1" />
+                    Class Notes
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+                <span>{classGroup.employees.length} employees</span>
+                <span>•</span>
+                <span>
+                  Starts{" "}
+                  {new Date(classGroup.startDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+                {classGroup.classNotes && (
+                  <>
+                    <span>•</span>
+                    <span className="text-blue-600 flex items-center dark:text-blue-400">
+                      <ExclamationCircleIcon className="h-4 w-4 mr-1" />
+                      Has Notes
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Progress and Stats */}
+            <div className="text-right">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="text-sm text-gray-500 dark:text-gray-300">
+                  Class Progress
+                </div>
+                <div className="w-32 bg-gray-200 rounded-full h-2 dark:bg-gray-600">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-300 dark:bg-green-500"
+                    style={{ width: `${calculateClassProgress(classGroup)}%` }}
+                  ></div>
+                </div>
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  {calculateClassProgress(classGroup)}%
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {getCompletionStats(classGroup)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Class Notes Preview */}
+        {classGroup.classNotes && (
+          <div className="bg-yellow-50 border-b border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 px-6 py-3">
+            <div className="flex items-start">
+              <ExclamationCircleIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 mr-2 flex-shrink-0" />
+              <p className="text-sm text-yellow-800 dark:text-yellow-300 line-clamp-2">
+                {classGroup.classNotes}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Employees List */}
+        {isExpanded && (
+          <div className="p-6">
+            <div className="grid gap-6">
+              {classGroup.employees.map((employee) => (
+                <div
+                  key={employee.id}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+                >
+                  {renderEmployeeHeader(employee)}
+
+                  {employee.isExpanded && (
+                    <div className="border-t border-gray-200 dark:border-gray-600 px-6 py-4 space-y-6">
+                      {/* Onboarding Tasks Section */}
+                      <div>
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-medium text-gray-900 dark:text-white">
+                            Onboarding Tasks
+                          </h3>
+                          <button
+                            onClick={() => addCustomTask(employee.id)}
+                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm dark:bg-green-600 dark:hover:bg-green-500"
+                          >
+                            <PlusIcon className="h-4 w-4 mr-1" />
+                            Add Task
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {employee.onboardingTasks.map((task) =>
+                            renderTaskItem(employee, task)
+                          )}
+                        </div>
+                      </div>
+
+                      {/* IT Staff Assignment Section */}
+                      {isAdminOrIT && (
+                        <div className="border-t pt-4 dark:border-gray-600">
+                          <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+                            IT Staff Assignment
+                          </h3>
+                          <div className="flex items-end space-x-4">
+                            <div className="flex-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Assign to IT Staff
+                              </label>
+                              <select
+                                value={
+                                  employee.itStaffAssignment?.assignedToId || ""
+                                }
+                                onChange={(e) =>
+                                  updateITAssignment(employee.id, {
+                                    ...employee.itStaffAssignment!,
+                                    assignedToId: e.target.value
+                                      ? parseInt(e.target.value)
+                                      : undefined,
+                                  })
+                                }
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              >
+                                <option value="">Not Assigned</option>
+                                {itStaff.map((staff) => (
+                                  <option key={staff.id} value={staff.id}>
+                                    {staff.name} ({staff.role})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Status
+                              </label>
+                              <select
+                                value={
+                                  employee.itStaffAssignment?.status ||
+                                  "not assigned"
+                                }
+                                onChange={(e) =>
+                                  updateITAssignment(employee.id, {
+                                    ...employee.itStaffAssignment!,
+                                    status: e.target
+                                      .value as ITStaffAssignment["status"],
+                                  })
+                                }
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              >
+                                <option value="not assigned">
+                                  Not Assigned
+                                </option>
+                                <option value="in progress">In Progress</option>
+                                <option value="on hold">On Hold</option>
+                                <option value="completed">Completed</option>
+                              </select>
+                            </div>
+                            <div>
+                              <button
+                                onClick={() =>
+                                  updateITAssignment(
+                                    employee.id,
+                                    employee.itStaffAssignment!
+                                  )
+                                }
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px] dark:bg-blue-600 dark:hover:bg-blue-500"
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border-t pt-4 flex justify-between items-center dark:border-gray-600">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {getDaysSinceAdded(employee.timestamp) >= 25 && (
+                            <span className="text-amber-600 font-medium dark:text-amber-400">
+                              Will be archived in{" "}
+                              {30 - getDaysSinceAdded(employee.timestamp)} days
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => generatePrintReport(employee)}
+                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm dark:bg-green-600 dark:hover:bg-green-500"
+                          >
+                            <PrinterIcon className="h-4 w-4 mr-1" />
+                            Print Report
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add Employee */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+              <Link
+                href="/management-portal/onboarding/new"
+                className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Add Employee to this Class
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Bulk Operations Modal with Dark Theme
+  const BulkOperationsModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 dark:bg-gray-900 dark:bg-opacity-75">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md dark:bg-gray-800 dark:text-white">
+        <h3 className="text-lg font-semibold mb-4 dark:text-white">
+          Bulk Operations
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+              Task Type
+            </label>
+            <select
+              value={bulkOperation.taskType}
+              onChange={(e) =>
+                setBulkOperation((prev) => ({
+                  ...prev,
+                  taskType: e.target.value,
+                }))
+              }
+              className="w-full border border-gray-300 rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="all">All Tasks</option>
+              <option value="hr">HR Tasks</option>
+              <option value="it">IT Tasks</option>
+              <option value="training">Training Tasks</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+              Action
+            </label>
+            <select
+              value={bulkOperation.action}
+              onChange={(e) =>
+                setBulkOperation((prev) => ({
+                  ...prev,
+                  action: e.target.value as "complete" | "incomplete",
+                }))
+              }
+              className="w-full border border-gray-300 rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="complete">Mark Complete</option>
+              <option value="incomplete">Mark Incomplete</option>
+            </select>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded p-3 dark:bg-blue-900/20 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              This will affect {selectedClass?.employees.length} employees in{" "}
+              {selectedClass?.className}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => setShowBulkOperationsModal(false)}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => performBulkOperation(bulkOperation)}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded dark:bg-blue-600 dark:hover:bg-blue-500"
+          >
+            Apply to All
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Class Notes Modal with Dark Theme
+  const ClassNotesModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 dark:bg-gray-900 dark:bg-opacity-75">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl dark:bg-gray-800 dark:text-white">
+        <h3 className="text-lg font-semibold mb-4 dark:text-white">
+          Class Notes - {selectedClass?.className}
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+              General Notes
+            </label>
+            <textarea
+              value={classNotes}
+              onChange={(e) => setClassNotes(e.target.value)}
+              placeholder="General notes for the entire class..."
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
+            <button
+              onClick={() =>
+                updateClassNotes(selectedClass!.id, classNotes, "classNotes")
+              }
+              className="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm dark:bg-blue-600 dark:hover:bg-blue-500"
+            >
+              Save Notes
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+              Trainer Notes
+            </label>
+            <textarea
+              placeholder="Training-specific notes..."
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              value={selectedClass?.trainerNotes || ""}
+              onChange={(e) =>
+                updateClassNotes(
+                  selectedClass!.id,
+                  e.target.value,
+                  "trainerNotes"
+                )
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
+              IT Notes
+            </label>
+            <textarea
+              placeholder="IT equipment and setup notes..."
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              value={selectedClass?.itNotes || ""}
+              onChange={(e) =>
+                updateClassNotes(selectedClass!.id, e.target.value, "itNotes")
+              }
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowClassNotesModal(false)}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Archive employee function
   const archiveEmployee = async (employeeId: number) => {
     if (!confirm("Are you sure you want to archive this employee?")) {
       return;
@@ -1053,17 +1117,17 @@ export default function OnboardingPage() {
     switch (status) {
       case "not begun":
       case "not assigned":
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
       case "in progress":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300";
       case "on hold":
-        return "bg-orange-100 text-orange-800";
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300";
       case "completed":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
       case "not applicable":
-        return "bg-purple-100 text-purple-800";
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
     }
   };
 
@@ -1170,7 +1234,7 @@ export default function OnboardingPage() {
           <div className="flex items-start space-x-4">
             <button
               onClick={() => toggleEmployeeExpanded(employee.id)}
-              className="mt-1 text-gray-400 hover:text-gray-600"
+              className="mt-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
             >
               {employee.isExpanded ? (
                 <ChevronDownIcon className="h-5 w-5" />
@@ -1182,7 +1246,7 @@ export default function OnboardingPage() {
               <div className="flex items-center space-x-2">
                 <Link
                   href={`/management-portal/onboarding/${employee.id}`}
-                  className="text-xl font-semibold text-blue-600 hover:text-blue-800"
+                  className="text-xl font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   {employee.firstName} {employee.lastName}
                 </Link>
@@ -1192,35 +1256,37 @@ export default function OnboardingPage() {
                       `/management-portal/onboarding/${employee.id}/edit`
                     )
                   }
-                  className="text-gray-400 hover:text-blue-600"
+                  className="text-gray-400 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
                   title="Edit Employee"
                 >
                   <PencilIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => deleteEmployee(employee.id)}
-                  className="text-gray-400 hover:text-red-600"
+                  className="text-gray-400 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
                   title="Delete Employee"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => archiveEmployee(employee.id)}
-                  className="text-gray-400 hover:text-orange-600"
+                  className="text-gray-400 hover:text-orange-600 dark:text-gray-300 dark:hover:text-orange-400"
                   title="Archive Employee"
                 >
                   <ArchiveBoxIcon className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => generatePrintReport(employee)}
-                  className="text-gray-400 hover:text-green-600"
+                  className="text-gray-400 hover:text-green-600 dark:text-gray-300 dark:hover:text-green-400"
                   title="Print Report"
                 >
                   <PrinterIcon className="h-4 w-4" />
                 </button>
               </div>
-              <p className="text-gray-600">{employee.jobTitle}</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-gray-600 dark:text-gray-300">
+                {employee.jobTitle}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Start Date: {new Date(employee.startDate).toLocaleDateString()}{" "}
                 | Added: {daysSinceAdded} day{daysSinceAdded !== 1 ? "s" : ""}{" "}
                 ago
@@ -1228,14 +1294,18 @@ export default function OnboardingPage() {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-sm text-gray-500 mb-1">Overall Progress</div>
-            <div className="w-32 bg-gray-200 rounded-full h-2.5">
+            <div className="text-sm text-gray-500 mb-1 dark:text-gray-400">
+              Overall Progress
+            </div>
+            <div className="w-32 bg-gray-200 rounded-full h-2.5 dark:bg-gray-600">
               <div
-                className="bg-blue-600 h-2.5 rounded-full"
+                className="bg-blue-600 h-2.5 rounded-full dark:bg-blue-500"
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
-            <div className="text-sm text-gray-700 mt-1">{progress}%</div>
+            <div className="text-sm text-gray-700 mt-1 dark:text-gray-300">
+              {progress}%
+            </div>
           </div>
         </div>
       </div>
@@ -1246,7 +1316,10 @@ export default function OnboardingPage() {
     employee: EmployeeWithDetails,
     task: OnboardingTask
   ) => (
-    <div key={task.id} className="border border-gray-200 rounded-lg p-4">
+    <div
+      key={task.id}
+      className="border border-gray-200 rounded-lg p-4 dark:border-gray-600 dark:bg-gray-700"
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           {task.isCustom ? (
@@ -1257,10 +1330,10 @@ export default function OnboardingPage() {
                 updateTaskName(employee.id, task.id, e.target.value)
               }
               placeholder="Enter task name..."
-              className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm"
+              className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:border-blue-400"
             />
           ) : (
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
               {task.name}
             </span>
           )}
@@ -1275,7 +1348,7 @@ export default function OnboardingPage() {
                 e.target.value as OnboardingTask["status"]
               )
             }
-            className="border border-gray-300 rounded px-2 py-1 text-xs"
+            className="border border-gray-300 rounded px-2 py-1 text-xs dark:bg-gray-600 dark:border-gray-500 dark:text-white"
           >
             <option value="not begun">Not Begun</option>
             <option value="in progress">In Progress</option>
@@ -1292,7 +1365,7 @@ export default function OnboardingPage() {
           {task.isCustom && (
             <button
               onClick={() => deleteTask(employee.id, task.id)}
-              className="text-red-400 hover:text-red-600"
+              className="text-red-400 hover:text-red-600 dark:text-red-300 dark:hover:text-red-400"
             >
               <XMarkIcon className="h-4 w-4" />
             </button>
@@ -1301,7 +1374,7 @@ export default function OnboardingPage() {
       </div>
 
       {task.status === "completed" && task.completedBy && (
-        <div className="text-xs text-gray-500 mb-2">
+        <div className="text-xs text-gray-500 mb-2 dark:text-gray-400">
           Completed by {task.completedBy} on{" "}
           {task.completedAt
             ? new Date(task.completedAt).toLocaleDateString()
@@ -1313,11 +1386,11 @@ export default function OnboardingPage() {
         {task.notes.map((note, noteIndex) => (
           <div
             key={noteIndex}
-            className="text-xs text-gray-600 bg-gray-50 p-2 rounded"
+            className="text-xs text-gray-600 bg-gray-50 p-2 rounded dark:bg-gray-600 dark:text-gray-300"
           >
             <div className="font-medium">{note.author || "Unknown"}:</div>
             <div>{note.content}</div>
-            <div className="text-gray-400 text-xs mt-1">
+            <div className="text-gray-400 text-xs mt-1 dark:text-gray-500">
               {new Date(note.timestamp).toLocaleDateString()}
             </div>
           </div>
@@ -1326,7 +1399,7 @@ export default function OnboardingPage() {
           <input
             type="text"
             placeholder="Add a note..."
-            className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+            className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs dark:bg-gray-600 dark:border-gray-500 dark:text-white dark:placeholder-gray-400"
             onKeyPress={(e) => {
               if (e.key === "Enter") {
                 const input = e.target as HTMLInputElement;
@@ -1345,7 +1418,7 @@ export default function OnboardingPage() {
                 input.value = "";
               }
             }}
-            className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+            className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             Add Note
           </button>
@@ -1357,7 +1430,7 @@ export default function OnboardingPage() {
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg dark:text-white">Loading...</div>
       </div>
     );
   }
@@ -1366,23 +1439,23 @@ export default function OnboardingPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
             Employee Onboarding
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 mt-1 dark:text-gray-300">
             Manage and track new employee onboarding processes
           </p>
         </div>
         <div className="flex items-center space-x-4">
           <Link
             href="/management-portal/onboarding/archived"
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium"
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium dark:bg-gray-600 dark:hover:bg-gray-500"
           >
             View Archived
           </Link>
           <Link
             href="/management-portal/onboarding/new"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             Add New Employee
           </Link>
@@ -1390,17 +1463,17 @@ export default function OnboardingPage() {
       </div>
 
       {onboardingClasses.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center dark:bg-gray-800">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 dark:text-white">
             No Active Onboarding Processes
           </h2>
-          <p className="text-gray-500 mb-4">
+          <p className="text-gray-500 mb-4 dark:text-gray-300">
             Get started by adding a new employee to begin the onboarding
             process.
           </p>
           <Link
             href="/management-portal/onboarding/new"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium dark:bg-blue-600 dark:hover:bg-blue-500"
           >
             Add New Employee
           </Link>

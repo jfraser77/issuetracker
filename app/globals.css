@@ -17,12 +17,20 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 body {
   background-color: #f5f7fa;
   color: #333;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Dark mode styles */
+.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 /* Custom utility classes */
@@ -32,15 +40,15 @@ body {
   }
 
   .status-pending {
-    @apply bg-yellow-100 text-yellow-800;
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
   }
 
   .status-completed {
-    @apply bg-green-100 text-green-800;
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
   }
 
   .status-warning {
-    @apply bg-amber-100 text-amber-800;
+    @apply bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200;
   }
 
   .btn {
@@ -48,7 +56,7 @@ body {
   }
 
   .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700;
+    @apply bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600;
   }
 
   .progress-bar {
@@ -59,10 +67,141 @@ body {
     overflow: hidden;
   }
 
+  .dark .progress-bar {
+    background-color: #374151;
+  }
+
   .progress-fill {
     background-color: #3b82f6;
     height: 100%;
     border-radius: 9999px;
     transition: all 0.3s;
+  }
+
+  .dark .progress-fill {
+    background-color: #60a5fa;
+  }
+}
+
+/* Custom scrollbar for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Add to your globals.css */
+
+/* Form elements */
+.dark input,
+.dark textarea,
+.dark select {
+  @apply bg-gray-800 border-gray-700 text-white placeholder-gray-400;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  @apply border-blue-500 ring-blue-500;
+}
+
+/* Cards and containers */
+.dark .card {
+  @apply bg-gray-800 border-gray-700 text-white;
+}
+
+/* Tables */
+.dark table {
+  @apply text-gray-200;
+}
+
+.dark thead {
+  @apply bg-gray-800 text-gray-200;
+}
+
+.dark tbody tr {
+  @apply border-gray-700;
+}
+
+.dark tbody tr:hover {
+  @apply bg-gray-700;
+}
+
+/* Links */
+.dark a {
+  @apply text-blue-400 hover:text-blue-300;
+}
+
+/* Headings */
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  @apply text-white;
+}
+
+/* Text colors */
+.dark .text-muted {
+  @apply text-gray-400;
+}
+
+/* Modal backdrops */
+.dark .modal-backdrop {
+  @apply bg-gray-900 bg-opacity-75;
+}
+
+/* Dropdown menus */
+.dark .dropdown {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark .dropdown-item {
+  @apply text-gray-200 hover:bg-gray-700;
+}
+
+/* Navigation */
+.dark .nav-item {
+  @apply text-gray-300 hover:text-white hover:bg-gray-700;
+}
+
+/* Badges and labels */
+.dark .badge {
+  @apply bg-gray-700 text-gray-200;
+}
+
+/* Code and pre elements */
+.dark code,
+.dark pre {
+  @apply bg-gray-800 text-gray-200;
+}
+
+/* Loading states */
+.dark .loading {
+  @apply text-gray-400;
+}
+
+/* Prevent flash of unstyled content */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
   }
 }

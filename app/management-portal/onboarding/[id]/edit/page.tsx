@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TextField, Button, Flex, Box, Heading, Text } from "@radix-ui/themes";
+import { TextField, Button, Box, Heading, Text } from "@radix-ui/themes";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 
 interface Employee {
@@ -27,7 +27,7 @@ export default function EditEmployeePage() {
     jobTitle: "",
     startDate: "",
     currentManager: "",
-    directorRegionalDirector: ""
+    directorRegionalDirector: "",
   });
 
   useEffect(() => {
@@ -44,9 +44,9 @@ export default function EditEmployeePage() {
           firstName: employeeData.firstName,
           lastName: employeeData.lastName,
           jobTitle: employeeData.jobTitle,
-          startDate: employeeData.startDate.split('T')[0],
+          startDate: employeeData.startDate.split("T")[0],
           currentManager: employeeData.currentManager,
-          directorRegionalDirector: employeeData.directorRegionalDirector
+          directorRegionalDirector: employeeData.directorRegionalDirector,
         });
       }
     } catch (error) {
@@ -80,21 +80,24 @@ export default function EditEmployeePage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg dark:text-white">Loading...</div>
       </div>
     );
   }
 
   if (!employee) {
     return (
-      <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 text-center">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
           Employee Not Found
         </h2>
-        <p className="text-gray-500 mb-4">
+        <p className="text-gray-500 dark:text-gray-300 mb-4">
           The employee you're looking for doesn't exist.
         </p>
-        <Button onClick={() => router.push("/management-portal/onboarding")}>
+        <Button
+          onClick={() => router.push("/management-portal/onboarding")}
+          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+        >
           Back to Onboarding
         </Button>
       </div>
@@ -108,25 +111,31 @@ export default function EditEmployeePage() {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => router.back()}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
           >
             <ArrowLeftIcon className="h-5 w-5 mr-2" />
             Back
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
               Edit Employee
             </h1>
-            <p className="text-gray-600">
-              Update employee information for {employee.firstName} {employee.lastName}
+            <p className="text-gray-600 dark:text-gray-300">
+              Update employee information for {employee.firstName}{" "}
+              {employee.lastName}
             </p>
           </div>
         </div>
       </div>
 
       {/* Form Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <Heading size="5" weight="bold" as="h2" className="mb-6 text-gray-900">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <Heading
+          size="5"
+          weight="bold"
+          as="h2"
+          className="mb-6 text-gray-900 dark:text-white"
+        >
           Employee Details
         </Heading>
 
@@ -134,110 +143,167 @@ export default function EditEmployeePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* First Name */}
             <div>
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 First Name *
               </Text>
-              <TextField.Root
-                placeholder="Enter first name"
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                required
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  placeholder="Enter first name"
+                  value={formData.firstName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, firstName: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </Box>
             </div>
 
             {/* Last Name */}
             <div>
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 Last Name *
               </Text>
-              <TextField.Root
-                placeholder="Enter last name"
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                required
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  placeholder="Enter last name"
+                  value={formData.lastName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lastName: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </Box>
             </div>
 
             {/* Job Title */}
             <div className="md:col-span-2">
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 Job Title *
               </Text>
-              <TextField.Root
-                placeholder="Enter job title"
-                value={formData.jobTitle}
-                onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                required
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  placeholder="Enter job title"
+                  value={formData.jobTitle}
+                  onChange={(e) =>
+                    setFormData({ ...formData, jobTitle: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </Box>
             </div>
 
             {/* Start Date */}
             <div className="md:col-span-2">
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 Start Date *
               </Text>
-              <TextField.Root
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                required
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startDate: e.target.value })
+                  }
+                  required
+                  className="w-full"
+                />
+              </Box>
             </div>
 
             {/* Current Manager */}
             <div className="md:col-span-2">
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 Current Manager
               </Text>
-              <TextField.Root
-                placeholder="Enter manager's name"
-                value={formData.currentManager}
-                onChange={(e) => setFormData({ ...formData, currentManager: e.target.value })}
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  placeholder="Enter manager's name"
+                  value={formData.currentManager}
+                  onChange={(e) =>
+                    setFormData({ ...formData, currentManager: e.target.value })
+                  }
+                  className="w-full"
+                />
+              </Box>
             </div>
 
             {/* Director/Regional Director */}
             <div className="md:col-span-2">
-              <Text as="div" size="2" weight="medium" className="mb-2 text-gray-700">
+              <Text
+                as="div"
+                size="2"
+                weight="medium"
+                className="mb-2 text-gray-700 dark:text-gray-300"
+              >
                 Director/Regional Director
               </Text>
-              <TextField.Root
-                placeholder="Enter director's name"
-                value={formData.directorRegionalDirector}
-                onChange={(e) => setFormData({ ...formData, directorRegionalDirector: e.target.value })}
-                className="w-full"
-              />
+              <Box className="[&_.rt-TextFieldRoot]:border [&_.rt-TextFieldRoot]:border-gray-300 [&_.rt-TextFieldRoot]:dark:border-gray-600 [&_.rt-TextFieldRoot]:rounded-md [&_.rt-TextFieldRoot]:overflow-hidden">
+                <TextField.Root
+                  placeholder="Enter director's name"
+                  value={formData.directorRegionalDirector}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      directorRegionalDirector: e.target.value,
+                    })
+                  }
+                  className="w-full"
+                />
+              </Box>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-            <Button 
-              type="button" 
-              size="3" 
-              variant="soft" 
+          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-600">
+            <Button
+              type="button"
+              size="3"
+              variant="soft"
               onClick={() => router.back()}
-              className="px-6"
+              className="px-6 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               Cancel
             </Button>
-            
-            <Button 
-              type="submit" 
-              size="3" 
+
+            <Button
+              type="submit"
+              size="3"
               disabled={saving}
-              className="px-6 bg-blue-600 hover:bg-blue-700"
+              className="px-6 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white"
             >
               {saving ? (
-                <>
+                <span className="flex items-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Saving...
-                </>
+                </span>
               ) : (
                 "Save Changes"
               )}
@@ -247,13 +313,22 @@ export default function EditEmployeePage() {
       </div>
 
       {/* Employee Information Card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-6">
         <div className="flex items-start">
           <div className="flex-1">
-            <Text as="div" size="2" weight="medium" className="text-blue-800 mb-1">
+            <Text
+              as="div"
+              size="2"
+              weight="medium"
+              className="text-blue-800 dark:text-blue-300 mb-1"
+            >
               Employee ID: {employee.id}
             </Text>
-            <Text as="div" size="1" className="text-blue-700">
+            <Text
+              as="div"
+              size="1"
+              className="text-blue-700 dark:text-blue-400"
+            >
               Last updated: {new Date().toLocaleDateString()}
             </Text>
           </div>

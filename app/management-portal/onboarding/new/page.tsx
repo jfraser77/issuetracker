@@ -95,24 +95,26 @@ const NewEmployeePage = () => {
     <div>
       {/* Header Section */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Add New Employee</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
+          Add New Employee
+        </h1>
       </div>
 
       {/* Form Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl">
-        <div className="flex items-center mb-6 pb-4 border-b border-gray-100">
-          <UserPlusIcon className="h-8 w-8 text-blue-500 mr-3" />
-          <h2 className="text-xl font-semibold text-gray-900">
+      <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl dark:bg-gray-800 dark:border dark:border-gray-700">
+        <div className="flex items-center mb-6 pb-4 border-b border-gray-100 dark:border-gray-600">
+          <UserPlusIcon className="h-8 w-8 text-blue-500 mr-3 dark:text-blue-400" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Employee Information
           </h2>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <svg
-                  className="h-5 w-5 text-red-400"
+                  className="h-5 w-5 text-red-400 dark:text-red-300"
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
@@ -124,8 +126,12 @@ const NewEmployeePage = () => {
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <div className="mt-1 text-sm text-red-700">{error}</div>
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
+                  Error
+                </h3>
+                <div className="mt-1 text-sm text-red-700 dark:text-red-200">
+                  {error}
+                </div>
               </div>
             </div>
           </div>
@@ -135,7 +141,7 @@ const NewEmployeePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* First Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 First Name *
               </label>
               <input
@@ -144,14 +150,14 @@ const NewEmployeePage = () => {
                 value={formData.firstName}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-400 dark:focus:border-blue-400"
                 placeholder="Enter first name"
               />
             </div>
 
             {/* Last Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 Last Name *
               </label>
               <input
@@ -160,14 +166,14 @@ const NewEmployeePage = () => {
                 value={formData.lastName}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-400 dark:focus:border-blue-400"
                 placeholder="Enter last name"
               />
             </div>
 
             {/* Job Title */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 Job Title *
               </label>
               <input
@@ -176,14 +182,14 @@ const NewEmployeePage = () => {
                 value={formData.jobTitle}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-400 dark:focus:border-blue-400"
                 placeholder="Enter job title"
               />
             </div>
 
             {/* Start Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 Start Date *
               </label>
               <input
@@ -192,13 +198,13 @@ const NewEmployeePage = () => {
                 value={formData.startDate}
                 onChange={handleChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-400 dark:focus:border-blue-400"
               />
             </div>
 
             {/* Current Manager */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 Current Manager
               </label>
               <input
@@ -206,14 +212,14 @@ const NewEmployeePage = () => {
                 name="currentManager"
                 value={formData.currentManager}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-400 dark:focus:border-blue-400"
                 placeholder="Enter manager's name"
               />
             </div>
 
             {/* Director/Regional Director */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">
                 Director/Regional Director
               </label>
               <input
@@ -221,26 +227,26 @@ const NewEmployeePage = () => {
                 name="directorRegionalDirector"
                 value={formData.directorRegionalDirector}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 dark:focus:ring-blue-400 dark:focus:border-blue-400"
                 placeholder="Enter director's name"
               />
             </div>
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
+          <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-600">
             <button
               type="button"
               onClick={resetForm}
               disabled={isSubmitting}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600 dark:focus:ring-offset-gray-800"
             >
               Reset
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-500 dark:focus:ring-offset-gray-800"
             >
               {isSubmitting ? (
                 <span className="flex items-center">

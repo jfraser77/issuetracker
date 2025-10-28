@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import SearchEmployees from "./SearchEmployees";
 import { BellIcon, CogIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import ThemeToggle from "./ThemeToggle";
 
 interface User {
   id: number;
@@ -27,7 +29,9 @@ interface HeaderProps {
 }
 
 export default function Header({ user, onMenuClick }: HeaderProps) {
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null
+  );
 
   const handleEmployeeSelect = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -35,7 +39,7 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Left side - Menu button for mobile and Search */}
@@ -43,13 +47,25 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
             {/* Mobile menu button */}
             <button
               onClick={onMenuClick}
-              className="lg:hidden p-2 mr-4 text-gray-400 hover:text-gray-500"
+              className="lg:hidden p-2 mr-4 text-gray-400 hover:text-gray-500 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200"
+              aria-label="Open menu"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
-            
+
+            {/* Search - Uncomment when ready to use */}
             {/* <SearchEmployees
               onEmployeeSelect={handleEmployeeSelect}
               placeholder="Search employees, departments, job titles..."
@@ -60,25 +76,35 @@ export default function Header({ user, onMenuClick }: HeaderProps) {
 
           {/* Right side - User actions */}
           <div className="flex items-center space-x-4">
-            {/* Notifications */}
-            {/* <button className="p-2 text-gray-400 hover:text-gray-500 relative">
+            {/* Notifications - Uncomment when ready to use */}
+            {/* <button 
+              className="p-2 text-gray-400 hover:text-gray-500 dark:text-gray-400 dark:hover:text-gray-300 relative transition-colors duration-200"
+              aria-label="Notifications"
+            >
               <BellIcon className="h-6 w-6" />
               <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
             </button> */}
 
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* Settings */}
-            {/* <button className="p-2 text-gray-400 hover:text-gray-500">
-              <CogIcon className="h-6 w-6" />
-            </button> */}
+            <Link
+              href="/management-portal/settings"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200"
+              aria-label="Settings"
+            >
+              <CogIcon className="h-5 w-5" />
+            </Link>
 
             {/* User profile */}
             <div className="flex items-center space-x-3">
-              <UserCircleIcon className="h-8 w-8 text-gray-400" />
+              <UserCircleIcon className="h-8 w-8 text-gray-400 dark:text-gray-400" />
               <div className="hidden md:block">
-                <div className="text-sm font-medium text-gray-700">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   {user ? user.name : "Loading..."}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                   {user ? user.role : "Loading..."}
                 </div>
               </div>
