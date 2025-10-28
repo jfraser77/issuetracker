@@ -78,6 +78,7 @@ export default function Dashboard() {
   const [newEmployeesCount, setNewEmployeesCount] = useState(0);
   const [isClient, setIsClient] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setIsClient(true);
@@ -94,6 +95,15 @@ export default function Dashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+  if (isClient) {
+    const saved = localStorage.getItem('dismissedAlerts');
+    if (saved) {
+      setDismissedAlerts(new Set(JSON.parse(saved)));
+    }
+  }
+}, [isClient]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -156,27 +166,26 @@ export default function Dashboard() {
   };
 
   const markAlertAsViewed = async (alertId: string) => {
-    try {
-      // Optimistically update UI first
-      setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+  try {
+    // Update local state immediately
+    setDismissedAlerts(prev => {
+      const newSet = new Set(prev);
+      newSet.add(alertId);
+      localStorage.setItem('dismissedAlerts', JSON.stringify([...newSet]));
+      return newSet;
+    });
 
-      const response = await fetch(`/api/dashboard/alerts/${alertId}/view`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        // If the API call fails, revert the optimistic update
-        console.error("Failed to mark alert as viewed");
-        // Re-fetch alerts to get the correct state
-        fetchAlerts();
-      }
-    } catch (error) {
-      console.error("Error marking alert as viewed:", error);
-      // Re-fetch alerts on error
-      fetchAlerts();
-    }
-  };
-
+    // Update in database (fire and forget)
+    fetch(`/api/dashboard/alerts/${alertId}/view`, {
+      method: "POST",
+    }).catch(error => {
+      console.error("Background alert update failed:", error);
+    });
+    
+  } catch (error) {
+    console.error("Error marking alert as viewed:", error);
+  }
+};
   const isAdmin = currentUser?.role === "Admin";
   const isIT = currentUser?.role === "I.T.";
   const isHR = currentUser?.role === "HR";
@@ -188,8 +197,11 @@ export default function Dashboard() {
 
   // Filter alerts for Trainer, HR, and Admin roles
   const visibleAlerts = alerts.filter(
-    (alert) => (isTrainer || isHR || isAdmin) && !alert.viewed
-  );
+  (alert) => 
+    (isTrainer || isHR || isAdmin) && 
+    !alert.viewed && 
+    !dismissedAlerts.has(alert.id)
+);
 
   if (!isClient) {
     return (
