@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDownIcon,
@@ -465,26 +465,25 @@ export default function OnboardingPage() {
     return `${employeesWithProgress}/${totalEmployees} employees started`;
   };
 
-  // FIXED: Update task name function that preserves expanded state
-  const updateTaskName = (
-    employeeId: number,
-    taskId: string,
-    newName: string
-  ) => {
-    setEmployees((prev) =>
-      prev.map((emp) =>
-        emp.id === employeeId
-          ? {
-              ...emp,
-              onboardingTasks: emp.onboardingTasks.map((task) =>
-                task.id === taskId ? { ...task, name: newName } : task
-              ),
-              isExpanded: emp.isExpanded, // Preserve expanded state
-            }
-          : emp
-      )
-    );
-  };
+  // FIXED: Debounced task name update to prevent jumping
+  const updateTaskName = useCallback(
+    (employeeId: number, taskId: string, newName: string) => {
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === employeeId
+            ? {
+                ...emp,
+                onboardingTasks: emp.onboardingTasks.map((task) =>
+                  task.id === taskId ? { ...task, name: newName } : task
+                ),
+                isExpanded: emp.isExpanded, // Preserve expanded state
+              }
+            : emp
+        )
+      );
+    },
+    []
+  );
 
   // FIXED: Add custom task function that preserves expanded state
   const addCustomTask = (employeeId: number) => {
@@ -790,7 +789,7 @@ export default function OnboardingPage() {
                                       : undefined,
                                   })
                                 }
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                               >
                                 <option value="">Not Assigned</option>
                                 {itStaff.map((staff) => (
@@ -816,7 +815,7 @@ export default function OnboardingPage() {
                                       .value as ITStaffAssignment["status"],
                                   })
                                 }
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                               >
                                 <option value="not assigned">
                                   Not Assigned
@@ -904,7 +903,7 @@ export default function OnboardingPage() {
                   taskType: e.target.value,
                 }))
               }
-              className="w-full border border-gray-300 rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full border border-gray-300 rounded px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="all">All Tasks</option>
               <option value="hr">HR Tasks</option>
@@ -925,7 +924,7 @@ export default function OnboardingPage() {
                   action: e.target.value as "complete" | "incomplete",
                 }))
               }
-              className="w-full border border-gray-300 rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full border border-gray-300 rounded px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="complete">Mark Complete</option>
               <option value="incomplete">Mark Incomplete</option>
@@ -975,7 +974,7 @@ export default function OnboardingPage() {
               value={classNotes}
               onChange={(e) => setClassNotes(e.target.value)}
               placeholder="General notes for the entire class..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
             />
             <button
               onClick={() =>
@@ -993,7 +992,7 @@ export default function OnboardingPage() {
             </label>
             <textarea
               placeholder="Training-specific notes..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
               value={selectedClass?.trainerNotes || ""}
               onChange={(e) =>
                 updateClassNotes(
@@ -1011,7 +1010,7 @@ export default function OnboardingPage() {
             </label>
             <textarea
               placeholder="IT equipment and setup notes..."
-              className="w-full border border-gray-300 rounded px-3 py-2 h-32 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full border border-gray-300 rounded px-3 py-2 h-32 bg-white text-gray-900 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
               value={selectedClass?.itNotes || ""}
               onChange={(e) =>
                 updateClassNotes(selectedClass!.id, e.target.value, "itNotes")
@@ -1330,7 +1329,7 @@ export default function OnboardingPage() {
                 updateTaskName(employee.id, task.id, e.target.value)
               }
               placeholder="Enter task name..."
-              className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:border-blue-400"
+              className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm bg-transparent text-gray-900 dark:text-white dark:border-gray-600 dark:focus:border-blue-400"
             />
           ) : (
             <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1348,7 +1347,7 @@ export default function OnboardingPage() {
                 e.target.value as OnboardingTask["status"]
               )
             }
-            className="border border-gray-300 rounded px-2 py-1 text-xs dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+            className="border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-900 dark:bg-gray-600 dark:border-gray-500 dark:text-white"
           >
             <option value="not begun">Not Begun</option>
             <option value="in progress">In Progress</option>
@@ -1399,7 +1398,7 @@ export default function OnboardingPage() {
           <input
             type="text"
             placeholder="Add a note..."
-            className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs dark:bg-gray-600 dark:border-gray-500 dark:text-white dark:placeholder-gray-400"
+            className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs bg-white text-gray-900 dark:bg-gray-600 dark:border-gray-500 dark:text-white dark:placeholder-gray-400"
             onKeyPress={(e) => {
               if (e.key === "Enter") {
                 const input = e.target as HTMLInputElement;
