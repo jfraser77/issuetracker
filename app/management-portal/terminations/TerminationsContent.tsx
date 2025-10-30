@@ -72,12 +72,9 @@ export default function TerminationsContent() {
   const [showTerminationForm, setShowTerminationForm] = useState(false);
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
-    employeeEmail: "",
-    jobTitle: "",
-    department: "",
+    employeeEmail: "",    
     terminationDate: new Date().toISOString().split("T")[0],
-    terminationReason: "",
-    equipmentDisposition: "return_to_pool" as "return_to_pool" | "retire",
+    
   });
 
   const isAuthorized =
@@ -525,42 +522,49 @@ export default function TerminationsContent() {
   };
 
   const createTermination = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAuthorized) {
-      alert("You are not authorized to initiate terminations.");
-      return;
-    }
+  e.preventDefault();
+  if (!isAuthorized) {
+    alert("You are not authorized to initiate terminations.");
+    return;
+  }
 
-    try {
-      const response = await fetch("/api/terminations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...terminationForm,
-          initiatedBy: currentUser?.name,
-          checklist: defaultChecklist,
-        }),
+  try {
+    const response = await fetch("/api/terminations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employeeName: terminationForm.employeeName,
+        employeeEmail: terminationForm.employeeEmail,
+        terminationDate: terminationForm.terminationDate,
+        initiatedBy: currentUser?.name,
+        checklist: defaultChecklist,
+        // Set default values for removed fields
+        jobTitle: "To be determined",
+        department: "To be determined", 
+        terminationReason: "Termination process initiated",
+        
+      }),
+    });
+
+    if (response.ok) {
+      setShowTerminationForm(false);
+      setTerminationForm({
+        employeeName: "",
+        employeeEmail: "",
+        terminationDate: new Date().toISOString().split("T")[0],
       });
-
-      if (response.ok) {
-        setShowTerminationForm(false);
-        setTerminationForm({
-          employeeName: "",
-          employeeEmail: "",
-          jobTitle: "",
-          department: "",
-          terminationDate: new Date().toISOString().split("T")[0],
-          terminationReason: "",
-          equipmentDisposition: "return_to_pool",
-        });
-        fetchTerminations();
-        alert("Termination process initiated successfully.");
-      }
-    } catch (error) {
-      console.error("Error creating termination:", error);
-      alert("Failed to initiate termination process.");
+      fetchTerminations();
+      alert("Termination process initiated successfully.");
+    } else {
+      const errorData = await response.json();
+      console.error("API Error:", errorData);
+      alert(`Failed to initiate termination: ${errorData.error || errorData.details || 'Unknown error'}`);
     }
-  };
+  } catch (error) {
+    console.error("Error creating termination:", error);
+    alert("Failed to initiate termination process. Please check console for details.");
+  }
+};
 
   const updateTermination = async (
     terminationId: number,
@@ -941,43 +945,52 @@ export default function TerminationsContent() {
     }
   };
 
-  const getStatusColor = (status: string, isOverdue: boolean) => {
-    if (isOverdue) return "bg-red-100 text-red-800";
+ const getStatusColor = (status: string, isOverdue: boolean, equipmentDisposition?: string) => {
+  if (isOverdue) return "bg-red-100 text-red-800";
+  
+  if (status === "pending" && equipmentDisposition === "pending_assessment") {
+    return "bg-blue-100 text-blue-800";
+  }
 
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "equipment_returned":
-        return "bg-green-100 text-green-800";
-      case "archived":
-        return "bg-gray-100 text-gray-800";
-      case "overdue":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  switch (status) {
+    case "pending":
+      return "bg-yellow-100 text-yellow-800";
+    case "equipment_returned":
+      return "bg-green-100 text-green-800";
+    case "archived":
+      return "bg-gray-100 text-gray-800";
+    case "overdue":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
 
   const getStatusText = (
-    status: string,
-    daysRemaining: number,
-    isOverdue: boolean
-  ) => {
-    if (isOverdue) return "OVERDUE - Equipment Not Returned";
+  status: string,
+  daysRemaining: number,
+  isOverdue: boolean,
+  equipmentDisposition?: string
+) => {
+  if (isOverdue) return "OVERDUE - Equipment Not Returned";
+  
+  if (status === "pending" && equipmentDisposition === "pending_assessment") {
+    return "Awaiting Equipment Return";
+  }
 
-    switch (status) {
-      case "pending":
-        return `${daysRemaining} days remaining`;
-      case "equipment_returned":
-        return "Equipment Returned";
-      case "archived":
-        return "Archived";
-      case "overdue":
-        return "Overdue";
-      default:
-        return "Pending";
-    }
-  };
+  switch (status) {
+    case "pending":
+      return `${daysRemaining} days remaining`;
+    case "equipment_returned":
+      return "Equipment Returned";
+    case "archived":
+      return "Archived";
+    case "overdue":
+      return "Overdue";
+    default:
+      return "Pending";
+  }
+};
 
   const handleTrackingNumberChange = useCallback(
     (terminationId: number, value: string) => {
@@ -1565,20 +1578,22 @@ export default function TerminationsContent() {
                   </div>
                   <div className="text-right">
                     <div
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                        termination.status,
-                        termination.isOverdue
-                      )}`}
-                    >
-                      {termination.isOverdue && (
-                        <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
-                      )}
-                      {getStatusText(
-                        termination.status,
-                        termination.daysRemaining,
-                        termination.isOverdue
-                      )}
-                    </div>
+  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+    termination.status,
+    termination.isOverdue,
+    termination.equipmentDisposition
+  )}`}
+>
+  {termination.isOverdue && (
+    <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+  )}
+  {getStatusText(
+    termination.status,
+    termination.daysRemaining,
+    termination.isOverdue,
+    termination.equipmentDisposition
+  )}
+</div>
                     {termination.trackingNumber && (
                       <div className="text-sm text-gray-500 mt-1">
                         Tracking: {termination.trackingNumber}
@@ -1621,87 +1636,137 @@ export default function TerminationsContent() {
                       </div>
 
                       {/* Equipment Disposition */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Equipment Disposition
-                        </label>
-                        <select
-                          value={termination.equipmentDisposition}
-                          onChange={(e) =>
-                            handleEquipmentDispositionChange(
-                              termination.id,
-                              e.target.value as "return_to_pool" | "retire"
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="return_to_pool">
-                            Return to Available Pool
-                          </option>
-                          <option value="retire">Retire Equipment</option>
-                        </select>
-                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+    <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
+    Equipment Return Process
+  </h3>
 
-                      {/* Completed By - SPECIFIC TO EQUIPMENT RETURN */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Return Completed By (IT Staff)
-                        </label>
-                        <select
-                          value={termination.completedByUserId || ""}
-                          onChange={(e) =>
-                            handleCompletedByChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select IT Staff</option>
-                          {itUsers.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.name} ({user.role})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {/* Tracking Number */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Tracking Number *
+      </label>
+      <input
+        type="text"
+        value={termination.trackingNumber || ""}
+        onChange={(e) =>
+          handleTrackingNumberChange(
+            termination.id,
+            e.target.value
+          )
+        }
+        placeholder="Enter return tracking number"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+        required
+      />
+    </div>
 
-                    {/* Mark Equipment Returned Button */}
-                    {isAdminOrIT &&
-                      termination.trackingNumber &&
-                      termination.completedByUserId && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() =>
-                              markEquipmentReturned(
-                                termination.id,
-                                termination.trackingNumber!,
-                                termination.equipmentDisposition,
-                                termination.completedByUserId
-                              )
-                            }
-                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
-                          >
-                            <CheckCircleIcon className="h-4 w-4 mr-2" />
-                            Mark Equipment Returned
-                            {termination.equipmentDisposition ===
-                              "return_to_pool" && (
-                              <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
-                                +1 Laptop to{" "}
-                                {
-                                  itUsers.find(
-                                    (u) =>
-                                      u.id === termination.completedByUserId
-                                  )?.name
-                                }
-                                's Inventory
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                  </div>
+    {/* Equipment Disposition - NOW SET WHEN RETURNING */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Equipment Disposition *
+      </label>
+      <select
+        value={termination.equipmentDisposition || "pending_assessment"}
+        onChange={(e) =>
+          handleEquipmentDispositionChange(
+            termination.id,
+            e.target.value as "return_to_pool" | "retire"
+          )
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+        required
+      >
+        <option value="pending_assessment">Select disposition</option>
+        <option value="return_to_pool">Return to Available Pool</option>
+        <option value="retire">Retire Equipment</option>
+      </select>
+    </div>
+
+    {/* Completed By */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Completed By (IT Staff) *
+      </label>
+      <select
+        value={termination.completedByUserId || ""}
+        onChange={(e) =>
+          handleCompletedByChange(
+            termination.id,
+            e.target.value
+          )
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+        required
+      >
+        <option value="">Select IT Staff</option>
+        {itUsers.map((user) => (
+          <option key={user.id} value={user.id}>
+            {user.name} ({user.role})
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
+
+  {/* Mark Equipment Returned Button */}
+  {isAdminOrIT && (
+  <div className="mt-4">
+    <button
+      onClick={() => {
+        // Validate required fields
+        if (!termination.trackingNumber) {
+          alert("Please enter a tracking number");
+          return;
+        }
+        if (!termination.completedByUserId) {
+          alert("Please select an IT staff member");
+          return;
+        }
+        if (!termination.equipmentDisposition || 
+            termination.equipmentDisposition === "pending_assessment") {
+          alert("Please select equipment disposition");
+          return;
+        }
+        
+        markEquipmentReturned(
+          termination.id,
+          termination.trackingNumber!,
+          termination.equipmentDisposition,
+          termination.completedByUserId
+        );
+      }}
+      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
+      disabled={!termination.trackingNumber || !termination.completedByUserId || 
+                !termination.equipmentDisposition || 
+                termination.equipmentDisposition === "pending_assessment"}
+    >
+      <CheckCircleIcon className="h-4 w-4 mr-2" />
+      Mark Equipment Returned
+      {termination.equipmentDisposition === "return_to_pool" && (
+        <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
+          +1 Laptop to{" "}
+          {
+            itUsers.find(
+              (u) => u.id === termination.completedByUserId
+            )?.name
+          }
+          's Inventory
+        </span>
+      )}
+    </button>
+          {(!termination.trackingNumber || !termination.completedByUserId || 
+      !termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && (
+      <div className="mt-2 text-xs text-amber-600">
+        {!termination.trackingNumber && "• Tracking number required\n"}
+        {!termination.completedByUserId && "• IT staff member required\n"}
+        {(!termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && 
+         "• Equipment disposition required"}
+    </div>
+  )}
+</div>
 
                   {/* IT Checklist Section - Only for Admin/IT */}
                   {isAdminOrIT && termination.checklist && (

@@ -182,47 +182,71 @@ export async function POST(request: NextRequest) {
       ? terminationData.checklist 
       : defaultChecklist;
 
-    console.log("Creating termination with checklist items:", checklistToSave.length);
+    console.log("Creating termination with data:", {
+      employeeName: terminationData.employeeName,
+      employeeEmail: terminationData.employeeEmail,
+      terminationDate: terminationData.terminationDate,
+      checklistItems: checklistToSave.length
+    });
 
     const result = await pool.request()
-      .input('employeeName', terminationData.employeeName)
-      .input('employeeEmail', terminationData.employeeEmail)
-      .input('jobTitle', terminationData.jobTitle)
-      .input('department', terminationData.department)
-      .input('terminationDate', terminationData.terminationDate)
-      .input('terminationReason', terminationData.terminationReason)
-      .input('initiatedBy', terminationData.initiatedBy)
-      .input('equipmentDisposition', terminationData.equipmentDisposition)
+      .input('employeeName', sql.NVarChar, terminationData.employeeName)
+      .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
+      .input('jobTitle', sql.NVarChar, terminationData.jobTitle || 'To be determined')
+      .input('department', sql.NVarChar, terminationData.department || 'To be determined')
+      .input('terminationDate', sql.Date, terminationData.terminationDate)
+      .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
+      .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy)
       .input('checklist', sql.NVarChar, JSON.stringify(checklistToSave))
       .query(`
         INSERT INTO Terminations (
           employeeName, employeeEmail, jobTitle, department, terminationDate, 
-          terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist
+          terminationReason, initiatedBy, licensesRemoved, checklist, status
         ) 
         OUTPUT INSERTED.*
         VALUES (
           @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
-          @terminationReason, @initiatedBy, @equipmentDisposition,
+          @terminationReason, @initiatedBy,
           '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
-          @checklist
+          @checklist, 'pending'
         )
       `);
 
     const createdTermination = result.recordset[0];
     
-    // Always return the full checklist in response
+    // Parse the checklist back from JSON for response
+    let parsedChecklist = checklistToSave;
+    try {
+      if (createdTermination.checklist) {
+        parsedChecklist = JSON.parse(createdTermination.checklist);
+      }
+    } catch (error) {
+      console.error("Error parsing checklist in response:", error);
+    }
+
     const responseTermination = {
       ...createdTermination,
-      checklist: checklistToSave
+      checklist: parsedChecklist
     };
 
-    console.log("Termination created successfully with", checklistToSave.length, "checklist items");
+    console.log("✅ Termination created successfully with ID:", createdTermination.id);
     return NextResponse.json(responseTermination);
+    
   } catch (error: any) {
-    console.error("Error creating termination:", error);
+    console.error("❌ Error creating termination:", error);
+    
+    // More detailed error logging
+    if (error.number) {
+      console.error("SQL Error Number:", error.number);
+      console.error("SQL Error State:", error.state);
+      console.error("SQL Error Procedure:", error.procedure);
+      console.error("SQL Error Line Number:", error.lineNumber);
+    }
+    
     return NextResponse.json({ 
       error: "Failed to create termination", 
-      details: error.message 
+      details: error.message,
+      sqlError: error.originalError?.message || error.message
     }, { status: 500 });
   }
 }
