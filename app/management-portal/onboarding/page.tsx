@@ -15,6 +15,8 @@ import {
   UserIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
+  ComputerDesktopIcon,
+  BellAlertIcon,
 } from "@heroicons/react/24/outline";
 
 interface User {
@@ -52,6 +54,17 @@ interface OnboardingTask {
   isCustom?: boolean;
 }
 
+// NEW: Portal interface
+interface Portal {
+  id: string;
+  name: string;
+  status: "not begun" | "in progress" | "completed" | "not applicable";
+  notes: TaskNote[];
+  completedBy?: string;
+  completedAt?: string;
+  isCustom?: boolean;
+}
+
 interface ITStaffAssignment {
   assignedToId?: number;
   status: "not assigned" | "in progress" | "on hold" | "completed";
@@ -60,6 +73,7 @@ interface ITStaffAssignment {
 
 interface EmployeeWithDetails extends Employee {
   onboardingTasks: OnboardingTask[];
+  portals: Portal[]; // NEW: Portals array
   itStaffAssignment?: ITStaffAssignment;
   isExpanded?: boolean;
 }
@@ -89,15 +103,15 @@ export default function OnboardingPage() {
   const [itStaff, setItStaff] = useState<User[]>([]);
   const [isClient, setIsClient] = useState(false);
 
+  // NEW: Alert status state
+  const [lastAlertCheck, setLastAlertCheck] = useState<string | null>(null);
+  const [sendingAlerts, setSendingAlerts] = useState(false);
+
   // New state for class-based features
-  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>(
-    []
-  );
+  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>([]);
   const [showBulkOperationsModal, setShowBulkOperationsModal] = useState(false);
   const [showClassNotesModal, setShowClassNotesModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(
-    null
-  );
+  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(null);
   const [classNotes, setClassNotes] = useState("");
   const [bulkOperation, setBulkOperation] = useState<BulkOperation>({
     classId: "",
@@ -106,8 +120,7 @@ export default function OnboardingPage() {
     assignedTo: "",
   });
 
-  const isAdminOrIT =
-    currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+  const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
   // Default system tasks
   const defaultTasks: OnboardingTask[] = [
@@ -185,6 +198,16 @@ export default function OnboardingPage() {
     { id: "17", name: "Nimble - Billing Dept", status: "not begun", notes: [] },
   ];
 
+  // NEW: Default portals
+  const defaultPortals: Portal[] = [
+    { id: "portal-1", name: "Tenet Portal", status: "not begun", notes: [] },
+    { id: "portal-2", name: "USPI Portal", status: "not begun", notes: [] },
+    { id: "portal-3", name: "NSN Portal", status: "not begun", notes: [] },
+    { id: "portal-4", name: "HR Portal", status: "not begun", notes: [] },
+    { id: "portal-5", name: "IT Portal", status: "not begun", notes: [] },
+    { id: "portal-6", name: "Training Portal", status: "not begun", notes: [] },
+  ];
+
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
@@ -234,6 +257,7 @@ export default function OnboardingPage() {
           employeesData.map(async (employee: Employee) => {
             try {
               let onboardingTasks = [...defaultTasks];
+              let portals = [...defaultPortals]; // NEW: Initialize portals
 
               // Fetch saved tasks
               try {
@@ -249,6 +273,23 @@ export default function OnboardingPage() {
               } catch (tasksError) {
                 console.warn(
                   `No saved tasks for employee ${employee.id}, using defaults`
+                );
+              }
+
+              // NEW: Fetch saved portals
+              try {
+                const portalsResponse = await fetch(
+                  `/api/employees/${employee.id}/portals`
+                );
+                if (portalsResponse.ok) {
+                  const savedPortals = await portalsResponse.json();
+                  if (savedPortals && savedPortals.length > 0) {
+                    portals = savedPortals;
+                  }
+                }
+              } catch (portalsError) {
+                console.warn(
+                  `No saved portals for employee ${employee.id}, using defaults`
                 );
               }
 
@@ -268,6 +309,7 @@ export default function OnboardingPage() {
               return {
                 ...employee,
                 onboardingTasks,
+                portals, // NEW: Include portals
                 itStaffAssignment,
                 isExpanded: false,
               };
@@ -276,6 +318,7 @@ export default function OnboardingPage() {
               return {
                 ...employee,
                 onboardingTasks: [...defaultTasks],
+                portals: [...defaultPortals], // NEW: Include default portals
                 itStaffAssignment: { status: "not assigned" },
                 isExpanded: false,
               };
@@ -289,6 +332,30 @@ export default function OnboardingPage() {
       console.error("Error fetching employees:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NEW: Function to manually trigger alerts
+  const triggerOnboardingAlerts = async () => {
+    setSendingAlerts(true);
+    try {
+      const response = await fetch("/api/onboarding/check-incomplete-tasks", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Alerts sent: ${result.notificationsSent} notifications`);
+        setLastAlertCheck(new Date().toLocaleString());
+      } else {
+        const error = await response.json();
+        alert(`Failed to send alerts: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Error triggering alerts:", error);
+      alert("Failed to trigger alerts");
+    } finally {
+      setSendingAlerts(false);
     }
   };
 
@@ -417,6 +484,23 @@ export default function OnboardingPage() {
     }
   };
 
+  // NEW: Helper function to update employee portals
+  const updateEmployeePortals = async (
+    employeeId: number,
+    portals: Portal[]
+  ) => {
+    try {
+      await fetch(`/api/employees/${employeeId}/portals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(portals),
+      });
+    } catch (error) {
+      console.error("Error updating employee portals:", error);
+      throw error;
+    }
+  };
+
   // Class Notes Management
   const updateClassNotes = async (
     classId: string,
@@ -489,7 +573,31 @@ export default function OnboardingPage() {
     );
   };
 
-  //  Delete task function that preserves expanded state
+  // NEW: Add custom portal function
+  const addCustomPortal = (employeeId: number) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              portals: [
+                ...emp.portals,
+                {
+                  id: `portal-custom-${Date.now()}`,
+                  name: "",
+                  status: "not begun",
+                  notes: [],
+                  isCustom: true,
+                },
+              ],
+              isExpanded: emp.isExpanded, // Preserve expanded state
+            }
+          : emp
+      )
+    );
+  };
+
+  // Delete task function that preserves expanded state
   const deleteTask = (employeeId: number, taskId: string) => {
     setEmployees((prev) =>
       prev.map((emp) =>
@@ -498,6 +606,23 @@ export default function OnboardingPage() {
               ...emp,
               onboardingTasks: emp.onboardingTasks.filter(
                 (task) => task.id !== taskId
+              ),
+              isExpanded: emp.isExpanded, // Preserve expanded state
+            }
+          : emp
+      )
+    );
+  };
+
+  // NEW: Delete portal function
+  const deletePortal = (employeeId: number, portalId: string) => {
+    setEmployees((prev) =>
+      prev.map((emp) =>
+        emp.id === employeeId
+          ? {
+              ...emp,
+              portals: emp.portals.filter(
+                (portal) => portal.id !== portalId
               ),
               isExpanded: emp.isExpanded, // Preserve expanded state
             }
@@ -555,7 +680,56 @@ export default function OnboardingPage() {
     }
   };
 
-  //  Add task note function that preserves expanded state
+  // NEW: Update portal status function
+  const updatePortalStatus = async (
+    employeeId: number,
+    portalId: string,
+    status: Portal["status"],
+    completedBy?: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            portals: emp.portals.map((portal) =>
+              portal.id === portalId
+                ? {
+                    ...portal,
+                    status,
+                    completedBy:
+                      status === "completed"
+                        ? completedBy || currentUser?.name
+                        : undefined,
+                    completedAt:
+                      status === "completed"
+                        ? new Date().toISOString()
+                        : undefined,
+                  }
+                : portal
+            ),
+            isExpanded: emp.isExpanded, // Preserve expanded state
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    try {
+      const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+      if (employee) {
+        await fetch(`/api/employees/${employeeId}/portals`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(employee.portals),
+        });
+      }
+    } catch (error) {
+      console.error("Error saving portal status:", error);
+    }
+  };
+
+  // Add task note function that preserves expanded state
   const addTaskNote = (
     employeeId: number,
     taskId: string,
@@ -594,6 +768,49 @@ export default function OnboardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(employee.onboardingTasks),
+      });
+    }
+  };
+
+  // NEW: Add portal note function
+  const addPortalNote = (
+    employeeId: number,
+    portalId: string,
+    noteContent: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            portals: emp.portals.map((portal) =>
+              portal.id === portalId
+                ? {
+                    ...portal,
+                    notes: [
+                      ...portal.notes,
+                      {
+                        content: noteContent,
+                        timestamp: new Date().toISOString(),
+                        author: currentUser?.name,
+                      },
+                    ],
+                  }
+                : portal
+            ),
+            isExpanded: emp.isExpanded, // Preserve expanded state
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/portals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.portals),
       });
     }
   };
@@ -744,6 +961,28 @@ export default function OnboardingPage() {
                         </div>
                       </div>
 
+                      {/* NEW: Portals Section */}
+                      <div className="border-t pt-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-medium text-gray-900 flex items-center">
+                            <ComputerDesktopIcon className="h-5 w-5 mr-2 text-blue-500" />
+                            Portals
+                          </h3>
+                          <button
+                            onClick={() => addCustomPortal(employee.id)}
+                            className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                          >
+                            <PlusIcon className="h-4 w-4 mr-1" />
+                            Add Portal
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {employee.portals.map((portal) =>
+                            renderPortalItem(employee, portal)
+                          )}
+                        </div>
+                      </div>
+
                       {/* IT Staff Assignment Section */}
                       {isAdminOrIT && (
                         <div className="border-t pt-4">
@@ -861,7 +1100,7 @@ export default function OnboardingPage() {
     );
   };
 
-  //  Task Item Component with Local State
+  // Task Item Component with Local State
   const TaskItem = ({
     employee,
     task,
@@ -1017,6 +1256,175 @@ export default function OnboardingPage() {
                   .previousSibling as HTMLInputElement;
                 if (input.value.trim()) {
                   addTaskNote(employee.id, task.id, input.value.trim());
+                  input.value = "";
+                }
+              }}
+              className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+            >
+              Add Note
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // NEW: Portal Item Component
+  const PortalItem = ({
+    employee,
+    portal,
+  }: {
+    employee: EmployeeWithDetails;
+    portal: Portal;
+  }) => {
+    const [localPortalName, setLocalPortalName] = useState(portal.name);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+    // Update local state when portal changes
+    useEffect(() => {
+      setLocalPortalName(portal.name);
+      setHasUnsavedChanges(false);
+    }, [portal.name]);
+
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLocalPortalName(e.target.value);
+      setHasUnsavedChanges(true);
+    };
+
+    const savePortalName = () => {
+      if (localPortalName.trim() && hasUnsavedChanges) {
+        setEmployees((prev) =>
+          prev.map((emp) =>
+            emp.id === employee.id
+              ? {
+                  ...emp,
+                  portals: emp.portals.map((p) =>
+                    p.id === portal.id ? { ...p, name: localPortalName.trim() } : p
+                  ),
+                  isExpanded: emp.isExpanded, // Preserve expanded state
+                }
+              : emp
+          )
+        );
+        setHasUnsavedChanges(false);
+      }
+    };
+
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        savePortalName();
+      }
+    };
+
+    const handleBlur = () => {
+      savePortalName();
+    };
+
+    return (
+      <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            {portal.isCustom ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={localPortalName}
+                  onChange={handleNameChange}
+                  onKeyPress={handleKeyPress}
+                  onBlur={handleBlur}
+                  placeholder="Enter portal name..."
+                  className="w-full border-b border-blue-300 focus:border-blue-500 focus:outline-none py-1 text-sm pr-8 bg-transparent"
+                />
+                {hasUnsavedChanges && (
+                  <div className="absolute right-0 top-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="text-sm font-medium text-gray-900">
+                {portal.name}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2 ml-4">
+            <select
+              value={portal.status}
+              onChange={(e) =>
+                updatePortalStatus(
+                  employee.id,
+                  portal.id,
+                  e.target.value as Portal["status"]
+                )
+              }
+              className="border border-blue-300 rounded px-2 py-1 text-xs bg-white"
+            >
+              <option value="not begun">Not Begun</option>
+              <option value="in progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="not applicable">Not Applicable</option>
+            </select>
+            <span
+              className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                portal.status
+              )}`}
+            >
+              {portal.status}
+            </span>
+            {portal.isCustom && (
+              <button
+                onClick={() => deletePortal(employee.id, portal.id)}
+                className="text-red-400 hover:text-red-600"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {portal.status === "completed" && portal.completedBy && (
+          <div className="text-xs text-gray-500 mb-2">
+            Completed by {portal.completedBy} on{" "}
+            {portal.completedAt
+              ? new Date(portal.completedAt).toLocaleDateString()
+              : "Unknown date"}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {portal.notes.map((note, noteIndex) => (
+            <div
+              key={noteIndex}
+              className="text-xs text-gray-600 bg-blue-100 p-2 rounded"
+            >
+              <div className="font-medium">{note.author || "Unknown"}:</div>
+              <div>{note.content}</div>
+              <div className="text-gray-400 text-xs mt-1">
+                {new Date(note.timestamp).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              placeholder="Add a note..."
+              className="flex-1 border border-blue-300 rounded px-2 py-1 text-xs bg-white"
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  const input = e.target as HTMLInputElement;
+                  if (input.value.trim()) {
+                    addPortalNote(employee.id, portal.id, input.value.trim());
+                    input.value = "";
+                  }
+                }
+              }}
+            />
+            <button
+              onClick={(e) => {
+                const input = e.currentTarget
+                  .previousSibling as HTMLInputElement;
+                if (input.value.trim()) {
+                  addPortalNote(employee.id, portal.id, input.value.trim());
                   input.value = "";
                 }
               }}
@@ -1455,6 +1863,12 @@ export default function OnboardingPage() {
     task: OnboardingTask
   ) => <TaskItem key={task.id} employee={employee} task={task} />;
 
+  // NEW: Render portal item function
+  const renderPortalItem = (
+    employee: EmployeeWithDetails,
+    portal: Portal
+  ) => <PortalItem key={portal.id} employee={employee} portal={portal} />;
+
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -1475,6 +1889,20 @@ export default function OnboardingPage() {
           </p>
         </div>
         <div className="flex items-center space-x-4">
+          {/* NEW: Alert Status Button */}
+          <button
+            onClick={triggerOnboardingAlerts}
+            disabled={sendingAlerts}
+            className={`flex items-center px-4 py-2 rounded-md font-medium ${
+              sendingAlerts
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-amber-500 hover:bg-amber-600"
+            } text-white`}
+            title="Send onboarding alerts for employees with incomplete tasks"
+          >
+            <BellAlertIcon className="h-4 w-4 mr-2" />
+            {sendingAlerts ? "Sending..." : "Send Alerts"}
+          </button>
           <Link
             href="/management-portal/onboarding/archived"
             className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium"
@@ -1489,6 +1917,18 @@ export default function OnboardingPage() {
           </Link>
         </div>
       </div>
+
+      {/* NEW: Alert Status Display */}
+      {lastAlertCheck && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+          <div className="flex items-center">
+            <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
+            <span className="text-sm text-green-700">
+              Last alert check: {lastAlertCheck}
+            </span>
+          </div>
+        </div>
+      )}
 
       {onboardingClasses.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-6 text-center">

@@ -92,7 +92,25 @@ export async function POST(
       console.log(`✅ No onboarding tasks record found, using empty array`);
     }
 
-    // 5. Insert into ArchivedEmployees table
+    // NEW: 5. Get portals from EmployeePortals table
+    let portals = "[]";
+    try {
+      const portalsResult = await pool
+        .request()
+        .input("employeeId", sql.Int, employeeId)
+        .query("SELECT * FROM EmployeePortals WHERE employeeId = @employeeId");
+
+      if (portalsResult.recordset.length > 0) {
+        portals = JSON.stringify(portalsResult.recordset);
+        console.log(`✅ Found ${portalsResult.recordset.length} portals`);
+      } else {
+        console.log(`✅ No portals found, using empty array`);
+      }
+    } catch (portalsError) {
+      console.log(`✅ No portals record found, using empty array`);
+    }
+
+    // 6. Insert into ArchivedEmployees table (updated to include portals)
     try {
       const archiveResult = await pool
         .request()
@@ -110,6 +128,7 @@ export async function POST(
         .input("applicationStatus", sql.NVarChar, applicationStatus)
         .input("itStaffAssignment", sql.NVarChar, itStaffAssignment)
         .input("onboardingTasks", sql.NVarChar, onboardingTasks)
+        .input("portals", sql.NVarChar, portals) // NEW: Add portals to archive
         .input("timestamp", sql.DateTime, employee.timestamp)
         .input("archivedBy", sql.NVarChar, archivedBy)
         .input("archivedAt", sql.DateTime, new Date())
@@ -117,12 +136,12 @@ export async function POST(
           INSERT INTO ArchivedEmployees 
           (originalId, firstName, lastName, jobTitle, startDate, currentManager, 
            directorRegionalDirector, applicationStatus, itStaffAssignment, onboardingTasks, 
-           timestamp, archivedBy, archivedAt)
+           portals, timestamp, archivedBy, archivedAt)
           OUTPUT INSERTED.*
           VALUES 
           (@originalId, @firstName, @lastName, @jobTitle, @startDate, @currentManager,
            @directorRegionalDirector, @applicationStatus, @itStaffAssignment, @onboardingTasks,
-           @timestamp, @archivedBy, @archivedAt)
+           @portals, @timestamp, @archivedBy, @archivedAt)
         `);
       
       console.log(`✅ Employee archived in ArchivedEmployees table with ID: ${archiveResult.recordset[0]?.id}`);
@@ -137,7 +156,7 @@ export async function POST(
       );
     }
 
-    // 6. Update status in Employees table to 'archived'
+    // 7. Update status in Employees table to 'archived'
     const updateResult = await pool
       .request()
       .input("id", sql.Int, employeeId)
