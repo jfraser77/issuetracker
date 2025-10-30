@@ -198,14 +198,9 @@ export default function OnboardingPage() {
     { id: "17", name: "Nimble - Billing Dept", status: "not begun", notes: [] },
   ];
 
-  // NEW: Default portals
+  // Default portals
   const defaultPortals: Portal[] = [
-    { id: "portal-1", name: "Tenet Portal", status: "not begun", notes: [] },
-    { id: "portal-2", name: "USPI Portal", status: "not begun", notes: [] },
-    { id: "portal-3", name: "NSN Portal", status: "not begun", notes: [] },
-    { id: "portal-4", name: "HR Portal", status: "not begun", notes: [] },
-    { id: "portal-5", name: "IT Portal", status: "not begun", notes: [] },
-    { id: "portal-6", name: "Training Portal", status: "not begun", notes: [] },
+    
   ];
 
   useEffect(() => {
@@ -248,92 +243,118 @@ export default function OnboardingPage() {
   };
 
   const fetchEmployeesWithDetails = async () => {
-    try {
-      const response = await fetch("/api/employees?status=active");
-      if (response.ok) {
-        const employeesData = await response.json();
+  try {
+    const response = await fetch("/api/employees?status=active");
+    if (response.ok) {
+      const employeesData = await response.json();
 
-        const employeesWithDetails = await Promise.all(
-          employeesData.map(async (employee: Employee) => {
+      const employeesWithDetails = await Promise.all(
+        employeesData.map(async (employee: Employee) => {
+          try {
+            let onboardingTasks = [...defaultTasks];
+            let portals = [...defaultPortals];
+
+            // Fetch saved tasks
             try {
-              let onboardingTasks = [...defaultTasks];
-              let portals = [...defaultPortals]; // NEW: Initialize portals
-
-              // Fetch saved tasks
-              try {
-                const tasksResponse = await fetch(
-                  `/api/employees/${employee.id}/onboarding-tasks`
-                );
-                if (tasksResponse.ok) {
-                  const savedTasks = await tasksResponse.json();
-                  if (savedTasks && savedTasks.length > 0) {
-                    onboardingTasks = savedTasks;
-                  }
+              const tasksResponse = await fetch(
+                `/api/employees/${employee.id}/onboarding-tasks`
+              );
+              if (tasksResponse.ok) {
+                const savedTasks = await tasksResponse.json();
+                if (savedTasks && savedTasks.length > 0) {
+                  onboardingTasks = savedTasks;
                 }
-              } catch (tasksError) {
-                console.warn(
-                  `No saved tasks for employee ${employee.id}, using defaults`
-                );
               }
-
-              // NEW: Fetch saved portals
-              try {
-                const portalsResponse = await fetch(
-                  `/api/employees/${employee.id}/portals`
-                );
-                if (portalsResponse.ok) {
-                  const savedPortals = await portalsResponse.json();
-                  if (savedPortals && savedPortals.length > 0) {
-                    portals = savedPortals;
-                  }
-                }
-              } catch (portalsError) {
-                console.warn(
-                  `No saved portals for employee ${employee.id}, using defaults`
-                );
-              }
-
-              // Fetch IT assignment
-              let itStaffAssignment = { status: "not assigned" };
-              try {
-                const itStaffResponse = await fetch(
-                  `/api/employees/${employee.id}/it-assignment`
-                );
-                if (itStaffResponse.ok) {
-                  itStaffAssignment = await itStaffResponse.json();
-                }
-              } catch (itError) {
-                console.warn(`No IT assignment for employee ${employee.id}`);
-              }
-
-              return {
-                ...employee,
-                onboardingTasks,
-                portals, // NEW: Include portals
-                itStaffAssignment,
-                isExpanded: false,
-              };
-            } catch (error) {
-              console.error(`Error processing employee ${employee.id}:`, error);
-              return {
-                ...employee,
-                onboardingTasks: [...defaultTasks],
-                portals: [...defaultPortals], // NEW: Include default portals
-                itStaffAssignment: { status: "not assigned" },
-                isExpanded: false,
-              };
+            } catch (tasksError) {
+              console.warn(
+                `No saved tasks for employee ${employee.id}, using defaults`
+              );
             }
-          })
-        );
 
-        setEmployees(employeesWithDetails);
-      }
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    } finally {
-      setLoading(false);
+            // ENHANCED: Fetch saved portals with better error handling
+            try {
+              const portalsResponse = await fetch(
+                `/api/employees/${employee.id}/portals`
+              );
+              
+              if (portalsResponse.ok) {
+                const savedPortals = await portalsResponse.json();
+                console.log(`✅ Loaded ${savedPortals.length} portals for employee ${employee.id}`);
+                
+                if (savedPortals && savedPortals.length > 0) {
+                  // Merge with defaults to ensure all default portals are present
+                  const mergedPortals = [...defaultPortals];
+                  
+                  savedPortals.forEach((savedPortal: Portal) => {
+                    const existingIndex = mergedPortals.findIndex(p => p.id === savedPortal.id);
+                    if (existingIndex >= 0) {
+                      // Update existing portal with saved data
+                      mergedPortals[existingIndex] = { 
+                        ...mergedPortals[existingIndex], 
+                        ...savedPortal 
+                      };
+                    } else {
+                      // Add custom portal
+                      mergedPortals.push(savedPortal);
+                    }
+                  });
+                  
+                  portals = mergedPortals;
+                }
+              } else if (portalsResponse.status === 404) {
+                // Table doesn't exist yet - this is normal for new installations
+                console.log(`ℹ️ Portals table not found for employee ${employee.id}, using defaults`);
+                portals = [...defaultPortals];
+              }
+            } catch (portalsError) {
+              console.warn(
+                `Error fetching portals for employee ${employee.id}, using defaults:`,
+                portalsError
+              );
+              portals = [...defaultPortals];
+            }
+
+            // Fetch IT assignment
+            let itStaffAssignment = { status: "not assigned" };
+            try {
+              const itStaffResponse = await fetch(
+                `/api/employees/${employee.id}/it-assignment`
+              );
+              if (itStaffResponse.ok) {
+                itStaffAssignment = await itStaffResponse.json();
+              }
+            } catch (itError) {
+              console.warn(`No IT assignment for employee ${employee.id}`);
+            }
+
+            return {
+              ...employee,
+              onboardingTasks,
+              portals,
+              itStaffAssignment,
+              isExpanded: false,
+            };
+          } catch (error) {
+            console.error(`Error processing employee ${employee.id}:`, error);
+            return {
+              ...employee,
+              onboardingTasks: [...defaultTasks],
+              portals: [...defaultPortals],
+              itStaffAssignment: { status: "not assigned" },
+              isExpanded: false,
+            };
+          }
+        })
+      );
+
+      setEmployees(employeesWithDetails);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching employees:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // NEW: Function to manually trigger alerts
   const triggerOnboardingAlerts = async () => {
@@ -1890,7 +1911,7 @@ export default function OnboardingPage() {
         </div>
         <div className="flex items-center space-x-4">
           {/* NEW: Alert Status Button */}
-          <button
+          {/* <button
             onClick={triggerOnboardingAlerts}
             disabled={sendingAlerts}
             className={`flex items-center px-4 py-2 rounded-md font-medium ${
@@ -1902,13 +1923,13 @@ export default function OnboardingPage() {
           >
             <BellAlertIcon className="h-4 w-4 mr-2" />
             {sendingAlerts ? "Sending..." : "Send Alerts"}
-          </button>
-          <Link
+          </button> */}
+          {/* <Link
             href="/management-portal/onboarding/archived"
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
           >
             View Archived
-          </Link>
+          </Link> */}
           <Link
             href="/management-portal/onboarding/new"
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
