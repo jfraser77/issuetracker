@@ -173,22 +173,57 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("🔵 POST /api/terminations called");
+  
   try {
+    // Parse request body
     const terminationData = await request.json();
+    console.log("📦 Received termination data:", terminationData);
+
+    // Validate required fields
+    if (!terminationData.employeeName || !terminationData.employeeEmail || !terminationData.terminationDate) {
+      console.error("❌ Missing required fields");
+      return NextResponse.json({ 
+        error: "Missing required fields",
+        received: terminationData 
+      }, { status: 400 });
+    }
+
+    // Connect to database
+    console.log("🔗 Connecting to database...");
     const pool = await connectToDatabase();
     
+    // Test connection
+    const testResult = await pool.request().query('SELECT @@VERSION as version');
+    console.log("✅ Database connection successful");
+
     // Use provided checklist or default to full checklist
     const checklistToSave = terminationData.checklist && terminationData.checklist.length > 0 
       ? terminationData.checklist 
       : defaultChecklist;
 
-    console.log("Creating termination with data:", {
-      employeeName: terminationData.employeeName,
-      employeeEmail: terminationData.employeeEmail,
-      terminationDate: terminationData.terminationDate,
-      checklistItems: checklistToSave.length
-    });
+    console.log("💾 Preparing to insert termination with checklist items:", checklistToSave.length);
 
+    // NEW APPROACH: Insert without OUTPUT clause due to triggers
+    const insertQuery = `
+      INSERT INTO Terminations (
+        employeeName, employeeEmail, jobTitle, department, terminationDate, 
+        terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status
+      ) 
+      VALUES (
+        @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
+        @terminationReason, @initiatedBy, @equipmentDisposition,
+        '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
+        @checklist, 'pending'
+      );
+      
+      -- Get the inserted record using SCOPE_IDENTITY()
+      SELECT * FROM Terminations WHERE id = SCOPE_IDENTITY();
+    `;
+
+    console.log("📝 Executing SQL query (without OUTPUT clause)");
+
+    // Execute the query
     const result = await pool.request()
       .input('employeeName', sql.NVarChar, terminationData.employeeName)
       .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
@@ -196,24 +231,24 @@ export async function POST(request: NextRequest) {
       .input('department', sql.NVarChar, terminationData.department || 'To be determined')
       .input('terminationDate', sql.Date, terminationData.terminationDate)
       .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
-      .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy)
+      .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy || 'System')
+      .input('equipmentDisposition', sql.NVarChar, 'pending_assessment')
       .input('checklist', sql.NVarChar, JSON.stringify(checklistToSave))
-      .query(`
-        INSERT INTO Terminations (
-          employeeName, employeeEmail, jobTitle, department, terminationDate, 
-          terminationReason, initiatedBy, licensesRemoved, checklist, status
-        ) 
-        OUTPUT INSERTED.*
-        VALUES (
-          @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
-          @terminationReason, @initiatedBy,
-          '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
-          @checklist, 'pending'
-        )
-      `);
+      .query(insertQuery);
+
+    console.log("✅ SQL query executed successfully");
+    console.log("📊 Result recordset:", result.recordset);
+
+    if (result.recordset.length === 0) {
+      console.error("❌ No record returned after INSERT");
+      return NextResponse.json({ 
+        error: "No record created or could not retrieve created record" 
+      }, { status: 500 });
+    }
 
     const createdTermination = result.recordset[0];
-    
+    console.log("🎉 Termination created successfully with ID:", createdTermination.id);
+
     // Parse the checklist back from JSON for response
     let parsedChecklist = checklistToSave;
     try {
@@ -229,24 +264,30 @@ export async function POST(request: NextRequest) {
       checklist: parsedChecklist
     };
 
-    console.log("✅ Termination created successfully with ID:", createdTermination.id);
+    console.log("📤 Sending success response");
     return NextResponse.json(responseTermination);
     
   } catch (error: any) {
-    console.error("❌ Error creating termination:", error);
+    console.error("❌ CRITICAL ERROR creating termination:", error);
     
-    // More detailed error logging
-    if (error.number) {
-      console.error("SQL Error Number:", error.number);
-      console.error("SQL Error State:", error.state);
-      console.error("SQL Error Procedure:", error.procedure);
-      console.error("SQL Error Line Number:", error.lineNumber);
-    }
-    
+    // Detailed error information
+    const errorInfo = {
+      message: error.message,
+      name: error.name,
+      number: error.number,
+      state: error.state,
+      class: error.class,
+      server: error.server,
+      procedure: error.procedure,
+      lineNumber: error.lineNumber,
+      originalError: error.originalError?.message
+    };
+
+    console.error("📋 Error details:", errorInfo);
+
     return NextResponse.json({ 
-      error: "Failed to create termination", 
-      details: error.message,
-      sqlError: error.originalError?.message || error.message
+      error: "Failed to create termination",
+      details: errorInfo
     }, { status: 500 });
   }
 }
