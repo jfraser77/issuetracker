@@ -43,7 +43,7 @@ interface Termination {
   initiatedBy: string;
   status: "pending" | "equipment_returned" | "archived" | "overdue";
   trackingNumber?: string;
-  equipmentDisposition: "return_to_pool" | "retire";
+  equipmentDisposition: "return_to_pool" | "retire" | "pending_assessment";
   daysRemaining: number;
   isOverdue: boolean;
   licensesRemoved: {
@@ -72,9 +72,8 @@ export default function TerminationsContent() {
   const [showTerminationForm, setShowTerminationForm] = useState(false);
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
-    employeeEmail: "",    
+    employeeEmail: "",
     terminationDate: new Date().toISOString().split("T")[0],
-    
   });
 
   const isAuthorized =
@@ -250,15 +249,6 @@ export default function TerminationsContent() {
       if (response.ok) {
         const terminationsData = await response.json();
 
-        // Log to debug checklist issues
-        terminationsData.forEach((t: Termination, index: number) => {
-          console.log(
-            `Termination ${t.id} has ${
-              t.checklist?.length || 0
-            } checklist items`
-          );
-        });
-
         // Ensure each termination has the full checklist
         const terminationsWithChecklist = terminationsData.map(
           (t: Termination) => ({
@@ -306,6 +296,313 @@ export default function TerminationsContent() {
     );
   }, []);
 
+  const createTermination = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAuthorized) {
+      alert("You are not authorized to initiate terminations.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/terminations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeName: terminationForm.employeeName,
+          employeeEmail: terminationForm.employeeEmail,
+          terminationDate: terminationForm.terminationDate,
+          initiatedBy: currentUser?.name,
+          checklist: defaultChecklist,
+          // Set default values for removed fields
+          jobTitle: "To be determined",
+          department: "To be determined", 
+          terminationReason: "Termination process initiated",
+        }),
+      });
+
+      if (response.ok) {
+        setShowTerminationForm(false);
+        setTerminationForm({
+          employeeName: "",
+          employeeEmail: "",
+          terminationDate: new Date().toISOString().split("T")[0],
+        });
+        fetchTerminations();
+        alert("Termination process initiated successfully.");
+      } else {
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        alert(`Failed to initiate termination: ${errorData.error || errorData.details || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Error creating termination:", error);
+      alert("Failed to initiate termination process. Please check console for details.");
+    }
+  };
+
+  const updateTermination = async (
+    terminationId: number,
+    updates: Partial<Termination>
+  ) => {
+    try {
+      // Preserve expanded state during updates
+      const currentTermination = terminations.find(
+        (t) => t.id === terminationId
+      );
+      const updatesWithState = {
+        ...updates,
+        isExpanded: currentTermination?.isExpanded, // Preserve current expanded state
+      };
+
+      const response = await fetch(`/api/terminations/${terminationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatesWithState),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update termination");
+      }
+
+      // Only refresh if the update was successful
+      fetchTerminations();
+    } catch (error) {
+      console.error("Error updating termination:", error);
+      alert("Failed to update termination. Please try again.");
+      fetchTerminations();
+    }
+  };
+
+  const updateChecklistItem = async (
+    terminationId: number,
+    itemId: string,
+    updates: Partial<ChecklistItem>
+  ) => {
+    try {
+      // Update local state immediately and capture the updated checklist
+      let updatedChecklistForApi: ChecklistItem[] | null = null;
+
+      setTerminations((prevTerminations) => {
+        return prevTerminations.map((t) => {
+          if (t.id !== terminationId || !t.checklist) return t;
+
+          const updatedChecklist = t.checklist.map((item) =>
+            item.id === itemId ? { ...item, ...updates } : item
+          );
+
+          // Store the updated checklist for the API call
+          updatedChecklistForApi = updatedChecklist;
+
+          return {
+            ...t,
+            checklist: updatedChecklist,
+          };
+        });
+      });
+
+      // Debounced API call using the captured updated checklist
+      const timeoutId = setTimeout(async () => {
+        try {
+          if (!updatedChecklistForApi) return;
+
+          await fetch(`/api/terminations/${terminationId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ checklist: updatedChecklistForApi }),
+          });
+        } catch (error) {
+          console.error("Error updating checklist item:", error);
+        }
+      }, 500); // Reduced to 500ms for better responsiveness
+
+      return () => clearTimeout(timeoutId);
+    } catch (error) {
+      console.error("Error in updateChecklistItem:", error);
+    }
+  };
+
+  const markEquipmentReturned = async (
+    terminationId: number,
+    trackingNumber: string,
+    equipmentDisposition: string,
+    completedByUserId?: number
+  ) => {
+    try {
+      const response = await fetch(
+        `/api/terminations/${terminationId}/return`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            trackingNumber,
+            equipmentDisposition,
+            completedByUserId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to mark equipment returned");
+      }
+
+      const result = await response.json();
+      const updatedTermination = result.termination;
+
+      // Update local state immediately
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? {
+                ...updatedTermination,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
+        )
+      );
+
+      // If equipment is being returned to pool, update IT Staff inventory
+      if (equipmentDisposition === "return_to_pool" && completedByUserId) {
+        try {
+          await fetch("/api/it-assets/inventory", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: completedByUserId,
+              change: 1,
+            }),
+          });
+          console.log(
+            `Updated IT Staff inventory for user ${completedByUserId}`
+          );
+        } catch (inventoryError) {
+          console.error("Error updating IT Staff inventory:", inventoryError);
+          // Continue even if inventory update fails
+        }
+      }
+
+      alert("Equipment return recorded successfully and inventory updated.");
+    } catch (error) {
+      console.error("Error marking equipment returned:", error);
+      alert(
+        `Failed to record equipment return: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+      // Refresh on error to restore correct state
+      fetchTerminations();
+    }
+  };
+
+  const handleEquipmentDispositionChange = useCallback(
+    (terminationId: number, value: "return_to_pool" | "retire" | "pending_assessment") => {
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? {
+                ...t,
+                equipmentDisposition: value,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
+        )
+      );
+      updateTermination(terminationId, { equipmentDisposition: value });
+    },
+    []
+  );
+
+  const handleCompletedByChange = useCallback(
+    (terminationId: number, value: string) => {
+      const completedByUserId = value ? parseInt(value) : undefined;
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? {
+                ...t,
+                completedByUserId,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
+        )
+      );
+      updateTermination(terminationId, { completedByUserId });
+    },
+    []
+  );
+
+  const handleTrackingNumberChange = useCallback(
+    (terminationId: number, value: string) => {
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? {
+                ...t,
+                trackingNumber: value,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
+        )
+      );
+      debouncedUpdateTrackingNumber(terminationId, value);
+    },
+    [debouncedUpdateTrackingNumber]
+  );
+
+  const getStatusColor = (status: string, isOverdue: boolean, equipmentDisposition?: string) => {
+    if (isOverdue) return "bg-red-100 text-red-800";
+    
+    if (status === "pending" && equipmentDisposition === "pending_assessment") {
+      return "bg-blue-100 text-blue-800";
+    }
+
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "equipment_returned":
+        return "bg-green-100 text-green-800";
+      case "archived":
+        return "bg-gray-100 text-gray-800";
+      case "overdue":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getStatusText = (
+    status: string,
+    daysRemaining: number,
+    isOverdue: boolean,
+    equipmentDisposition?: string
+  ) => {
+    if (isOverdue) return "OVERDUE - Equipment Not Returned";
+    
+    if (status === "pending" && equipmentDisposition === "pending_assessment") {
+      return "Awaiting Equipment Return";
+    }
+
+    switch (status) {
+      case "pending":
+        return `${daysRemaining} days remaining`;
+      case "equipment_returned":
+        return "Equipment Returned";
+      case "archived":
+        return "Archived";
+      case "overdue":
+        return "Overdue";
+      default:
+        return "Pending";
+    }
+  };
+
+  // Rest of your component functions (archiveTermination, deleteTermination, etc.)
   const archiveTermination = async (terminationId: number) => {
     try {
       const response = await fetch(
@@ -325,6 +622,37 @@ export default function TerminationsContent() {
     } catch (error) {
       console.error("Error archiving termination:", error);
       alert("Failed to archive termination. Please try again.");
+    }
+  };
+
+  const deleteTermination = async (terminationId: number) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this termination record? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/terminations/${terminationId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setTerminations((prev) => prev.filter((t) => t.id !== terminationId));
+      }
+    } catch (error) {
+      console.error("Error deleting termination:", error);
+    }
+  };
+
+  const checkOverdueTerminations = async () => {
+    try {
+      await fetch("/api/terminations/check-overdue", { method: "POST" });
+      fetchTerminations();
+    } catch (error) {
+      console.error("Error checking overdue terminations:", error);
     }
   };
 
@@ -423,7 +751,9 @@ export default function TerminationsContent() {
             <div class="info-item"><span class="info-label">Disposition:</span> ${
               termination.equipmentDisposition === "return_to_pool"
                 ? "Return to Available Pool"
-                : "Retire Equipment"
+                : termination.equipmentDisposition === "retire"
+                ? "Retire Equipment"
+                : "Pending Assessment"
             }</div>
           </div>
           <div>
@@ -517,509 +847,6 @@ export default function TerminationsContent() {
     printWindow.document.close();
   };
 
-  const handleEditTermination = (terminationId: number) => {
-    router.push(`/management-portal/terminations/${terminationId}/edit`);
-  };
-
-  const createTermination = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!isAuthorized) {
-    alert("You are not authorized to initiate terminations.");
-    return;
-  }
-
-  try {
-    const response = await fetch("/api/terminations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        employeeName: terminationForm.employeeName,
-        employeeEmail: terminationForm.employeeEmail,
-        terminationDate: terminationForm.terminationDate,
-        initiatedBy: currentUser?.name,
-        checklist: defaultChecklist,
-        // Set default values for removed fields
-        jobTitle: "To be determined",
-        department: "To be determined", 
-        terminationReason: "Termination process initiated",
-        
-      }),
-    });
-
-    if (response.ok) {
-      setShowTerminationForm(false);
-      setTerminationForm({
-        employeeName: "",
-        employeeEmail: "",
-        terminationDate: new Date().toISOString().split("T")[0],
-      });
-      fetchTerminations();
-      alert("Termination process initiated successfully.");
-    } else {
-      const errorData = await response.json();
-      console.error("API Error:", errorData);
-      alert(`Failed to initiate termination: ${errorData.error || errorData.details || 'Unknown error'}`);
-    }
-  } catch (error) {
-    console.error("Error creating termination:", error);
-    alert("Failed to initiate termination process. Please check console for details.");
-  }
-};
-
-  const updateTermination = async (
-    terminationId: number,
-    updates: Partial<Termination>
-  ) => {
-    try {
-      // Preserve expanded state during updates
-      const currentTermination = terminations.find(
-        (t) => t.id === terminationId
-      );
-      const updatesWithState = {
-        ...updates,
-        isExpanded: currentTermination?.isExpanded, // Preserve current expanded state
-      };
-
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatesWithState),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update termination");
-      }
-
-      // Only refresh if the update was successful
-      fetchTerminations();
-    } catch (error) {
-      console.error("Error updating termination:", error);
-      alert("Failed to update termination. Please try again.");
-      fetchTerminations();
-    }
-  };
-
-  const updateChecklistItem = async (
-    terminationId: number,
-    itemId: string,
-    updates: Partial<ChecklistItem>
-  ) => {
-    try {
-      // Update local state immediately and capture the updated checklist
-      let updatedChecklistForApi: ChecklistItem[] | null = null;
-
-      setTerminations((prevTerminations) => {
-        return prevTerminations.map((t) => {
-          if (t.id !== terminationId || !t.checklist) return t;
-
-          const updatedChecklist = t.checklist.map((item) =>
-            item.id === itemId ? { ...item, ...updates } : item
-          );
-
-          // Store the updated checklist for the API call
-          updatedChecklistForApi = updatedChecklist;
-
-          return {
-            ...t,
-            checklist: updatedChecklist,
-          };
-        });
-      });
-
-      // Debounced API call using the captured updated checklist
-      const timeoutId = setTimeout(async () => {
-        try {
-          if (!updatedChecklistForApi) return;
-
-          await fetch(`/api/terminations/${terminationId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ checklist: updatedChecklistForApi }),
-          });
-        } catch (error) {
-          console.error("Error updating checklist item:", error);
-        }
-      }, 500); // Reduced to 500ms for better responsiveness
-
-      return () => clearTimeout(timeoutId);
-    } catch (error) {
-      console.error("Error in updateChecklistItem:", error);
-    }
-  };
-
-  const archiveTerminationWithNotification = async (terminationId: number) => {
-    try {
-      const termination = terminations.find((t) => t.id === terminationId);
-      if (!termination) return;
-
-      const response = await fetch(
-        `/api/terminations/${terminationId}/archive`,
-        {
-          method: "POST",
-        }
-      );
-
-      if (response.ok) {
-        const hrEmails = [
-          "aogden@nsnrevenue.com",
-          "aevans@nsnrevenue.com",
-          "anwaters@uspi.com",
-        ];
-
-        // If archiving a termination that was overdue, notify HR
-        if (termination.status === "overdue" || termination.isOverdue) {
-          try {
-            await fetch("/api/email/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                to: hrEmails,
-                subject: `Termination Archived - ${termination.employeeName}`,
-                html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #059669, #047857); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
-                  <h1 style="margin: 0; font-size: 24px;">Termination Process Completed</h1>
-                </div>
-                <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                  <p style="font-size: 16px; color: #374151;">Dear HR Team,</p>
-                  
-                  <div style="background-color: #f0fdf4; padding: 20px; margin: 25px 0; border: 2px solid #bbf7d0; border-radius: 8px;">
-                    <p style="font-size: 18px; color: #059669; font-weight: bold; text-align: center;">
-                      ✅ TERMINATION PROCESS COMPLETED
-                    </p>
-                  </div>
-                  
-                  <p style="font-size: 16px; color: #374151;">
-                    The termination process for the following employee has been completed and archived:
-                  </p>
-                  
-                  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Employee Name:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.employeeName
-                      }</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Email:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.employeeEmail
-                      }</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Termination Date:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${new Date(
-                        termination.terminationDate
-                      ).toLocaleDateString()}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Department:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.department
-                      }</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Final Status:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">Archived - Process Complete</td>
-                    </tr>
-                  </table>
-                  
-                  <p style="font-size: 14px; color: #6b7280;">
-                    This termination record has been moved to the archived section of the system.
-                  </p>
-                  
-                  ${
-                    termination.isOverdue
-                      ? `
-                  <div style="background-color: #fef3f2; padding: 15px; margin: 20px 0; border-left: 4px solid #f04438; border-radius: 4px;">
-                    <p style="font-size: 14px; color: #b42318; margin: 0;">
-                      <strong>Note:</strong> This termination was previously marked as OVERDUE for equipment return.
-                    </p>
-                  </div>
-                  `
-                      : ""
-                  }
-                </div>
-              </div>
-              `,
-              }),
-            });
-            console.log(
-              `✅ Archive notification sent to HR for ${termination.employeeName}`
-            );
-          } catch (emailError) {
-            console.error("Failed to send archive notification:", emailError);
-          }
-        }
-
-        fetchTerminations();
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to archive termination:", errorData.error);
-        alert(`Failed to archive termination: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error("Error archiving termination:", error);
-      alert("Error archiving termination. Please try again.");
-    }
-  };
-
-  const removeChecklistItem = async (terminationId: number, itemId: string) => {
-    if (!confirm("Are you sure you want to remove this checklist item?")) {
-      return;
-    }
-
-    try {
-      const termination = terminations.find((t) => t.id === terminationId);
-      if (!termination?.checklist) return;
-
-      const updatedChecklist = termination.checklist.filter(
-        (item) => item.id !== itemId
-      );
-
-      // Update local state immediately
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                checklist: updatedChecklist,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // Update in database - don't call fetchTerminations after this
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error removing checklist item:", error);
-      // Only refresh on error
-      fetchTerminations();
-    }
-  };
-
-  const markEquipmentReturned = async (
-    terminationId: number,
-    trackingNumber: string,
-    equipmentDisposition: string,
-    completedByUserId?: number
-  ) => {
-    try {
-      const response = await fetch(
-        `/api/terminations/${terminationId}/return`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            trackingNumber,
-            equipmentDisposition,
-            completedByUserId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to mark equipment returned");
-      }
-
-      const result = await response.json();
-      const updatedTermination = result.termination; // FIX: Get termination from result object
-
-      // Update local state immediately
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...updatedTermination,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // If equipment is being returned to pool, update IT Staff inventory
-      if (equipmentDisposition === "return_to_pool" && completedByUserId) {
-        try {
-          await fetch("/api/it-assets/inventory", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: completedByUserId,
-              change: 1,
-            }),
-          });
-          console.log(
-            `Updated IT Staff inventory for user ${completedByUserId}`
-          );
-        } catch (inventoryError) {
-          console.error("Error updating IT Staff inventory:", inventoryError);
-          // Continue even if inventory update fails
-        }
-      }
-
-      alert("Equipment return recorded successfully and inventory updated.");
-    } catch (error) {
-      console.error("Error marking equipment returned:", error);
-      alert(
-        `Failed to record equipment return: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-      // Refresh on error to restore correct state
-      fetchTerminations();
-    }
-  };
-
-  const handleEquipmentDispositionChange = useCallback(
-    (terminationId: number, value: "return_to_pool" | "retire") => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                equipmentDisposition: value,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-      updateTermination(terminationId, { equipmentDisposition: value });
-    },
-    []
-  );
-
-  const handleCompletedByChange = useCallback(
-    (terminationId: number, value: string) => {
-      const completedByUserId = value ? parseInt(value) : undefined;
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                completedByUserId,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-      updateTermination(terminationId, { completedByUserId });
-    },
-    []
-  );
-  const deleteTermination = async (terminationId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this termination record? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setTerminations((prev) => prev.filter((t) => t.id !== terminationId));
-      }
-    } catch (error) {
-      console.error("Error deleting termination:", error);
-    }
-  };
-
-  const checkOverdueTerminations = async () => {
-    try {
-      await fetch("/api/terminations/check-overdue", { method: "POST" });
-      fetchTerminations();
-    } catch (error) {
-      console.error("Error checking overdue terminations:", error);
-    }
-  };
-
- const getStatusColor = (status: string, isOverdue: boolean, equipmentDisposition?: string) => {
-  if (isOverdue) return "bg-red-100 text-red-800";
-  
-  if (status === "pending" && equipmentDisposition === "pending_assessment") {
-    return "bg-blue-100 text-blue-800";
-  }
-
-  switch (status) {
-    case "pending":
-      return "bg-yellow-100 text-yellow-800";
-    case "equipment_returned":
-      return "bg-green-100 text-green-800";
-    case "archived":
-      return "bg-gray-100 text-gray-800";
-    case "overdue":
-      return "bg-red-100 text-red-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
-  const getStatusText = (
-  status: string,
-  daysRemaining: number,
-  isOverdue: boolean,
-  equipmentDisposition?: string
-) => {
-  if (isOverdue) return "OVERDUE - Equipment Not Returned";
-  
-  if (status === "pending" && equipmentDisposition === "pending_assessment") {
-    return "Awaiting Equipment Return";
-  }
-
-  switch (status) {
-    case "pending":
-      return `${daysRemaining} days remaining`;
-    case "equipment_returned":
-      return "Equipment Returned";
-    case "archived":
-      return "Archived";
-    case "overdue":
-      return "Overdue";
-    default:
-      return "Pending";
-  }
-};
-
-  const handleTrackingNumberChange = useCallback(
-    (terminationId: number, value: string) => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                trackingNumber: value,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-      debouncedUpdateTrackingNumber(terminationId, value);
-    },
-    [debouncedUpdateTrackingNumber]
-  );
-
-  const handleEmployeeSelect = (employee: any) => {
-    setTerminationForm((prev) => ({
-      ...prev,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      employeeEmail: employee.email,
-      jobTitle: employee.jobTitle,
-      department: employee.department,
-    }));
-  };
-
   const ChecklistSection = ({ termination }: { termination: Termination }) => {
     const [localNewItem, setLocalNewItem] = useState({
       category: "",
@@ -1077,7 +904,7 @@ export default function TerminationsContent() {
 
     return (
       <div className="border-t pt-4">
-        {/* Completed By Dropdown  */}
+        {/* Completed By Dropdown */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Completed By
@@ -1315,6 +1142,41 @@ export default function TerminationsContent() {
     );
   };
 
+  const removeChecklistItem = async (terminationId: number, itemId: string) => {
+    if (!confirm("Are you sure you want to remove this checklist item?")) {
+      return;
+    }
+
+    try {
+      const termination = terminations.find((t) => t.id === terminationId);
+      if (!termination?.checklist) return;
+
+      const updatedChecklist = termination.checklist.filter(
+        (item) => item.id !== itemId
+      );
+
+      // Update local state immediately
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? {
+                ...t,
+                checklist: updatedChecklist,
+                isExpanded: t.isExpanded, // Preserve expanded state
+              }
+            : t
+        )
+      );
+
+      // Update in database - don't call fetchTerminations after this
+      await updateTermination(terminationId, { checklist: updatedChecklist });
+    } catch (error) {
+      console.error("Error removing checklist item:", error);
+      // Only refresh on error
+      fetchTerminations();
+    }
+  };
+
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -1343,12 +1205,12 @@ export default function TerminationsContent() {
       {/* Termination Form Modal */}
       {showTerminationForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">
               Initiate Termination Process
             </h3>
             <form onSubmit={createTermination}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="space-y-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Employee Name *
@@ -1364,6 +1226,7 @@ export default function TerminationsContent() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
+                    placeholder="Enter full name"
                   />
                 </div>
                 <div>
@@ -1381,40 +1244,7 @@ export default function TerminationsContent() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Job Title *
-                  </label>
-                  <input
-                    type="text"
-                    value={terminationForm.jobTitle}
-                    onChange={(e) =>
-                      setTerminationForm({
-                        ...terminationForm,
-                        jobTitle: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Department *
-                  </label>
-                  <input
-                    type="text"
-                    value={terminationForm.department}
-                    onChange={(e) =>
-                      setTerminationForm({
-                        ...terminationForm,
-                        department: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
-                    required
+                    placeholder="Enter email address"
                   />
                 </div>
                 <div>
@@ -1434,56 +1264,33 @@ export default function TerminationsContent() {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Equipment Disposition *
-                  </label>
-                  <select
-                    value={terminationForm.equipmentDisposition}
-                    onChange={(e) =>
-                      setTerminationForm({
-                        ...terminationForm,
-                        equipmentDisposition: e.target.value as any,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
-                    required
-                  >
-                    <option value="return_to_pool">
-                      Return to Available Pool
-                    </option>
-                    <option value="retire">Retire Equipment</option>
-                  </select>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-blue-500 mt-0.5" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Note:</strong> Equipment disposition will be set when the equipment is returned. 
+                      The IT staff member handling the return will determine if equipment can be recycled.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Termination Reason *
-                </label>
-                <textarea
-                  value={terminationForm.terminationReason}
-                  onChange={(e) =>
-                    setTerminationForm({
-                      ...terminationForm,
-                      terminationReason: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
-                  rows={3}
-                  required
-                />
-              </div>
+
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowTerminationForm(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md font-medium"
                 >
                   Initiate Termination
                 </button>
@@ -1539,13 +1346,6 @@ export default function TerminationsContent() {
                           {termination.employeeName}
                         </h3>
                         <button
-                          onClick={() => handleEditTermination(termination.id)}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Edit Termination"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                        <button
                           onClick={() => generatePrintReport(termination)}
                           className="text-gray-400 hover:text-green-600"
                           title="Print Report"
@@ -1578,22 +1378,22 @@ export default function TerminationsContent() {
                   </div>
                   <div className="text-right">
                     <div
-  className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-    termination.status,
-    termination.isOverdue,
-    termination.equipmentDisposition
-  )}`}
->
-  {termination.isOverdue && (
-    <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
-  )}
-  {getStatusText(
-    termination.status,
-    termination.daysRemaining,
-    termination.isOverdue,
-    termination.equipmentDisposition
-  )}
-</div>
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                        termination.status,
+                        termination.isOverdue,
+                        termination.equipmentDisposition
+                      )}`}
+                    >
+                      {termination.isOverdue && (
+                        <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                      )}
+                      {getStatusText(
+                        termination.status,
+                        termination.daysRemaining,
+                        termination.isOverdue,
+                        termination.equipmentDisposition
+                      )}
+                    </div>
                     {termination.trackingNumber && (
                       <div className="text-sm text-gray-500 mt-1">
                         Tracking: {termination.trackingNumber}
@@ -1607,8 +1407,6 @@ export default function TerminationsContent() {
               {termination.isExpanded && (
                 <div className="border-t border-gray-200 px-6 py-4 space-y-4">
                   {/* Equipment Return Section */}
-
-                  {/* Equipment Return Section */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h3 className="font-medium text-gray-900 mb-3 flex items-center">
                       <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
@@ -1619,7 +1417,7 @@ export default function TerminationsContent() {
                       {/* Tracking Number */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tracking Number
+                          Tracking Number *
                         </label>
                         <input
                           type="text"
@@ -1632,141 +1430,118 @@ export default function TerminationsContent() {
                           }
                           placeholder="Enter return tracking number"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          required
                         />
                       </div>
 
                       {/* Equipment Disposition */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-    <CheckCircleIcon className="h-5 w-5 text-blue-500 mr-2" />
-    Equipment Return Process
-  </h3>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Equipment Disposition *
+                        </label>
+                        <select
+                          value={termination.equipmentDisposition || "pending_assessment"}
+                          onChange={(e) =>
+                            handleEquipmentDispositionChange(
+                              termination.id,
+                              e.target.value as "return_to_pool" | "retire" | "pending_assessment"
+                            )
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="pending_assessment">Pending Assessment</option>
+                          <option value="return_to_pool">Return to Available Pool</option>
+                          <option value="retire">Retire Equipment</option>
+                        </select>
+                      </div>
 
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-    {/* Tracking Number */}
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Tracking Number *
-      </label>
-      <input
-        type="text"
-        value={termination.trackingNumber || ""}
-        onChange={(e) =>
-          handleTrackingNumberChange(
-            termination.id,
-            e.target.value
-          )
-        }
-        placeholder="Enter return tracking number"
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-        required
-      />
-    </div>
+                      {/* Completed By */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Completed By (IT Staff) *
+                        </label>
+                        <select
+                          value={termination.completedByUserId || ""}
+                          onChange={(e) =>
+                            handleCompletedByChange(
+                              termination.id,
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="">Select IT Staff</option>
+                          {itUsers.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.name} ({user.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-    {/* Equipment Disposition - NOW SET WHEN RETURNING */}
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Equipment Disposition *
-      </label>
-      <select
-        value={termination.equipmentDisposition || "pending_assessment"}
-        onChange={(e) =>
-          handleEquipmentDispositionChange(
-            termination.id,
-            e.target.value as "return_to_pool" | "retire"
-          )
-        }
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-        required
-      >
-        <option value="pending_assessment">Select disposition</option>
-        <option value="return_to_pool">Return to Available Pool</option>
-        <option value="retire">Retire Equipment</option>
-      </select>
-    </div>
-
-    {/* Completed By */}
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        Completed By (IT Staff) *
-      </label>
-      <select
-        value={termination.completedByUserId || ""}
-        onChange={(e) =>
-          handleCompletedByChange(
-            termination.id,
-            e.target.value
-          )
-        }
-        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-        required
-      >
-        <option value="">Select IT Staff</option>
-        {itUsers.map((user) => (
-          <option key={user.id} value={user.id}>
-            {user.name} ({user.role})
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-
-  {/* Mark Equipment Returned Button */}
-  {isAdminOrIT && (
-  <div className="mt-4">
-    <button
-      onClick={() => {
-        // Validate required fields
-        if (!termination.trackingNumber) {
-          alert("Please enter a tracking number");
-          return;
-        }
-        if (!termination.completedByUserId) {
-          alert("Please select an IT staff member");
-          return;
-        }
-        if (!termination.equipmentDisposition || 
-            termination.equipmentDisposition === "pending_assessment") {
-          alert("Please select equipment disposition");
-          return;
-        }
-        
-        markEquipmentReturned(
-          termination.id,
-          termination.trackingNumber!,
-          termination.equipmentDisposition,
-          termination.completedByUserId
-        );
-      }}
-      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
-      disabled={!termination.trackingNumber || !termination.completedByUserId || 
-                !termination.equipmentDisposition || 
-                termination.equipmentDisposition === "pending_assessment"}
-    >
-      <CheckCircleIcon className="h-4 w-4 mr-2" />
-      Mark Equipment Returned
-      {termination.equipmentDisposition === "return_to_pool" && (
-        <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
-          +1 Laptop to{" "}
-          {
-            itUsers.find(
-              (u) => u.id === termination.completedByUserId
-            )?.name
-          }
-          's Inventory
-        </span>
-      )}
-    </button>
-          {(!termination.trackingNumber || !termination.completedByUserId || 
-      !termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && (
-      <div className="mt-2 text-xs text-amber-600">
-        {!termination.trackingNumber && "• Tracking number required\n"}
-        {!termination.completedByUserId && "• IT staff member required\n"}
-        {(!termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && 
-         "• Equipment disposition required"}
-    </div>
-  )}
-</div>
+                    {/* Mark Equipment Returned Button */}
+                    {isAdminOrIT && (
+                      <div className="mt-4">
+                        <button
+                          onClick={() => {
+                            // Validate required fields
+                            if (!termination.trackingNumber) {
+                              alert("Please enter a tracking number");
+                              return;
+                            }
+                            if (!termination.completedByUserId) {
+                              alert("Please select an IT staff member");
+                              return;
+                            }
+                            if (!termination.equipmentDisposition || 
+                                termination.equipmentDisposition === "pending_assessment") {
+                              alert("Please select equipment disposition");
+                              return;
+                            }
+                            
+                            markEquipmentReturned(
+                              termination.id,
+                              termination.trackingNumber!,
+                              termination.equipmentDisposition,
+                              termination.completedByUserId
+                            );
+                          }}
+                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
+                          disabled={!termination.trackingNumber || !termination.completedByUserId || 
+                                    !termination.equipmentDisposition || 
+                                    termination.equipmentDisposition === "pending_assessment"}
+                        >
+                          <CheckCircleIcon className="h-4 w-4 mr-2" />
+                          Mark Equipment Returned
+                          {termination.equipmentDisposition === "return_to_pool" && (
+                            <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
+                              +1 Laptop to{" "}
+                              {
+                                itUsers.find(
+                                  (u) => u.id === termination.completedByUserId
+                                )?.name
+                              }
+                              's Inventory
+                            </span>
+                          )}
+                        </button>
+                        
+                        {/* Show validation messages */}
+                        {(!termination.trackingNumber || !termination.completedByUserId || 
+                          !termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && (
+                          <div className="mt-2 text-xs text-amber-600">
+                            {!termination.trackingNumber && "• Tracking number required\n"}
+                            {!termination.completedByUserId && "• IT staff member required\n"}
+                            {(!termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && 
+                             "• Equipment disposition required"}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* IT Checklist Section - Only for Admin/IT */}
                   {isAdminOrIT && termination.checklist && (
@@ -1792,9 +1567,7 @@ export default function TerminationsContent() {
                     <div className="flex gap-2">
                       {termination.status === "equipment_returned" && (
                         <button
-                          onClick={() =>
-                            archiveTerminationWithNotification(termination.id)
-                          }
+                          onClick={() => archiveTermination(termination.id)}
                           className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
                         >
                           Archive
