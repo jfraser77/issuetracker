@@ -13,6 +13,9 @@ import {
   CheckCircleIcon,
   XMarkIcon,
   EyeIcon,
+  ArrowPathIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import { StatItem, ActivityItem } from "../types";
 import Link from "next/link";
@@ -79,13 +82,22 @@ export default function Dashboard() {
   const [isClient, setIsClient] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+  const [activityLimit, setActivityLimit] = useState(5);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
+  // Enhanced alert dismissal with session persistence
   useEffect(() => {
     setIsClient(true);
     fetchCurrentUser();
     fetchDashboardData();
     fetchNewEmployeesCount();
     fetchAlerts();
+
+    // Load dismissed alerts from sessionStorage (clears on browser close)
+    const saved = sessionStorage.getItem('dismissedAlerts');
+    if (saved) {
+      setDismissedAlerts(new Set(JSON.parse(saved)));
+    }
 
     const interval = setInterval(() => {
       fetchDashboardData();
@@ -95,15 +107,6 @@ export default function Dashboard() {
 
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-  if (isClient) {
-    const saved = localStorage.getItem('dismissedAlerts');
-    if (saved) {
-      setDismissedAlerts(new Set(JSON.parse(saved)));
-    }
-  }
-}, [isClient]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -165,27 +168,35 @@ export default function Dashboard() {
     }
   };
 
+  // Enhanced alert dismissal with sessionStorage
   const markAlertAsViewed = async (alertId: string) => {
-  try {
-    // Update local state immediately
-    setDismissedAlerts(prev => {
-      const newSet = new Set(prev);
-      newSet.add(alertId);
-      localStorage.setItem('dismissedAlerts', JSON.stringify([...newSet]));
-      return newSet;
-    });
+    try {
+      // Update local state immediately using sessionStorage
+      setDismissedAlerts(prev => {
+        const newSet = new Set(prev);
+        newSet.add(alertId);
+        sessionStorage.setItem('dismissedAlerts', JSON.stringify([...newSet]));
+        return newSet;
+      });
 
-    // Update in database (fire and forget)
-    fetch(`/api/dashboard/alerts/${alertId}/view`, {
-      method: "POST",
-    }).catch(error => {
-      console.error("Background alert update failed:", error);
-    });
-    
-  } catch (error) {
-    console.error("Error marking alert as viewed:", error);
-  }
-};
+      // Update in database (fire and forget)
+      fetch(`/api/dashboard/alerts/${alertId}/view`, {
+        method: "POST",
+      }).catch(error => {
+        console.error("Background alert update failed:", error);
+      });
+      
+    } catch (error) {
+      console.error("Error marking alert as viewed:", error);
+    }
+  };
+
+  // Clear all dismissed alerts (on sign out or manually)
+  const clearDismissedAlerts = () => {
+    setDismissedAlerts(new Set());
+    sessionStorage.removeItem('dismissedAlerts');
+  };
+
   const isAdmin = currentUser?.role === "Admin";
   const isIT = currentUser?.role === "I.T.";
   const isHR = currentUser?.role === "HR";
@@ -195,13 +206,26 @@ export default function Dashboard() {
   const canViewReports = isAdmin || isIT || isHR;
   const canManageApprovals = isAdmin || isIT;
 
-  // Filter alerts for Trainer, HR, and Admin roles
+  // Enhanced alert filtering with session-based dismissal
   const visibleAlerts = alerts.filter(
-  (alert) => 
-    (isTrainer || isHR || isAdmin) && 
-    !alert.viewed && 
-    !dismissedAlerts.has(alert.id)
-);
+    (alert) => 
+      (isTrainer || isHR || isAdmin) && 
+      !alert.viewed && 
+      !dismissedAlerts.has(alert.id)
+  );
+
+  // Enhanced activity management
+  const displayedActivities = showAllActivities 
+    ? activities.recentActivities 
+    : activities.recentActivities.slice(0, activityLimit);
+
+  const toggleActivityView = () => {
+    setShowAllActivities(!showAllActivities);
+  };
+
+  const loadMoreActivities = () => {
+    setActivityLimit(prev => prev + 5);
+  };
 
   if (!isClient) {
     return (
@@ -302,26 +326,29 @@ export default function Dashboard() {
             Welcome back, {currentUser?.name} • {currentUser?.role} Access
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right flex items-center gap-4">
           <span className="text-gray-500 block">Today: {currentDate}</span>
           {refreshing && (
-            <span className="text-sm text-blue-500">Updating data...</span>
+            <div className="flex items-center text-sm text-blue-500">
+              <ArrowPathIcon className="h-4 w-4 animate-spin mr-1" />
+              Updating data...
+            </div>
           )}
         </div>
       </div>
 
-      {/* Enhanced Alert System with Progress Tracking */}
+      {/* Enhanced Alert System with Improved Dismissal */}
       {(isTrainer || isHR || isAdmin) && visibleAlerts.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {visibleAlerts.map((alert) => (
             <div
               key={alert.id}
-              className={`border rounded-lg p-4 transition-colors relative ${
+              className={`border rounded-lg p-4 transition-all duration-300 relative ${
                 alert.status === "completed"
-                  ? "bg-green-50 border-green-200"
+                  ? "bg-green-50 border-green-200 hover:border-green-300"
                   : alert.status === "in-progress"
-                  ? "bg-blue-50 border-blue-200"
-                  : "bg-amber-50 border-amber-200"
+                  ? "bg-blue-50 border-blue-200 hover:border-blue-300"
+                  : "bg-amber-50 border-amber-200 hover:border-amber-300"
               }`}
             >
               <div className="flex items-start justify-between">
@@ -386,7 +413,7 @@ export default function Dashboard() {
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${
+                          className={`h-2 rounded-full transition-all duration-500 ${
                             alert.status === "completed"
                               ? "bg-green-500"
                               : alert.status === "in-progress"
@@ -402,7 +429,7 @@ export default function Dashboard() {
                   <div className="flex justify-between items-center">
                     <Link
                       href={alert.link}
-                      className={`text-sm font-medium px-3 py-1 rounded ${
+                      className={`text-sm font-medium px-3 py-1 rounded transition-colors ${
                         alert.status === "completed"
                           ? "bg-green-500 text-white hover:bg-green-600"
                           : alert.status === "in-progress"
@@ -420,7 +447,7 @@ export default function Dashboard() {
 
                 <button
                   onClick={() => markAlertAsViewed(alert.id)}
-                  className="ml-4 text-gray-400 hover:text-gray-600"
+                  className="ml-4 text-gray-400 hover:text-gray-600 transition-colors"
                   title="Mark as viewed"
                 >
                   <EyeIcon className="h-5 w-5" />
@@ -435,9 +462,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {isAdminOrIT && newEmployeesCount > 0 && (
           <Link href="/management-portal/onboarding">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 hover:bg-amber-100 transition-colors cursor-pointer">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 hover:bg-amber-100 transition-colors cursor-pointer group">
               <div className="flex items-center">
-                <ExclamationTriangleIcon className="h-8 w-8 text-amber-500 mr-3" />
+                <ExclamationTriangleIcon className="h-8 w-8 text-amber-500 mr-3 group-hover:scale-110 transition-transform" />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-amber-800">
                     IT Setup Required
@@ -458,9 +485,9 @@ export default function Dashboard() {
 
         {canManageApprovals && (stats.pendingApprovals || 0) > 0 && (
           <Link href="/management-portal/admin/approvals">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors cursor-pointer">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors cursor-pointer group">
               <div className="flex items-center">
-                <ClockIcon className="h-8 w-8 text-blue-500 mr-3" />
+                <ClockIcon className="h-8 w-8 text-blue-500 mr-3 group-hover:scale-110 transition-transform" />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-blue-800">
                     Pending Role Approvals
@@ -480,9 +507,9 @@ export default function Dashboard() {
 
         {isIT && (stats.overdueReturns || 0) > 0 && (
           <Link href="/management-portal/terminations?filter=overdue">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer group">
               <div className="flex items-center">
-                <ExclamationTriangleIcon className="h-8 w-8 text-red-500 mr-3" />
+                <ExclamationTriangleIcon className="h-8 w-8 text-red-500 mr-3 group-hover:scale-110 transition-transform" />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-red-800">
                     Overdue Equipment Returns
@@ -502,9 +529,9 @@ export default function Dashboard() {
 
         {(isTrainer || isHR) && (
           <Link href="/management-portal/reports?view=training">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors cursor-pointer">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors cursor-pointer group">
               <div className="flex items-center">
-                <CheckCircleIcon className="h-8 w-8 text-green-500 mr-3" />
+                <CheckCircleIcon className="h-8 w-8 text-green-500 mr-3 group-hover:scale-110 transition-transform" />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-green-800">
                     Training Overview
@@ -537,7 +564,7 @@ export default function Dashboard() {
                   "border-"
                 )} ${
                   stat.link
-                    ? "hover:shadow-md transition-shadow cursor-pointer"
+                    ? "hover:shadow-md transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
                     : ""
                 }`}
               >
@@ -578,34 +605,68 @@ export default function Dashboard() {
 
       {/* Enhanced Activity Sections */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Recent Activity with Onboarding/Termination Updates */}
+        {/* Modern Recent Activity Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 xl:col-span-2">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Recent Activity
-          </h2>
-          <div className="space-y-3">
-            {activities.recentActivities.slice(0, 8).map((activity, index) => (
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Recent Activity
+            </h2>
+            {activities.recentActivities.length > 5 && (
+              <button
+                onClick={toggleActivityView}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                {showAllActivities ? (
+                  <>
+                    <ChevronUpIcon className="h-4 w-4" />
+                    Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDownIcon className="h-4 w-4" />
+                    Show All ({activities.recentActivities.length})
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {displayedActivities.map((activity, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50"
+                className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors group"
               >
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">
-                    {activity.employee}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {activity.activity}
-                  </div>
-                  {activity.department && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      {activity.department}
+                <div className="flex items-start space-x-3 flex-1">
+                  <div className={`w-2 h-2 rounded-full mt-2 ${
+                    activity.status === "completed"
+                      ? "bg-green-500"
+                      : activity.status === "pending"
+                      ? "bg-yellow-500"
+                      : activity.status === "warning"
+                      ? "bg-orange-500"
+                      : "bg-gray-400"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {activity.employee}
                     </div>
-                  )}
+                    <div className="text-sm text-gray-600 line-clamp-2">
+                      {activity.activity}
+                    </div>
+                    {activity.department && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {activity.department}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-500">{activity.date}</div>
+                <div className="text-right flex-shrink-0 ml-4">
+                  <div className="text-sm text-gray-500 whitespace-nowrap">
+                    {activity.date}
+                  </div>
                   <span
-                    className={`inline-block px-2 py-1 text-xs rounded-full ${
+                    className={`inline-block px-2 py-1 text-xs rounded-full whitespace-nowrap ${
                       activity.status === "completed"
                         ? "bg-green-100 text-green-800"
                         : activity.status === "pending"
@@ -621,9 +682,22 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          
           {activities.recentActivities.length === 0 && (
             <div className="text-center text-gray-500 py-8">
-              No recent activity
+              <div className="text-lg mb-2">No recent activity</div>
+              <div className="text-sm">Activity will appear here as processes are completed</div>
+            </div>
+          )}
+          
+          {!showAllActivities && activities.recentActivities.length > activityLimit && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={loadMoreActivities}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Load More Activities
+              </button>
             </div>
           )}
         </div>
@@ -634,17 +708,22 @@ export default function Dashboard() {
           {(activities.pendingActions.length > 0 ||
             visibleAlerts.length > 0) && (
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Requires Attention
-              </h3>
-              <div className="space-y-2">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Requires Attention
+                </h3>
+                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                  {activities.pendingActions.length + visibleAlerts.length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {activities.pendingActions.slice(0, 3).map((action, index) => (
                   <Link key={index} href={action.link || "#"} className="block">
-                    <div className="p-2 border border-orange-200 bg-orange-50 rounded hover:bg-orange-100 transition-colors">
-                      <div className="text-sm font-medium text-orange-800">
+                    <div className="p-3 border border-orange-200 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors group">
+                      <div className="text-sm font-medium text-orange-800 group-hover:text-orange-900">
                         {action.activity}
                       </div>
-                      <div className="text-xs text-orange-600">
+                      <div className="text-xs text-orange-600 mt-1">
                         {action.employee} • {action.date}
                       </div>
                     </div>
@@ -653,16 +732,16 @@ export default function Dashboard() {
                 {visibleAlerts.slice(0, 2).map((alert) => (
                   <Link key={alert.id} href={alert.link} className="block">
                     <div
-                      className={`p-2 border rounded hover:bg-gray-50 transition-colors ${
+                      className={`p-3 border rounded-lg hover:shadow-sm transition-all group ${
                         alert.status === "completed"
-                          ? "border-green-200 bg-green-50"
+                          ? "border-green-200 bg-green-50 hover:bg-green-100"
                           : alert.status === "in-progress"
-                          ? "border-blue-200 bg-blue-50"
-                          : "border-amber-200 bg-amber-50"
+                          ? "border-blue-200 bg-blue-50 hover:bg-blue-100"
+                          : "border-amber-200 bg-amber-50 hover:bg-amber-100"
                       }`}
                     >
                       <div
-                        className={`text-sm font-medium ${
+                        className={`text-sm font-medium group-hover:underline ${
                           alert.status === "completed"
                             ? "text-green-800"
                             : alert.status === "in-progress"
@@ -673,7 +752,7 @@ export default function Dashboard() {
                         {alert.title}
                       </div>
                       <div
-                        className={`text-xs ${
+                        className={`text-xs mt-1 ${
                           alert.status === "completed"
                             ? "text-green-600"
                             : alert.status === "in-progress"
@@ -699,8 +778,8 @@ export default function Dashboard() {
             </h3>
             <div className="space-y-2">
               <Link href="/management-portal/onboarding" className="block">
-                <div className="p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                  <div className="font-medium text-gray-900">
+                <div className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+                  <div className="font-medium text-gray-900 group-hover:text-blue-600">
                     Add New Employee
                   </div>
                   <div className="text-sm text-gray-600">
@@ -710,8 +789,8 @@ export default function Dashboard() {
               </Link>
 
               <Link href="/management-portal/terminations" className="block">
-                <div className="p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors">
-                  <div className="font-medium text-gray-900">
+                <div className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+                  <div className="font-medium text-gray-900 group-hover:text-red-600">
                     Process Termination
                   </div>
                   <div className="text-sm text-gray-600">
@@ -725,8 +804,8 @@ export default function Dashboard() {
                   href="/management-portal/admin/approvals"
                   className="block"
                 >
-                  <div className="p-3 border border-blue-200 bg-blue-50 rounded hover:bg-blue-100 transition-colors">
-                    <div className="font-medium text-blue-900">
+                  <div className="p-3 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group">
+                    <div className="font-medium text-blue-900 group-hover:text-blue-700">
                       Review Role Requests
                     </div>
                     <div className="text-sm text-blue-600">
@@ -738,8 +817,8 @@ export default function Dashboard() {
 
               {isIT && (
                 <Link href="/management-portal/it-assets" className="block">
-                  <div className="p-3 border border-yellow-200 bg-yellow-50 rounded hover:bg-yellow-100 transition-colors">
-                    <div className="font-medium text-yellow-900">
+                  <div className="p-3 border border-yellow-200 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors group">
+                    <div className="font-medium text-yellow-900 group-hover:text-yellow-700">
                       Manage IT Assets
                     </div>
                     <div className="text-sm text-yellow-600">
@@ -751,8 +830,8 @@ export default function Dashboard() {
 
               {(isTrainer || isHR) && (
                 <Link href="/management-portal/reports" className="block">
-                  <div className="p-3 border border-purple-200 bg-purple-50 rounded hover:bg-purple-100 transition-colors">
-                    <div className="font-medium text-purple-900">
+                  <div className="p-3 border border-purple-200 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group">
+                    <div className="font-medium text-purple-900 group-hover:text-purple-700">
                       Training Reports
                     </div>
                     <div className="text-sm text-purple-600">
