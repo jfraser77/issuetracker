@@ -121,28 +121,28 @@ export default function Dashboard() {
   };
 
   const fetchDashboardData = async () => {
-    setRefreshing(true);
-    try {
-      const [statsResponse, activitiesResponse] = await Promise.all([
-        fetch("/api/dashboard/stats"),
-        fetch("/api/dashboard/activities"),
-      ]);
+  setRefreshing(true);
+  try {
+    const [statsResponse, activitiesResponse] = await Promise.all([
+      fetch("/api/dashboard/stats"),
+      fetch(`/api/dashboard/activities?role=${currentUser?.role}&limit=20`), // Added role and limit
+    ]);
 
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData);
-      }
-
-      if (activitiesResponse.ok) {
-        const activitiesData = await activitiesResponse.json();
-        setActivities(activitiesData);
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    } finally {
-      setRefreshing(false);
+    if (statsResponse.ok) {
+      const statsData = await statsResponse.json();
+      setStats(statsData);
     }
-  };
+
+    if (activitiesResponse.ok) {
+      const activitiesData = await activitiesResponse.json();
+      setActivities(activitiesData);
+    }
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+  } finally {
+    setRefreshing(false);
+  }
+};
 
   const fetchNewEmployeesCount = async () => {
     try {
@@ -157,16 +157,16 @@ export default function Dashboard() {
   };
 
   const fetchAlerts = async () => {
-    try {
-      const response = await fetch("/api/dashboard/alerts");
-      if (response.ok) {
-        const alertsData = await response.json();
-        setAlerts(alertsData);
-      }
-    } catch (error) {
-      console.error("Error fetching alerts:", error);
+  try {
+    const response = await fetch(`/api/dashboard/alerts?role=${currentUser?.role}`);
+    if (response.ok) {
+      const alertsData = await response.json();
+      setAlerts(alertsData);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching alerts:", error);
+  }
+};
 
   // Enhanced alert dismissal with sessionStorage
   const markAlertAsViewed = async (alertId: string) => {
