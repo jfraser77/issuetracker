@@ -85,28 +85,36 @@ export default function Dashboard() {
   const [activityLimit, setActivityLimit] = useState(5);
   const [showAllActivities, setShowAllActivities] = useState(false);
 
-  // Enhanced alert dismissal with session persistence
+  
   useEffect(() => {
-    setIsClient(true);
-    fetchCurrentUser();
+  setIsClient(true);
+  
+  // Load dismissed alerts from sessionStorage (clears on browser close)
+  const saved = sessionStorage.getItem('dismissedAlerts');
+  if (saved) {
+    setDismissedAlerts(new Set(JSON.parse(saved)));
+  }
+
+  // Initialize all data after currentUser is fetched
+  const initializeData = async () => {
+    await fetchCurrentUser();
+    // Now that currentUser is set, fetch data that depends on user role
     fetchDashboardData();
     fetchNewEmployeesCount();
     fetchAlerts();
+  };
 
-    // Load dismissed alerts from sessionStorage (clears on browser close)
-    const saved = sessionStorage.getItem('dismissedAlerts');
-    if (saved) {
-      setDismissedAlerts(new Set(JSON.parse(saved)));
-    }
+  initializeData();
 
-    const interval = setInterval(() => {
-      fetchDashboardData();
-      fetchNewEmployeesCount();
-      fetchAlerts();
-    }, 30000);
+  const interval = setInterval(() => {
+    // Refresh data periodically
+    fetchDashboardData();
+    fetchNewEmployeesCount();
+    fetchAlerts();
+  }, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+  return () => clearInterval(interval);
+}, []);
 
   const fetchCurrentUser = async () => {
     try {
@@ -125,7 +133,7 @@ export default function Dashboard() {
   try {
     const [statsResponse, activitiesResponse] = await Promise.all([
       fetch("/api/dashboard/stats"),
-      fetch(`/api/dashboard/activities?role=${currentUser?.role}&limit=20`), // Added role and limit
+      fetch(`/api/dashboard/activities?role=${currentUser?.role || ''}&limit=20`),
     ]);
 
     if (statsResponse.ok) {
@@ -155,10 +163,9 @@ export default function Dashboard() {
       console.error("Error fetching employees count:", error);
     }
   };
-
-  const fetchAlerts = async () => {
+const fetchAlerts = async () => {
   try {
-    const response = await fetch(`/api/dashboard/alerts?role=${currentUser?.role}`);
+    const response = await fetch(`/api/dashboard/alerts?role=${currentUser?.role || ''}`);
     if (response.ok) {
       const alertsData = await response.json();
       setAlerts(alertsData);
@@ -254,14 +261,15 @@ export default function Dashboard() {
       link: "/management-portal/onboarding",
       description: "Employees added this month",
     },
-    {
-      icon: UserMinusIcon,
-      value: stats.pendingTerminations,
-      label: "Pending Terminations",
-      color: "text-red-500",
-      link: "/management-portal/terminations",
-      description: "Terminations in progress",
-    },
+    ...((isAdmin || isIT || isHR) ? [{
+    icon: UserMinusIcon,
+    value: stats.pendingTerminations,
+    label: "Pending Terminations",
+    color: "text-red-500",
+    link: "/management-portal/terminations",
+    description: "Terminations in progress",
+    roleRestricted: true,
+  }] : []),
     {
       icon: ChartBarIcon,
       value: `${stats.onboardingProgress || 0}%`,
