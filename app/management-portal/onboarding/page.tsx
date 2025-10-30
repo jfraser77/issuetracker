@@ -836,105 +836,138 @@ export default function OnboardingPage() {
     }
   };
 
-  // Enhanced Class Card Component
-  const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
+  //  Class Card Component
+ const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
 
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Class Header with Enhanced Controls */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-4 mb-2">
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="mt-1 text-gray-400 hover:text-gray-600"
-                >
-                  {isExpanded ? (
-                    <ChevronDownIcon className="h-5 w-5" />
-                  ) : (
-                    <ChevronRightIcon className="h-5 w-5" />
-                  )}
-                </button>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {classGroup.className}
-                </h2>
+         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-2">
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="mt-1 text-gray-400 hover:text-gray-600"
+              >
+                {isExpanded ? (
+                  <ChevronDownIcon className="h-5 w-5" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5" />
+                )}
+              </button>
+              <h2 className="text-xl font-bold text-gray-800">
+                {classGroup.className}
+              </h2>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setBulkOperation((prev) => ({
-                        ...prev,
-                        classId: classGroup.id,
-                      }));
-                      setShowBulkOperationsModal(true);
-                    }}
-                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Bulk Operations"
-                  >
-                    <CheckCircleIcon className="h-4 w-4 mr-1" />
-                    Bulk Actions
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setClassNotes(classGroup.classNotes || "");
-                      setShowClassNotesModal(true);
-                    }}
-                    className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Class Notes"
-                  >
-                    <PencilIcon className="h-4 w-4 mr-1" />
-                    Class Notes
-                  </button>
-                </div>
-              </div>
+                  onClick={() => {
+                    setSelectedClass(classGroup);
+                    setBulkOperation((prev) => ({
+                      ...prev,
+                      classId: classGroup.id,
+                    }));
+                    setShowBulkOperationsModal(true);
+                  }}
+                  className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
+                  title="Bulk Operations"
+                >
+                  <CheckCircleIcon className="h-4 w-4 mr-1" />
+                  Bulk Actions
+                </button>
 
-              <div className="flex items-center gap-6 text-sm text-gray-600">
-                <span>{classGroup.employees.length} employees</span>
-                <span>•</span>
-                <span>
-                  Starts{" "}
-                  {new Date(classGroup.startDate).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-                {classGroup.classNotes && (
-                  <>
-                    <span>•</span>
-                    <span className="text-blue-600 flex items-center">
-                      <ExclamationCircleIcon className="h-4 w-4 mr-1" />
-                      Has Notes
-                    </span>
-                  </>
-                )}
+                      {/* Print Class Notes Button */}
+                <button
+                  onClick={() => generateClassNotesReport(classGroup)}
+                  className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded flex items-center"
+                  title="Print Class Notes"
+                  disabled={!classGroup.classNotes && !classGroup.trainerNotes && !classGroup.itNotes}
+                >
+                  <PrinterIcon className="h-4 w-4 mr-1" />
+                  Print Notes
+                </button>
+
+                                {/* Bulk Print Reports Button */}
+                <button
+                  onClick={() => generateBulkPrintReport(classGroup)}
+                  className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
+                  title="Print Reports for All Employees"
+                >
+                  <PrinterIcon className="h-4 w-4 mr-1" />
+                  Print All Reports
+                </button>
+                
+{/* Archive Entire Class Button */}
+                <button
+                  onClick={() => archiveEntireClass(classGroup)}
+                  className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded flex items-center"
+                  title="Archive Entire Class"
+                >
+                  <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+                  Archive Class
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSelectedClass(classGroup);
+                    setClassNotes(classGroup.classNotes || "");
+                    setShowClassNotesModal(true);
+                  }}
+                  className="text-sm bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded flex items-center"
+                  title="Class Notes"
+                >
+                  <PencilIcon className="h-4 w-4 mr-1" />
+                  Class Notes
+                </button>
               </div>
             </div>
+
+              <div className="flex items-center gap-6 text-sm text-gray-600">
+              <span>{classGroup.employees.length} employees</span>
+              <span>•</span>
+              <span>
+                Starts{" "}
+                {new Date(classGroup.startDate).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+              {classGroup.classNotes && (
+                <>
+                  <span>•</span>
+                  <span className="text-blue-600 flex items-center">
+                    <ExclamationCircleIcon className="h-4 w-4 mr-1" />
+                    Has Notes
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
 
             {/* Progress and Stats */}
             <div className="text-right">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="text-sm text-gray-500">Class Progress</div>
-                <div className="w-32 bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${calculateClassProgress(classGroup)}%` }}
-                  ></div>
-                </div>
-                <div className="text-sm font-medium text-gray-700">
-                  {calculateClassProgress(classGroup)}%
-                </div>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="text-sm text-gray-500">Class Progress</div>
+              <div className="w-32 bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${calculateClassProgress(classGroup)}%` }}
+                ></div>
               </div>
-              <div className="text-xs text-gray-500">
-                {getCompletionStats(classGroup)}
+              <div className="text-sm font-medium text-gray-700">
+                {calculateClassProgress(classGroup)}%
               </div>
+            </div>
+            <div className="text-xs text-gray-500">
+              {getCompletionStats(classGroup)}
             </div>
           </div>
         </div>
+      </div>
+
 
         {/* Class Notes Preview */}
         {classGroup.classNotes && (
@@ -1796,6 +1829,392 @@ export default function OnboardingPage() {
     printWindow.document.write(printContent);
     printWindow.document.close();
   };
+
+  // NEW: Print Class Notes Function
+const generateClassNotesReport = (classGroup: OnboardingClass) => {
+  // Check if there are any notes to print
+  const hasNotes = classGroup.classNotes || classGroup.trainerNotes || classGroup.itNotes;
+  
+  if (!hasNotes) {
+    alert('No class notes available to print.');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow pop-ups to generate the class notes report.');
+    return;
+  }
+
+  const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Class Notes Report - ${classGroup.className}</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          margin: 40px; 
+          color: #333; 
+          line-height: 1.6;
+        }
+        .header { 
+          border-bottom: 3px solid #6366f1; 
+          padding-bottom: 20px; 
+          margin-bottom: 30px; 
+        }
+        .header h1 { 
+          color: #6366f1; 
+          margin: 0 0 10px 0; 
+          font-size: 28px;
+        }
+        .class-info {
+          background: #f8fafc;
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 25px;
+          border-left: 4px solid #6366f1;
+        }
+        .notes-section { 
+          margin-bottom: 30px; 
+          page-break-inside: avoid;
+        }
+        .notes-section h2 { 
+          color: #374151; 
+          border-bottom: 2px solid #e5e7eb; 
+          padding-bottom: 8px;
+          margin-bottom: 15px;
+        }
+        .notes-content {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 20px;
+          min-height: 120px;
+          white-space: pre-wrap;
+          line-height: 1.8;
+        }
+        .no-notes {
+          color: #9ca3af;
+          font-style: italic;
+          text-align: center;
+          padding: 40px 20px;
+          background: #f9fafb;
+          border-radius: 8px;
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+        .stat-card {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 15px;
+          text-align: center;
+        }
+        .stat-number {
+          font-size: 24px;
+          font-weight: bold;
+          color: #6366f1;
+          margin-bottom: 5px;
+        }
+        .stat-label {
+          font-size: 12px;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .print-footer {
+          text-align: center;
+          color: #6b7280;
+          font-size: 12px;
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 1px solid #e5e7eb;
+        }
+        @media print {
+          body { margin: 20px; }
+          .notes-section { page-break-inside: avoid; }
+          .print-footer { position: fixed; bottom: 0; width: 100%; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Class Notes Report</h1>
+        <div class="class-info">
+          <strong>Class:</strong> ${classGroup.className}<br>
+          <strong>Start Date:</strong> ${new Date(classGroup.startDate).toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}<br>
+          <strong>Number of Employees:</strong> ${classGroup.employees.length}<br>
+          <strong>Class Progress:</strong> ${calculateClassProgress(classGroup)}%
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-number">${classGroup.employees.length}</div>
+          <div class="stat-label">Total Employees</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${calculateClassProgress(classGroup)}%</div>
+          <div class="stat-label">Class Progress</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${classGroup.employees.filter(emp => calculateOverallProgress(emp) >= 100).length}</div>
+          <div class="stat-label">Completed</div>
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <h2>📋 General Class Notes</h2>
+        <div class="notes-content">
+          ${classGroup.classNotes ? classGroup.classNotes : '<div class="no-notes">No general notes available</div>'}
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <h2>👨‍🏫 Trainer Notes</h2>
+        <div class="notes-content">
+          ${classGroup.trainerNotes ? classGroup.trainerNotes : '<div class="no-notes">No trainer notes available</div>'}
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <h2>💻 IT Notes</h2>
+        <div class="notes-content">
+          ${classGroup.itNotes ? classGroup.itNotes : '<div class="no-notes">No IT notes available</div>'}
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <h2>👥 Employee Summary</h2>
+        <div class="notes-content">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f8fafc;">
+                <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e5e7eb;">Employee Name</th>
+                <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e5e7eb;">Job Title</th>
+                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #e5e7eb;">Progress</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${classGroup.employees.map(employee => `
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${employee.firstName} ${employee.lastName}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${employee.jobTitle}</td>
+                  <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
+                    <div style="display: inline-block; width: 60px; background: #e5e7eb; border-radius: 10px; overflow: hidden;">
+                      <div style="height: 8px; background: #6366f1; width: ${calculateOverallProgress(employee)}%;"></div>
+                    </div>
+                    <span style="margin-left: 8px; font-size: 12px;">${calculateOverallProgress(employee)}%</span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="print-footer">
+        Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()} • 
+        NSN IT Management Portal • Class ID: ${classGroup.id}
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(() => {
+            if (!window.closed) {
+              window.close();
+            }
+          }, 1000);
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+};
+
+// Bulk Print Reports Function
+const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
+  if (!classGroup.employees.length) {
+    alert('No employees in this class to print reports for.');
+    return;
+  }
+
+  try {
+    // Create a single print window for all reports
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow pop-ups to generate bulk reports.');
+      return;
+    }
+
+    let allReportsContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bulk Onboarding Reports - ${classGroup.className}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+          .class-header { border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+          .class-header h1 { color: #2563eb; margin: 0; font-size: 24px; }
+          .employee-report { page-break-after: always; margin-bottom: 50px; padding-bottom: 30px; border-bottom: 2px dashed #ccc; }
+          .employee-report:last-child { border-bottom: none; }
+          .employee-header { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+          .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; }
+          .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+          .completed { color: #059669; }
+          .pending { color: #d97706; }
+          .print-date { text-align: right; color: #6b7280; margin-top: 30px; }
+          .section-title { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin: 20px 0 10px 0; }
+          .task-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          @media print {
+            .employee-report { page-break-after: always; }
+            .class-header { position: running(classHeader); }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="class-header">
+          <h1>Bulk Onboarding Reports - ${classGroup.className}</h1>
+          <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
+        </div>
+    `;
+
+    // Generate report for each employee
+    classGroup.employees.forEach((employee, index) => {
+      const progress = calculateOverallProgress(employee);
+      const completedTasks = employee.onboardingTasks.filter(task => task.status === "completed");
+      const pendingTasks = employee.onboardingTasks.filter(task => task.status !== "completed" && task.status !== "not applicable");
+      const notApplicableTasks = employee.onboardingTasks.filter(task => task.status === "not applicable");
+
+      allReportsContent += `
+        <div class="employee-report">
+          <div class="employee-header">
+            <h2>${employee.firstName} ${employee.lastName}</h2>
+            <p><strong>Job Title:</strong> ${employee.jobTitle}</p>
+            <p><strong>Start Date:</strong> ${new Date(employee.startDate).toLocaleDateString()}</p>
+          </div>
+          
+          <div>
+            <h3>Progress: ${progress}%</h3>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+          </div>
+          
+          <div class="task-grid">
+            <div>
+              <h4 class="section-title">Completed Tasks (${completedTasks.length})</h4>
+              ${completedTasks.map(task => `<div class="task-item completed">✓ ${task.name}</div>`).join("")}
+            </div>
+            
+            <div>
+              <h4 class="section-title">Pending Tasks (${pendingTasks.length})</h4>
+              ${pendingTasks.map(task => `<div class="task-item pending">${task.name} - ${task.status}</div>`).join("")}
+            </div>
+          </div>
+          
+          ${notApplicableTasks.length > 0 ? `
+            <div>
+              <h4 class="section-title">Not Applicable (${notApplicableTasks.length})</h4>
+              ${notApplicableTasks.map(task => `<div class="task-item" style="color: #6b7280;">⊘ ${task.name}</div>`).join("")}
+            </div>
+          ` : ''}
+          
+          <div class="print-date">
+            Report ${index + 1} of ${classGroup.employees.length} • Employee ID: ${employee.id}
+          </div>
+        </div>
+      `;
+    });
+
+    allReportsContent += `
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(() => {
+              if (!window.closed) {
+                window.close();
+              }
+            }, 1000);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(allReportsContent);
+    printWindow.document.close();
+  } catch (error) {
+    console.error("Error generating bulk reports:", error);
+    alert("Failed to generate bulk reports. Please try again.");
+  }
+};
+
+//  Archive Entire Class Function
+const archiveEntireClass = async (classGroup: OnboardingClass) => {
+  if (!classGroup.employees.length) {
+    alert('No employees in this class to archive.');
+    return;
+  }
+
+  const confirmed = confirm(
+    `Are you sure you want to archive the entire "${classGroup.className}"?\n\n` +
+    `This will archive ${classGroup.employees.length} employees and move them to the archived section.\n\n` +
+    `This action cannot be undone.`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setLoading(true);
+    
+    // Archive each employee in the class
+    const archivePromises = classGroup.employees.map(employee =>
+      fetch(`/api/employees/${employee.id}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          archivedBy: currentUser?.name || "System",
+          classNotes: `Archived as part of class: ${classGroup.className}`
+        }),
+      })
+    );
+
+    const results = await Promise.all(archivePromises);
+    const successfulArchives = results.filter(response => response.ok).length;
+
+    if (successfulArchives === classGroup.employees.length) {
+      alert(`Successfully archived entire class: ${classGroup.className}\n\n${successfulArchives} employees moved to archived section.`);
+      
+      // Refresh the employees list to remove archived ones
+      fetchEmployeesWithDetails();
+    } else {
+      alert(`Partially archived class. ${successfulArchives} out of ${classGroup.employees.length} employees were archived successfully.`);
+    }
+  } catch (error) {
+    console.error("Error archiving class:", error);
+    alert("Failed to archive class. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderEmployeeHeader = (employee: EmployeeWithDetails) => {
     const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
