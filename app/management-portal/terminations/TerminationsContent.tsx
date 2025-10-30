@@ -1273,8 +1273,7 @@ export default function TerminationsContent() {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-blue-700">
-                      <strong>Note:</strong> Equipment disposition will be set when the equipment is returned. 
-                      The IT staff member handling the return will determine if equipment can be recycled.
+                      <strong>Note:</strong> HR must provide the equipment return tracking number in the termination record.
                     </p>
                   </div>
                 </div>

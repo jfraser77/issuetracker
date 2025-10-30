@@ -111,6 +111,29 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     },
   ];
 
+  // Admin-only collapsible menu
+const adminCollapsibleMenus: CollapsibleMenu[] = [
+  {
+    name: "Admin Utilities",
+    icon: ShieldCheckIcon,
+    adminOnly: true,
+    items: [
+      {
+        name: "User Management",
+        href: "/management-portal/admin/users",
+        icon: UserGroupIcon,
+        adminOnly: true,
+      },
+      {
+        name: "Role Approvals",
+        href: "/management-portal/admin/approvals",
+        icon: UserGroupIcon,
+        adminOnly: true,
+      },
+    ],
+  },
+];
+
   //Reports and Settings 
   const endNavItems: NavItem[] = [
     { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },

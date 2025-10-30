@@ -836,6 +836,19 @@ const fetchAlerts = async () => {
                 </Link>
               )}
 
+              {isAdmin && (
+  <Link href="/management-portal/admin/users" className="block">
+    <div className="p-3 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition-colors group">
+      <div className="font-medium text-red-900 group-hover:text-red-700">
+        Manage Users
+      </div>
+      <div className="text-sm text-red-600">
+        User accounts & permissions
+      </div>
+    </div>
+  </Link>
+)}
+
               {(isTrainer || isHR) && (
                 <Link href="/management-portal/reports" className="block">
                   <div className="p-3 border border-purple-200 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group">
