@@ -1370,39 +1370,37 @@ const getCompletionStatus = (termination: Termination) => {
                     </button>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {termination.employeeName}
-                        </h3>
+    <h3 className="text-xl font-semibold text-gray-900">
+      {termination.employeeName}
+    </h3>
 
-                        <button
-                          onClick={() => router.push(`/management-portal/terminations/${termination.id}/edit`)}
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit Termination"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
+    <button
+      onClick={() => router.push(`/management-portal/terminations/${termination.id}/edit`)}
+      className="text-gray-400 hover:text-blue-600 transition-colors"
+      title="Edit Termination"
+    >
+      <PencilIcon className="h-4 w-4" />
+    </button>
 
-                        <button
-                          onClick={() => generatePrintReport(termination)}
-                          className="text-gray-400 hover:text-green-600"
-                          title="Print Report"
-                        >
-                          <PrinterIcon className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTermination(termination.id)}
-                          className="text-gray-400 hover:text-red-600"
-                          title="Delete Termination"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                        {termination.isOverdue && (
-                          <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-                        )}
-                      </div>
-                      <p className="text-gray-600">
-                        {termination.jobTitle} - {termination.department}
-                      </p>
+    <button
+      onClick={() => generatePrintReport(termination)}
+      className="text-gray-400 hover:text-green-600"
+      title="Print Report"
+    >
+      <PrinterIcon className="h-4 w-4" />
+    </button>
+    <button
+      onClick={() => deleteTermination(termination.id)}
+      className="text-gray-400 hover:text-red-600"
+      title="Delete Termination"
+    >
+      <TrashIcon className="h-4 w-4" />
+    </button>
+    {termination.isOverdue && (
+      <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+    )}
+  </div>
+                      
                       <p className="text-sm text-gray-500">
                         Terminated:{" "}
                         {new Date(

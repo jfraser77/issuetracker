@@ -114,6 +114,8 @@ const defaultChecklist = [
   }
 ];
 
+
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -130,14 +132,18 @@ export async function GET(request: NextRequest) {
         END as isOverdue,
         CASE 
           WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 30 THEN 0
-          ELSE 30 - DATEDIFF(day, t.terminationDate, GETDATE())
+          ELSE GREATEST(0, 30 - DATEDIFF(day, t.terminationDate, GETDATE()))
         END as daysRemaining
       FROM Terminations t
-      WHERE t.status != 'archived'
+      WHERE 1=1
     `;
 
     if (filter === 'overdue') {
       query += ` AND DATEDIFF(day, t.terminationDate, GETDATE()) > 30 AND t.status = 'pending'`;
+    } else if (filter === 'archived') {
+      query += ` AND t.status = 'archived'`;
+    } else {
+      query += ` AND t.status != 'archived'`;
     }
 
     query += " ORDER BY t.terminationDate DESC";
@@ -206,37 +212,35 @@ export async function POST(request: NextRequest) {
 
     console.log("💾 Preparing to insert termination with checklist items:", checklistToSave.length);
 
-    // NEW APPROACH: Insert without OUTPUT clause due to triggers
+    
     const insertQuery = `
-      INSERT INTO Terminations (
-        employeeName, employeeEmail, jobTitle, department, terminationDate, 
-        terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status
-      ) 
-      VALUES (
-        @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
-        @terminationReason, @initiatedBy, @equipmentDisposition,
-        '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
-        @checklist, 'pending'
-      );
-      
-      -- Get the inserted record using SCOPE_IDENTITY()
-      SELECT * FROM Terminations WHERE id = SCOPE_IDENTITY();
-    `;
+  INSERT INTO Terminations (
+    employeeName, employeeEmail, terminationDate, 
+    terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status
+  ) 
+  VALUES (
+    @employeeName, @employeeEmail, @terminationDate,
+    @terminationReason, @initiatedBy, @equipmentDisposition,
+    '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
+    @checklist, 'pending'
+  );
+  
+  -- Get the inserted record using SCOPE_IDENTITY()
+  SELECT * FROM Terminations WHERE id = SCOPE_IDENTITY();
+`;
 
     console.log("📝 Executing SQL query (without OUTPUT clause)");
 
     // Execute the query
     const result = await pool.request()
-      .input('employeeName', sql.NVarChar, terminationData.employeeName)
-      .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
-      .input('jobTitle', sql.NVarChar, terminationData.jobTitle || 'To be determined')
-      .input('department', sql.NVarChar, terminationData.department || 'To be determined')
-      .input('terminationDate', sql.Date, terminationData.terminationDate)
-      .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
-      .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy || 'System')
-      .input('equipmentDisposition', sql.NVarChar, 'pending_assessment')
-      .input('checklist', sql.NVarChar, JSON.stringify(checklistToSave))
-      .query(insertQuery);
+  .input('employeeName', sql.NVarChar, terminationData.employeeName)
+  .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
+  .input('terminationDate', sql.Date, terminationData.terminationDate)
+  .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
+  .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy || 'System')
+  .input('equipmentDisposition', sql.NVarChar, 'pending_assessment')
+  .input('checklist', sql.NVarChar, JSON.stringify(checklistToSave))
+  .query(insertQuery);
 
     console.log("✅ SQL query executed successfully");
     console.log("📊 Result recordset:", result.recordset);

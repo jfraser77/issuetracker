@@ -83,16 +83,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       ],
     },
     {
-      name: "IT Assets",
+  name: "IT Assets",
+  icon: ComputerDesktopIcon,
+  items: [
+    {
+      name: "Manage IT Assets",
+      href: "/management-portal/it-assets",
       icon: ComputerDesktopIcon,
-      items: [
-        {
-          name: "Manage IT Assets",
-          href: "/management-portal/it-assets",
-          icon: ComputerDesktopIcon,
-        },
-      ],
     },
+    {
+      name: "Order History",
+      href: "/management-portal/order-history",
+      icon: ArchiveBoxIcon,
+    },
+  ],
+},
     {
       name: "Employee Terminations",
       icon: UserMinusIcon,

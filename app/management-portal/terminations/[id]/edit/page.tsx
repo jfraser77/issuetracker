@@ -9,14 +9,9 @@ interface Termination {
   id: number;
   employeeName: string;
   employeeEmail: string;
-  jobTitle: string;
-  department: string;
   terminationDate: string;
-  terminationReason: string;
   initiatedBy: string;
   status: "pending" | "equipment_returned" | "archived" | "overdue";
-  trackingNumber?: string;
-  equipmentDisposition: "return_to_pool" | "retire";
 }
 
 export default function EditTerminationPage() {
@@ -28,12 +23,7 @@ export default function EditTerminationPage() {
   const [formData, setFormData] = useState({
     employeeName: "",
     employeeEmail: "",
-    jobTitle: "",
-    department: "",
     terminationDate: "",
-    terminationReason: "",
-    trackingNumber: "",
-    equipmentDisposition: "return_to_pool" as "return_to_pool" | "retire",
   });
 
   useEffect(() => {
@@ -51,12 +41,7 @@ export default function EditTerminationPage() {
         setFormData({
           employeeName: terminationData.employeeName,
           employeeEmail: terminationData.employeeEmail,
-          jobTitle: terminationData.jobTitle,
-          department: terminationData.department,
           terminationDate: terminationData.terminationDate.split('T')[0],
-          terminationReason: terminationData.terminationReason,
-          trackingNumber: terminationData.trackingNumber || "",
-          equipmentDisposition: terminationData.equipmentDisposition,
         });
       } else {
         console.error("Failed to fetch termination");
@@ -151,7 +136,7 @@ export default function EditTerminationPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee Name
+                Employee Name *
               </label>
               <input
                 type="text"
@@ -165,7 +150,7 @@ export default function EditTerminationPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee Email
+                Employee Email *
               </label>
               <input
                 type="email"
@@ -177,37 +162,9 @@ export default function EditTerminationPage() {
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Job Title
-              </label>
-              <input
-                type="text"
-                name="jobTitle"
-                value={formData.jobTitle}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Department
-              </label>
-              <input
-                type="text"
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Termination Date
+                Termination Date *
               </label>
               <input
                 type="date"
@@ -218,48 +175,19 @@ export default function EditTerminationPage() {
                 required
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Equipment Disposition
-              </label>
-              <select
-                name="equipmentDisposition"
-                value={formData.equipmentDisposition}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="return_to_pool">Return to Available Pool</option>
-                <option value="retire">Retire Equipment</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Termination Reason
-              </label>
-              <textarea
-                name="terminationReason"
-                value={formData.terminationReason}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tracking Number
-              </label>
-              <input
-                type="text"
-                name="trackingNumber"
-                value={formData.trackingNumber}
-                onChange={handleChange}
-                placeholder="Enter return tracking number"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <ArrowLeftIcon className="h-5 w-5 text-blue-500 mt-0.5" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  <strong>Note:</strong> Equipment return tracking and IT checklist management 
+                  should be completed in the main termination view, not in this form.
+                </p>
+              </div>
             </div>
           </div>
 
