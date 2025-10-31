@@ -714,12 +714,7 @@ export default function TerminationsContent() {
             <div class="info-item"><span class="info-label">Employee Name:</span> ${
               termination.employeeName
             }</div>
-            <div class="info-item"><span class="info-label">Job Title:</span> ${
-              termination.jobTitle
-            }</div>
-            <div class="info-item"><span class="info-label">Department:</span> ${
-              termination.department
-            }</div>
+            
             <div class="info-item"><span class="info-label">Email:</span> ${
               termination.employeeEmail
             }</div>
@@ -1400,7 +1395,11 @@ const getCompletionStatus = (termination: Termination) => {
       <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
     )}
   </div>
-                      
+                        {termination.jobTitle && termination.department && (
+    <p className="text-gray-600">
+      {termination.jobTitle} - {termination.department}
+    </p>
+  )}
                       <p className="text-sm text-gray-500">
                         Terminated:{" "}
                         {new Date(
