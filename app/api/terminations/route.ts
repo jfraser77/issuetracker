@@ -215,11 +215,11 @@ export async function POST(request: NextRequest) {
     
     const insertQuery = `
   INSERT INTO Terminations (
-    employeeName, employeeEmail, terminationDate, 
+    employeeName, employeeEmail, jobTitle, department, terminationDate, 
     terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status
   ) 
   VALUES (
-    @employeeName, @employeeEmail, @terminationDate,
+    @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
     @terminationReason, @initiatedBy, @equipmentDisposition,
     '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
     @checklist, 'pending'
@@ -232,9 +232,11 @@ export async function POST(request: NextRequest) {
     console.log("📝 Executing SQL query (without OUTPUT clause)");
 
     // Execute the query
-    const result = await pool.request()
+   const result = await pool.request()
   .input('employeeName', sql.NVarChar, terminationData.employeeName)
   .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
+  .input('jobTitle', sql.NVarChar, '') 
+  .input('department', sql.NVarChar, '') 
   .input('terminationDate', sql.Date, terminationData.terminationDate)
   .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
   .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy || 'System')
