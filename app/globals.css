@@ -25,6 +25,21 @@ body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.class-header,
+.employee-card {
+  cursor: default;
+}
+
+/* Prevent any clicks inside employee cards from bubbling */
+.employee-card * {
+  pointer-events: auto;
+}
+
+/* Ensure class toggle button works properly */
+.class-header button {
+  pointer-events: auto;
+}
+
 /* Custom utility classes */
 @layer components {
   .status {

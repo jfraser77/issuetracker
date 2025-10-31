@@ -108,10 +108,14 @@ export default function OnboardingPage() {
   const [sendingAlerts, setSendingAlerts] = useState(false);
 
   // New state for class-based features
-  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>([]);
+  const [onboardingClasses, setOnboardingClasses] = useState<OnboardingClass[]>(
+    []
+  );
   const [showBulkOperationsModal, setShowBulkOperationsModal] = useState(false);
   const [showClassNotesModal, setShowClassNotesModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(null);
+  const [selectedClass, setSelectedClass] = useState<OnboardingClass | null>(
+    null
+  );
   const [classNotes, setClassNotes] = useState("");
   const [bulkOperation, setBulkOperation] = useState<BulkOperation>({
     classId: "",
@@ -120,7 +124,8 @@ export default function OnboardingPage() {
     assignedTo: "",
   });
 
-  const isAdminOrIT = currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+  const isAdminOrIT =
+    currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
   // Default system tasks
   const defaultTasks: OnboardingTask[] = [
@@ -199,9 +204,7 @@ export default function OnboardingPage() {
   ];
 
   // Default portals
-  const defaultPortals: Portal[] = [
-    
-  ];
+  const defaultPortals: Portal[] = [];
 
   useEffect(() => {
     setIsClient(true);
@@ -243,118 +246,124 @@ export default function OnboardingPage() {
   };
 
   const fetchEmployeesWithDetails = async () => {
-  try {
-    const response = await fetch("/api/employees?status=active");
-    if (response.ok) {
-      const employeesData = await response.json();
+    try {
+      const response = await fetch("/api/employees?status=active");
+      if (response.ok) {
+        const employeesData = await response.json();
 
-      const employeesWithDetails = await Promise.all(
-        employeesData.map(async (employee: Employee) => {
-          try {
-            let onboardingTasks = [...defaultTasks];
-            let portals = [...defaultPortals];
-
-            // Fetch saved tasks
+        const employeesWithDetails = await Promise.all(
+          employeesData.map(async (employee: Employee) => {
             try {
-              const tasksResponse = await fetch(
-                `/api/employees/${employee.id}/onboarding-tasks`
-              );
-              if (tasksResponse.ok) {
-                const savedTasks = await tasksResponse.json();
-                if (savedTasks && savedTasks.length > 0) {
-                  onboardingTasks = savedTasks;
+              let onboardingTasks = [...defaultTasks];
+              let portals = [...defaultPortals];
+
+              // Fetch saved tasks
+              try {
+                const tasksResponse = await fetch(
+                  `/api/employees/${employee.id}/onboarding-tasks`
+                );
+                if (tasksResponse.ok) {
+                  const savedTasks = await tasksResponse.json();
+                  if (savedTasks && savedTasks.length > 0) {
+                    onboardingTasks = savedTasks;
+                  }
                 }
+              } catch (tasksError) {
+                console.warn(
+                  `No saved tasks for employee ${employee.id}, using defaults`
+                );
               }
-            } catch (tasksError) {
-              console.warn(
-                `No saved tasks for employee ${employee.id}, using defaults`
-              );
-            }
 
-            // ENHANCED: Fetch saved portals with better error handling
-            try {
-              const portalsResponse = await fetch(
-                `/api/employees/${employee.id}/portals`
-              );
-              
-              if (portalsResponse.ok) {
-                const savedPortals = await portalsResponse.json();
-                console.log(`✅ Loaded ${savedPortals.length} portals for employee ${employee.id}`);
-                
-                if (savedPortals && savedPortals.length > 0) {
-                  // Merge with defaults to ensure all default portals are present
-                  const mergedPortals = [...defaultPortals];
-                  
-                  savedPortals.forEach((savedPortal: Portal) => {
-                    const existingIndex = mergedPortals.findIndex(p => p.id === savedPortal.id);
-                    if (existingIndex >= 0) {
-                      // Update existing portal with saved data
-                      mergedPortals[existingIndex] = { 
-                        ...mergedPortals[existingIndex], 
-                        ...savedPortal 
-                      };
-                    } else {
-                      // Add custom portal
-                      mergedPortals.push(savedPortal);
-                    }
-                  });
-                  
-                  portals = mergedPortals;
+              // Fetch saved portals with better error handling
+              try {
+                const portalsResponse = await fetch(
+                  `/api/employees/${employee.id}/portals`
+                );
+
+                if (portalsResponse.ok) {
+                  const savedPortals = await portalsResponse.json();
+                  console.log(
+                    `✅ Loaded ${savedPortals.length} portals for employee ${employee.id}`
+                  );
+
+                  if (savedPortals && savedPortals.length > 0) {
+                    // Merge with defaults to ensure all default portals are present
+                    const mergedPortals = [...defaultPortals];
+
+                    savedPortals.forEach((savedPortal: Portal) => {
+                      const existingIndex = mergedPortals.findIndex(
+                        (p) => p.id === savedPortal.id
+                      );
+                      if (existingIndex >= 0) {
+                        // Update existing portal with saved data
+                        mergedPortals[existingIndex] = {
+                          ...mergedPortals[existingIndex],
+                          ...savedPortal,
+                        };
+                      } else {
+                        // Add custom portal
+                        mergedPortals.push(savedPortal);
+                      }
+                    });
+
+                    portals = mergedPortals;
+                  }
+                } else if (portalsResponse.status === 404) {
+                  // Table doesn't exist yet - this is normal for new installations
+                  console.log(
+                    `ℹ️ Portals table not found for employee ${employee.id}, using defaults`
+                  );
+                  portals = [...defaultPortals];
                 }
-              } else if (portalsResponse.status === 404) {
-                // Table doesn't exist yet - this is normal for new installations
-                console.log(`ℹ️ Portals table not found for employee ${employee.id}, using defaults`);
+              } catch (portalsError) {
+                console.warn(
+                  `Error fetching portals for employee ${employee.id}, using defaults:`,
+                  portalsError
+                );
                 portals = [...defaultPortals];
               }
-            } catch (portalsError) {
-              console.warn(
-                `Error fetching portals for employee ${employee.id}, using defaults:`,
-                portalsError
-              );
-              portals = [...defaultPortals];
-            }
 
-            // Fetch IT assignment
-            let itStaffAssignment = { status: "not assigned" };
-            try {
-              const itStaffResponse = await fetch(
-                `/api/employees/${employee.id}/it-assignment`
-              );
-              if (itStaffResponse.ok) {
-                itStaffAssignment = await itStaffResponse.json();
+              // Fetch IT assignment
+              let itStaffAssignment = { status: "not assigned" };
+              try {
+                const itStaffResponse = await fetch(
+                  `/api/employees/${employee.id}/it-assignment`
+                );
+                if (itStaffResponse.ok) {
+                  itStaffAssignment = await itStaffResponse.json();
+                }
+              } catch (itError) {
+                console.warn(`No IT assignment for employee ${employee.id}`);
               }
-            } catch (itError) {
-              console.warn(`No IT assignment for employee ${employee.id}`);
+
+              return {
+                ...employee,
+                onboardingTasks,
+                portals,
+                itStaffAssignment,
+                isExpanded: false,
+              };
+            } catch (error) {
+              console.error(`Error processing employee ${employee.id}:`, error);
+              return {
+                ...employee,
+                onboardingTasks: [...defaultTasks],
+                portals: [...defaultPortals],
+                itStaffAssignment: { status: "not assigned" },
+                isExpanded: false,
+              };
             }
+          })
+        );
 
-            return {
-              ...employee,
-              onboardingTasks,
-              portals,
-              itStaffAssignment,
-              isExpanded: false,
-            };
-          } catch (error) {
-            console.error(`Error processing employee ${employee.id}:`, error);
-            return {
-              ...employee,
-              onboardingTasks: [...defaultTasks],
-              portals: [...defaultPortals],
-              itStaffAssignment: { status: "not assigned" },
-              isExpanded: false,
-            };
-          }
-        })
-      );
-
-      setEmployees(employeesWithDetails);
+        setEmployees(employeesWithDetails);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // NEW: Function to manually trigger alerts
   const triggerOnboardingAlerts = async () => {
@@ -642,14 +651,168 @@ export default function OnboardingPage() {
         emp.id === employeeId
           ? {
               ...emp,
-              portals: emp.portals.filter(
-                (portal) => portal.id !== portalId
-              ),
+              portals: emp.portals.filter((portal) => portal.id !== portalId),
               isExpanded: emp.isExpanded, // Preserve expanded state
             }
           : emp
       )
     );
+  };
+
+  // NEW: Edit task note function
+  const editTaskNote = (
+    employeeId: number,
+    taskId: string,
+    noteIndex: number,
+    newContent: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            onboardingTasks: emp.onboardingTasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    notes: task.notes.map((note, index) =>
+                      index === noteIndex
+                        ? { ...note, content: newContent }
+                        : note
+                    ),
+                  }
+                : task
+            ),
+            isExpanded: emp.isExpanded,
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/onboarding-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.onboardingTasks),
+      });
+    }
+  };
+
+  // NEW: Remove task note function
+  const removeTaskNote = (
+    employeeId: number,
+    taskId: string,
+    noteIndex: number
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            onboardingTasks: emp.onboardingTasks.map((task) =>
+              task.id === taskId
+                ? {
+                    ...task,
+                    notes: task.notes.filter((_, index) => index !== noteIndex),
+                  }
+                : task
+            ),
+            isExpanded: emp.isExpanded,
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/onboarding-tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.onboardingTasks),
+      });
+    }
+  };
+
+  // NEW: Edit portal note function
+  const editPortalNote = (
+    employeeId: number,
+    portalId: string,
+    noteIndex: number,
+    newContent: string
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            portals: emp.portals.map((portal) =>
+              portal.id === portalId
+                ? {
+                    ...portal,
+                    notes: portal.notes.map((note, index) =>
+                      index === noteIndex
+                        ? { ...note, content: newContent }
+                        : note
+                    ),
+                  }
+                : portal
+            ),
+            isExpanded: emp.isExpanded,
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/portals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.portals),
+      });
+    }
+  };
+
+  // NEW: Remove portal note function
+  const removePortalNote = (
+    employeeId: number,
+    portalId: string,
+    noteIndex: number
+  ) => {
+    const updatedEmployees = employees.map((emp) =>
+      emp.id === employeeId
+        ? {
+            ...emp,
+            portals: emp.portals.map((portal) =>
+              portal.id === portalId
+                ? {
+                    ...portal,
+                    notes: portal.notes.filter(
+                      (_, index) => index !== noteIndex
+                    ),
+                  }
+                : portal
+            ),
+            isExpanded: emp.isExpanded,
+          }
+        : emp
+    );
+
+    setEmployees(updatedEmployees);
+
+    // Save to database
+    const employee = updatedEmployees.find((emp) => emp.id === employeeId);
+    if (employee) {
+      fetch(`/api/employees/${employeeId}/portals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee.portals),
+      });
+    }
   };
 
   // Update task status function that preserves expanded state
@@ -837,137 +1000,166 @@ export default function OnboardingPage() {
   };
 
   //  Class Card Component
- const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
+    //const [isExpanded, setIsExpanded] = useState(false);
+
+    const handleClassToggle = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation();
+        // Toggle ALL employees in this class
+        const allExpanded = classGroup.employees.every((emp) => emp.isExpanded);
+        setEmployees((prev) =>
+          prev.map((emp) =>
+            classGroup.employees.some((classEmp) => classEmp.id === emp.id)
+              ? { ...emp, isExpanded: !allExpanded }
+              : emp
+          )
+        );
+      },
+      [classGroup.employees]
+    );
+
+    const handleEmployeeCardClick = useCallback(
+      (employeeId: number) => {
+        toggleEmployeeExpanded(employeeId);
+      },
+      [toggleEmployeeExpanded]
+    );
+
+    // Calculate if class should be considered "expanded" (any employee is expanded)
+    const isClassExpanded = classGroup.employees.some((emp) => emp.isExpanded);
 
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="class-card bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Class Header with Enhanced Controls */}
-         <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <div className="flex items-center gap-4 mb-2">
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="mt-1 text-gray-400 hover:text-gray-600"
-              >
-                {isExpanded ? (
-                  <ChevronDownIcon className="h-5 w-5" />
-                ) : (
-                  <ChevronRightIcon className="h-5 w-5" />
-                )}
-              </button>
-              <h2 className="text-xl font-bold text-gray-800">
-                {classGroup.className}
-              </h2>
+        <div className="class-header bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-2">
+                <button
+                  onClick={handleClassToggle}
+                  className="mt-1 text-gray-400 hover:text-gray-600"
+                >
+                  {isClassExpanded ? (
+                    <ChevronDownIcon className="h-5 w-5" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5" />
+                  )}
+                </button>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {classGroup.className}
+                </h2>
                 <div className="flex gap-2">
                   <button
-                  onClick={() => {
-                    setSelectedClass(classGroup);
-                    setBulkOperation((prev) => ({
-                      ...prev,
-                      classId: classGroup.id,
-                    }));
-                    setShowBulkOperationsModal(true);
-                  }}
-                  className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
-                  title="Bulk Operations"
-                >
-                  <CheckCircleIcon className="h-4 w-4 mr-1" />
-                  Bulk Actions
-                </button>
+                    onClick={() => {
+                      setSelectedClass(classGroup);
+                      setBulkOperation((prev) => ({
+                        ...prev,
+                        classId: classGroup.id,
+                      }));
+                      setShowBulkOperationsModal(true);
+                    }}
+                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
+                    title="Bulk Operations"
+                  >
+                    <CheckCircleIcon className="h-4 w-4 mr-1" />
+                    Bulk Actions
+                  </button>
 
-                      {/* Print Class Notes Button */}
-                <button
-                  onClick={() => generateClassNotesReport(classGroup)}
-                  className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded flex items-center"
-                  title="Print Class Notes"
-                  disabled={!classGroup.classNotes && !classGroup.trainerNotes && !classGroup.itNotes}
-                >
-                  <PrinterIcon className="h-4 w-4 mr-1" />
-                  Print Notes
-                </button>
+                  {/* Print Class Notes Button */}
+                  <button
+                    onClick={() => generateClassNotesReport(classGroup)}
+                    className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded flex items-center"
+                    title="Print Class Notes"
+                    disabled={
+                      !classGroup.classNotes &&
+                      !classGroup.trainerNotes &&
+                      !classGroup.itNotes
+                    }
+                  >
+                    <PrinterIcon className="h-4 w-4 mr-1" />
+                    Print Notes
+                  </button>
 
-                                {/* Bulk Print Reports Button */}
-                <button
-                  onClick={() => generateBulkPrintReport(classGroup)}
-                  className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
-                  title="Print Reports for All Employees"
-                >
-                  <PrinterIcon className="h-4 w-4 mr-1" />
-                  Print All Reports
-                </button>
-                
-{/* Archive Entire Class Button */}
-                <button
-                  onClick={() => archiveEntireClass(classGroup)}
-                  className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded flex items-center"
-                  title="Archive Entire Class"
-                >
-                  <ArchiveBoxIcon className="h-4 w-4 mr-1" />
-                  Archive Class
-                </button>
+                  {/* Bulk Print Reports Button */}
+                  <button
+                    onClick={() => generateBulkPrintReport(classGroup)}
+                    className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
+                    title="Print Reports for All Employees"
+                  >
+                    <PrinterIcon className="h-4 w-4 mr-1" />
+                    Print All Reports
+                  </button>
 
-                <button
-                  onClick={() => {
-                    setSelectedClass(classGroup);
-                    setClassNotes(classGroup.classNotes || "");
-                    setShowClassNotesModal(true);
-                  }}
-                  className="text-sm bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded flex items-center"
-                  title="Class Notes"
-                >
-                  <PencilIcon className="h-4 w-4 mr-1" />
-                  Class Notes
-                </button>
+                  {/* Archive Entire Class Button */}
+                  <button
+                    onClick={() => archiveEntireClass(classGroup)}
+                    className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded flex items-center"
+                    title="Archive Entire Class"
+                  >
+                    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+                    Archive Class
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedClass(classGroup);
+                      setClassNotes(classGroup.classNotes || "");
+                      setShowClassNotesModal(true);
+                    }}
+                    className="text-sm bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded flex items-center"
+                    title="Class Notes"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-1" />
+                    Class Notes
+                  </button>
+                </div>
               </div>
-            </div>
 
               <div className="flex items-center gap-6 text-sm text-gray-600">
-              <span>{classGroup.employees.length} employees</span>
-              <span>•</span>
-              <span>
-                Starts{" "}
-                {new Date(classGroup.startDate).toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
-              {classGroup.classNotes && (
-                <>
-                  <span>•</span>
-                  <span className="text-blue-600 flex items-center">
-                    <ExclamationCircleIcon className="h-4 w-4 mr-1" />
-                    Has Notes
-                  </span>
-                </>
-              )}
+                <span>{classGroup.employees.length} employees</span>
+                <span>•</span>
+                <span>
+                  Starts{" "}
+                  {new Date(classGroup.startDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </span>
+                {classGroup.classNotes && (
+                  <>
+                    <span>•</span>
+                    <span className="text-blue-600 flex items-center">
+                      <ExclamationCircleIcon className="h-4 w-4 mr-1" />
+                      Has Notes
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
 
             {/* Progress and Stats */}
             <div className="text-right">
-            <div className="flex items-center gap-4 mb-2">
-              <div className="text-sm text-gray-500">Class Progress</div>
-              <div className="w-32 bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${calculateClassProgress(classGroup)}%` }}
-                ></div>
+              <div className="flex items-center gap-4 mb-2">
+                <div className="text-sm text-gray-500">Class Progress</div>
+                <div className="w-32 bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${calculateClassProgress(classGroup)}%` }}
+                  ></div>
+                </div>
+                <div className="text-sm font-medium text-gray-700">
+                  {calculateClassProgress(classGroup)}%
+                </div>
               </div>
-              <div className="text-sm font-medium text-gray-700">
-                {calculateClassProgress(classGroup)}%
+              <div className="text-xs text-gray-500">
+                {getCompletionStats(classGroup)}
               </div>
-            </div>
-            <div className="text-xs text-gray-500">
-              {getCompletionStats(classGroup)}
             </div>
           </div>
         </div>
-      </div>
-
 
         {/* Class Notes Preview */}
         {classGroup.classNotes && (
@@ -982,13 +1174,14 @@ export default function OnboardingPage() {
         )}
 
         {/* Employees List */}
-        {isExpanded && (
+        {isClassExpanded && (
           <div className="p-6">
             <div className="grid gap-6">
               {classGroup.employees.map((employee) => (
                 <div
                   key={employee.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200"
+                  className="employee-card bg-white rounded-lg shadow-sm border border-gray-200"
+                  // onClick={(e) => handleEmployeeCardClick(e, employee.id)}
                 >
                   {renderEmployeeHeader(employee)}
 
@@ -1001,7 +1194,10 @@ export default function OnboardingPage() {
                             Onboarding Tasks
                           </h3>
                           <button
-                            onClick={() => addCustomTask(employee.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addCustomTask(employee.id);
+                            }}
                             className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
                           >
                             <PlusIcon className="h-4 w-4 mr-1" />
@@ -1015,7 +1211,7 @@ export default function OnboardingPage() {
                         </div>
                       </div>
 
-                      {/* NEW: Portals Section */}
+                      {/* Portals Section */}
                       <div className="border-t pt-6">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="font-medium text-gray-900 flex items-center">
@@ -1023,7 +1219,10 @@ export default function OnboardingPage() {
                             Portals
                           </h3>
                           <button
-                            onClick={() => addCustomPortal(employee.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addCustomPortal(employee.id);
+                            }}
                             className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
                           >
                             <PlusIcon className="h-4 w-4 mr-1" />
@@ -1052,14 +1251,15 @@ export default function OnboardingPage() {
                                 value={
                                   employee.itStaffAssignment?.assignedToId || ""
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  e.stopPropagation();
                                   updateITAssignment(employee.id, {
                                     ...employee.itStaffAssignment!,
                                     assignedToId: e.target.value
                                       ? parseInt(e.target.value)
                                       : undefined,
-                                  })
-                                }
+                                  });
+                                }}
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                               >
                                 <option value="">Not Assigned</option>
@@ -1079,13 +1279,14 @@ export default function OnboardingPage() {
                                   employee.itStaffAssignment?.status ||
                                   "not assigned"
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  e.stopPropagation();
                                   updateITAssignment(employee.id, {
                                     ...employee.itStaffAssignment!,
                                     status: e.target
                                       .value as ITStaffAssignment["status"],
-                                  })
-                                }
+                                  });
+                                }}
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                               >
                                 <option value="not assigned">
@@ -1098,12 +1299,13 @@ export default function OnboardingPage() {
                             </div>
                             <div>
                               <button
-                                onClick={() =>
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   updateITAssignment(
                                     employee.id,
                                     employee.itStaffAssignment!
-                                  )
-                                }
+                                  );
+                                }}
                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
                               >
                                 Apply
@@ -1124,7 +1326,10 @@ export default function OnboardingPage() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => generatePrintReport(employee)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generatePrintReport(employee);
+                            }}
                             className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
                           >
                             <PrinterIcon className="h-4 w-4 mr-1" />
@@ -1164,6 +1369,10 @@ export default function OnboardingPage() {
   }) => {
     const [localTaskName, setLocalTaskName] = useState(task.name);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
+      null
+    );
+    const [editingNoteContent, setEditingNoteContent] = useState("");
 
     // Update local state when task changes
     useEffect(() => {
@@ -1174,6 +1383,32 @@ export default function OnboardingPage() {
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setLocalTaskName(e.target.value);
       setHasUnsavedChanges(true);
+    };
+
+    // NEW: Start editing a note
+    const startEditingNote = (noteIndex: number, currentContent: string) => {
+      setEditingNoteIndex(noteIndex);
+      setEditingNoteContent(currentContent);
+    };
+
+    // NEW: Save edited note
+    const saveEditedNote = () => {
+      if (editingNoteIndex !== null && editingNoteContent.trim()) {
+        editTaskNote(
+          employee.id,
+          task.id,
+          editingNoteIndex,
+          editingNoteContent.trim()
+        );
+        setEditingNoteIndex(null);
+        setEditingNoteContent("");
+      }
+    };
+
+    // NEW: Cancel editing
+    const cancelEditingNote = () => {
+      setEditingNoteIndex(null);
+      setEditingNoteContent("");
     };
 
     const saveTaskName = () => {
@@ -1280,15 +1515,70 @@ export default function OnboardingPage() {
           {task.notes.map((note, noteIndex) => (
             <div
               key={noteIndex}
-              className="text-xs text-gray-600 bg-gray-50 p-2 rounded"
+              className="text-xs text-gray-600 bg-gray-50 p-2 rounded group relative"
             >
-              <div className="font-medium">{note.author || "Unknown"}:</div>
-              <div>{note.content}</div>
-              <div className="text-gray-400 text-xs mt-1">
-                {new Date(note.timestamp).toLocaleDateString()}
-              </div>
+              {editingNoteIndex === noteIndex ? (
+                // EDIT MODE
+                <div className="space-y-2">
+                  <textarea
+                    value={editingNoteContent}
+                    onChange={(e) => setEditingNoteContent(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs resize-none"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEditedNote}
+                      className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={cancelEditingNote}
+                      className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // VIEW MODE
+                <>
+                  <div className="font-medium">{note.author || "Unknown"}:</div>
+                  <div>{note.content}</div>
+                  <div className="text-gray-400 text-xs mt-1">
+                    {new Date(note.timestamp).toLocaleDateString()}
+                  </div>
+                  {/* EDIT/DELETE BUTTONS - Only show on hover */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <button
+                      onClick={() => startEditingNote(noteIndex, note.content)}
+                      className="text-blue-500 hover:text-blue-700 text-xs"
+                      title="Edit note"
+                    >
+                      <PencilIcon className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm("Are you sure you want to delete this note?")
+                        ) {
+                          removeTaskNote(employee.id, task.id, noteIndex);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                      title="Delete note"
+                    >
+                      <TrashIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
+
+          {/* ADD NOTE SECTION */}
           <div className="flex space-x-2">
             <input
               type="text"
@@ -1333,6 +1623,10 @@ export default function OnboardingPage() {
   }) => {
     const [localPortalName, setLocalPortalName] = useState(portal.name);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
+      null
+    );
+    const [editingNoteContent, setEditingNoteContent] = useState("");
 
     // Update local state when portal changes
     useEffect(() => {
@@ -1345,6 +1639,29 @@ export default function OnboardingPage() {
       setHasUnsavedChanges(true);
     };
 
+    const startEditingNote = (noteIndex: number, currentContent: string) => {
+      setEditingNoteIndex(noteIndex);
+      setEditingNoteContent(currentContent);
+    };
+
+    const saveEditedNote = () => {
+      if (editingNoteIndex !== null && editingNoteContent.trim()) {
+        editPortalNote(
+          employee.id,
+          portal.id,
+          editingNoteIndex,
+          editingNoteContent.trim()
+        );
+        setEditingNoteIndex(null);
+        setEditingNoteContent("");
+      }
+    };
+
+    const cancelEditingNote = () => {
+      setEditingNoteIndex(null);
+      setEditingNoteContent("");
+    };
+
     const savePortalName = () => {
       if (localPortalName.trim() && hasUnsavedChanges) {
         setEmployees((prev) =>
@@ -1353,7 +1670,9 @@ export default function OnboardingPage() {
               ? {
                   ...emp,
                   portals: emp.portals.map((p) =>
-                    p.id === portal.id ? { ...p, name: localPortalName.trim() } : p
+                    p.id === portal.id
+                      ? { ...p, name: localPortalName.trim() }
+                      : p
                   ),
                   isExpanded: emp.isExpanded, // Preserve expanded state
                 }
@@ -1445,19 +1764,79 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* UPDATED: Notes section with edit/remove functionality */}
         <div className="space-y-2">
           {portal.notes.map((note, noteIndex) => (
             <div
               key={noteIndex}
-              className="text-xs text-gray-600 bg-blue-100 p-2 rounded"
+              className="text-xs text-gray-600 bg-blue-100 p-2 rounded group relative"
             >
-              <div className="font-medium">{note.author || "Unknown"}:</div>
-              <div>{note.content}</div>
-              <div className="text-gray-400 text-xs mt-1">
-                {new Date(note.timestamp).toLocaleDateString()}
-              </div>
+              {editingNoteIndex === noteIndex ? (
+                // EDIT MODE
+                <div className="space-y-2">
+                  <textarea
+                    value={editingNoteContent}
+                    onChange={(e) => setEditingNoteContent(e.target.value)}
+                    className="w-full border border-blue-300 rounded px-2 py-1 text-xs resize-none bg-white"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEditedNote}
+                      className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={cancelEditingNote}
+                      className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // VIEW MODE
+                <>
+                  <div className="font-medium">{note.author || "Unknown"}:</div>
+                  <div className="break-words">{note.content}</div>
+                  <div className="text-gray-400 text-xs mt-1">
+                    {new Date(note.timestamp).toLocaleDateString()} at{" "}
+                    {new Date(note.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                  {/* EDIT/DELETE BUTTONS - Only show on hover */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <button
+                      onClick={() => startEditingNote(noteIndex, note.content)}
+                      className="text-blue-500 hover:text-blue-700 text-xs bg-white rounded p-1 shadow-sm"
+                      title="Edit note"
+                    >
+                      <PencilIcon className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm("Are you sure you want to delete this note?")
+                        ) {
+                          removePortalNote(employee.id, portal.id, noteIndex);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700 text-xs bg-white rounded p-1 shadow-sm"
+                      title="Delete note"
+                    >
+                      <TrashIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
+
+          {/* ADD NOTE SECTION */}
           <div className="flex space-x-2">
             <input
               type="text"
@@ -1689,13 +2068,13 @@ export default function OnboardingPage() {
     }
   };
 
-  const toggleEmployeeExpanded = (employeeId: number) => {
+  const toggleEmployeeExpanded = useCallback((employeeId: number) => {
     setEmployees((prev) =>
       prev.map((emp) =>
         emp.id === employeeId ? { ...emp, isExpanded: !emp.isExpanded } : emp
       )
     );
-  };
+  }, []);
 
   const updateITAssignment = async (
     employeeId: number,
@@ -1831,22 +2210,23 @@ export default function OnboardingPage() {
   };
 
   // NEW: Print Class Notes Function
-const generateClassNotesReport = (classGroup: OnboardingClass) => {
-  // Check if there are any notes to print
-  const hasNotes = classGroup.classNotes || classGroup.trainerNotes || classGroup.itNotes;
-  
-  if (!hasNotes) {
-    alert('No class notes available to print.');
-    return;
-  }
+  const generateClassNotesReport = (classGroup: OnboardingClass) => {
+    // Check if there are any notes to print
+    const hasNotes =
+      classGroup.classNotes || classGroup.trainerNotes || classGroup.itNotes;
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Please allow pop-ups to generate the class notes report.');
-    return;
-  }
+    if (!hasNotes) {
+      alert("No class notes available to print.");
+      return;
+    }
 
-  const printContent = `
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow pop-ups to generate the class notes report.");
+      return;
+    }
+
+    const printContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -1947,14 +2327,20 @@ const generateClassNotesReport = (classGroup: OnboardingClass) => {
         <h1>Class Notes Report</h1>
         <div class="class-info">
           <strong>Class:</strong> ${classGroup.className}<br>
-          <strong>Start Date:</strong> ${new Date(classGroup.startDate).toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          <strong>Start Date:</strong> ${new Date(
+            classGroup.startDate
+          ).toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
           })}<br>
-          <strong>Number of Employees:</strong> ${classGroup.employees.length}<br>
-          <strong>Class Progress:</strong> ${calculateClassProgress(classGroup)}%
+          <strong>Number of Employees:</strong> ${
+            classGroup.employees.length
+          }<br>
+          <strong>Class Progress:</strong> ${calculateClassProgress(
+            classGroup
+          )}%
         </div>
       </div>
 
@@ -1968,7 +2354,11 @@ const generateClassNotesReport = (classGroup: OnboardingClass) => {
           <div class="stat-label">Class Progress</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${classGroup.employees.filter(emp => calculateOverallProgress(emp) >= 100).length}</div>
+          <div class="stat-number">${
+            classGroup.employees.filter(
+              (emp) => calculateOverallProgress(emp) >= 100
+            ).length
+          }</div>
           <div class="stat-label">Completed</div>
         </div>
       </div>
@@ -1976,21 +2366,33 @@ const generateClassNotesReport = (classGroup: OnboardingClass) => {
       <div class="notes-section">
         <h2>📋 General Class Notes</h2>
         <div class="notes-content">
-          ${classGroup.classNotes ? classGroup.classNotes : '<div class="no-notes">No general notes available</div>'}
+          ${
+            classGroup.classNotes
+              ? classGroup.classNotes
+              : '<div class="no-notes">No general notes available</div>'
+          }
         </div>
       </div>
 
       <div class="notes-section">
         <h2>👨‍🏫 Trainer Notes</h2>
         <div class="notes-content">
-          ${classGroup.trainerNotes ? classGroup.trainerNotes : '<div class="no-notes">No trainer notes available</div>'}
+          ${
+            classGroup.trainerNotes
+              ? classGroup.trainerNotes
+              : '<div class="no-notes">No trainer notes available</div>'
+          }
         </div>
       </div>
 
       <div class="notes-section">
         <h2>💻 IT Notes</h2>
         <div class="notes-content">
-          ${classGroup.itNotes ? classGroup.itNotes : '<div class="no-notes">No IT notes available</div>'}
+          ${
+            classGroup.itNotes
+              ? classGroup.itNotes
+              : '<div class="no-notes">No IT notes available</div>'
+          }
         </div>
       </div>
 
@@ -2006,18 +2408,30 @@ const generateClassNotesReport = (classGroup: OnboardingClass) => {
               </tr>
             </thead>
             <tbody>
-              ${classGroup.employees.map(employee => `
+              ${classGroup.employees
+                .map(
+                  (employee) => `
                 <tr>
-                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${employee.firstName} ${employee.lastName}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${employee.jobTitle}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
+                    employee.firstName
+                  } ${employee.lastName}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
+                    employee.jobTitle
+                  }</td>
                   <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
                     <div style="display: inline-block; width: 60px; background: #e5e7eb; border-radius: 10px; overflow: hidden;">
-                      <div style="height: 8px; background: #6366f1; width: ${calculateOverallProgress(employee)}%;"></div>
+                      <div style="height: 8px; background: #6366f1; width: ${calculateOverallProgress(
+                        employee
+                      )}%;"></div>
                     </div>
-                    <span style="margin-left: 8px; font-size: 12px;">${calculateOverallProgress(employee)}%</span>
+                    <span style="margin-left: 8px; font-size: 12px;">${calculateOverallProgress(
+                      employee
+                    )}%</span>
                   </td>
                 </tr>
-              `).join('')}
+              `
+                )
+                .join("")}
             </tbody>
           </table>
         </div>
@@ -2042,26 +2456,26 @@ const generateClassNotesReport = (classGroup: OnboardingClass) => {
     </html>
   `;
 
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-};
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  };
 
-// Bulk Print Reports Function
-const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
-  if (!classGroup.employees.length) {
-    alert('No employees in this class to print reports for.');
-    return;
-  }
-
-  try {
-    // Create a single print window for all reports
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Please allow pop-ups to generate bulk reports.');
+  // Bulk Print Reports Function
+  const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
+    if (!classGroup.employees.length) {
+      alert("No employees in this class to print reports for.");
       return;
     }
 
-    let allReportsContent = `
+    try {
+      // Create a single print window for all reports
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Please allow pop-ups to generate bulk reports.");
+        return;
+      }
+
+      let allReportsContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -2094,19 +2508,28 @@ const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
         </div>
     `;
 
-    // Generate report for each employee
-    classGroup.employees.forEach((employee, index) => {
-      const progress = calculateOverallProgress(employee);
-      const completedTasks = employee.onboardingTasks.filter(task => task.status === "completed");
-      const pendingTasks = employee.onboardingTasks.filter(task => task.status !== "completed" && task.status !== "not applicable");
-      const notApplicableTasks = employee.onboardingTasks.filter(task => task.status === "not applicable");
+      // Generate report for each employee
+      classGroup.employees.forEach((employee, index) => {
+        const progress = calculateOverallProgress(employee);
+        const completedTasks = employee.onboardingTasks.filter(
+          (task) => task.status === "completed"
+        );
+        const pendingTasks = employee.onboardingTasks.filter(
+          (task) =>
+            task.status !== "completed" && task.status !== "not applicable"
+        );
+        const notApplicableTasks = employee.onboardingTasks.filter(
+          (task) => task.status === "not applicable"
+        );
 
-      allReportsContent += `
+        allReportsContent += `
         <div class="employee-report">
           <div class="employee-header">
             <h2>${employee.firstName} ${employee.lastName}</h2>
             <p><strong>Job Title:</strong> ${employee.jobTitle}</p>
-            <p><strong>Start Date:</strong> ${new Date(employee.startDate).toLocaleDateString()}</p>
+            <p><strong>Start Date:</strong> ${new Date(
+              employee.startDate
+            ).toLocaleDateString()}</p>
           </div>
           
           <div>
@@ -2118,31 +2541,58 @@ const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
           
           <div class="task-grid">
             <div>
-              <h4 class="section-title">Completed Tasks (${completedTasks.length})</h4>
-              ${completedTasks.map(task => `<div class="task-item completed">✓ ${task.name}</div>`).join("")}
+              <h4 class="section-title">Completed Tasks (${
+                completedTasks.length
+              })</h4>
+              ${completedTasks
+                .map(
+                  (task) =>
+                    `<div class="task-item completed">✓ ${task.name}</div>`
+                )
+                .join("")}
             </div>
             
             <div>
-              <h4 class="section-title">Pending Tasks (${pendingTasks.length})</h4>
-              ${pendingTasks.map(task => `<div class="task-item pending">${task.name} - ${task.status}</div>`).join("")}
+              <h4 class="section-title">Pending Tasks (${
+                pendingTasks.length
+              })</h4>
+              ${pendingTasks
+                .map(
+                  (task) =>
+                    `<div class="task-item pending">${task.name} - ${task.status}</div>`
+                )
+                .join("")}
             </div>
           </div>
           
-          ${notApplicableTasks.length > 0 ? `
+          ${
+            notApplicableTasks.length > 0
+              ? `
             <div>
-              <h4 class="section-title">Not Applicable (${notApplicableTasks.length})</h4>
-              ${notApplicableTasks.map(task => `<div class="task-item" style="color: #6b7280;">⊘ ${task.name}</div>`).join("")}
+              <h4 class="section-title">Not Applicable (${
+                notApplicableTasks.length
+              })</h4>
+              ${notApplicableTasks
+                .map(
+                  (task) =>
+                    `<div class="task-item" style="color: #6b7280;">⊘ ${task.name}</div>`
+                )
+                .join("")}
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           
           <div class="print-date">
-            Report ${index + 1} of ${classGroup.employees.length} • Employee ID: ${employee.id}
+            Report ${index + 1} of ${
+          classGroup.employees.length
+        } • Employee ID: ${employee.id}
           </div>
         </div>
       `;
-    });
+      });
 
-    allReportsContent += `
+      allReportsContent += `
         <script>
           window.onload = function() {
             window.print();
@@ -2157,64 +2607,70 @@ const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
       </html>
     `;
 
-    printWindow.document.write(allReportsContent);
-    printWindow.document.close();
-  } catch (error) {
-    console.error("Error generating bulk reports:", error);
-    alert("Failed to generate bulk reports. Please try again.");
-  }
-};
+      printWindow.document.write(allReportsContent);
+      printWindow.document.close();
+    } catch (error) {
+      console.error("Error generating bulk reports:", error);
+      alert("Failed to generate bulk reports. Please try again.");
+    }
+  };
 
-//  Archive Entire Class Function
-const archiveEntireClass = async (classGroup: OnboardingClass) => {
-  if (!classGroup.employees.length) {
-    alert('No employees in this class to archive.');
-    return;
-  }
+  //  Archive Entire Class Function
+  const archiveEntireClass = async (classGroup: OnboardingClass) => {
+    if (!classGroup.employees.length) {
+      alert("No employees in this class to archive.");
+      return;
+    }
 
-  const confirmed = confirm(
-    `Are you sure you want to archive the entire "${classGroup.className}"?\n\n` +
-    `This will archive ${classGroup.employees.length} employees and move them to the archived section.\n\n` +
-    `This action cannot be undone.`
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    setLoading(true);
-    
-    // Archive each employee in the class
-    const archivePromises = classGroup.employees.map(employee =>
-      fetch(`/api/employees/${employee.id}/archive`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          archivedBy: currentUser?.name || "System",
-          classNotes: `Archived as part of class: ${classGroup.className}`
-        }),
-      })
+    const confirmed = confirm(
+      `Are you sure you want to archive the entire "${classGroup.className}"?\n\n` +
+        `This will archive ${classGroup.employees.length} employees and move them to the archived section.\n\n` +
+        `This action cannot be undone.`
     );
 
-    const results = await Promise.all(archivePromises);
-    const successfulArchives = results.filter(response => response.ok).length;
-
-    if (successfulArchives === classGroup.employees.length) {
-      alert(`Successfully archived entire class: ${classGroup.className}\n\n${successfulArchives} employees moved to archived section.`);
-      
-      // Refresh the employees list to remove archived ones
-      fetchEmployeesWithDetails();
-    } else {
-      alert(`Partially archived class. ${successfulArchives} out of ${classGroup.employees.length} employees were archived successfully.`);
+    if (!confirmed) {
+      return;
     }
-  } catch (error) {
-    console.error("Error archiving class:", error);
-    alert("Failed to archive class. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+
+    try {
+      setLoading(true);
+
+      // Archive each employee in the class
+      const archivePromises = classGroup.employees.map((employee) =>
+        fetch(`/api/employees/${employee.id}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            archivedBy: currentUser?.name || "System",
+            classNotes: `Archived as part of class: ${classGroup.className}`,
+          }),
+        })
+      );
+
+      const results = await Promise.all(archivePromises);
+      const successfulArchives = results.filter(
+        (response) => response.ok
+      ).length;
+
+      if (successfulArchives === classGroup.employees.length) {
+        alert(
+          `Successfully archived entire class: ${classGroup.className}\n\n${successfulArchives} employees moved to archived section.`
+        );
+
+        // Refresh the employees list to remove archived ones
+        fetchEmployeesWithDetails();
+      } else {
+        alert(
+          `Partially archived class. ${successfulArchives} out of ${classGroup.employees.length} employees were archived successfully.`
+        );
+      }
+    } catch (error) {
+      console.error("Error archiving class:", error);
+      alert("Failed to archive class. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderEmployeeHeader = (employee: EmployeeWithDetails) => {
     const daysSinceAdded = getDaysSinceAdded(employee.timestamp);
@@ -2234,41 +2690,52 @@ const archiveEntireClass = async (classGroup: OnboardingClass) => {
                 <ChevronRightIcon className="h-5 w-5" />
               )}
             </button>
-            <div>
-              <div className="flex items-center space-x-2">
+            <div className="flex-1">
+              <div className="flex items-center space-x-2 mb-2">
                 <Link
                   href={`/management-portal/onboarding/${employee.id}`}
                   className="text-xl font-semibold text-blue-600 hover:text-blue-800"
+                  onClick={(e) => e.stopPropagation()} // Prevent card toggle when clicking link
                 >
                   {employee.firstName} {employee.lastName}
                 </Link>
                 <button
-                  onClick={() =>
+                  onClick={(e) => {
+                    e.stopPropagation();
                     router.push(
                       `/management-portal/onboarding/${employee.id}/edit`
-                    )
-                  }
+                    );
+                  }}
                   className="text-gray-400 hover:text-blue-600"
                   title="Edit Employee"
                 >
                   <PencilIcon className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => deleteEmployee(employee.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteEmployee(employee.id);
+                  }}
                   className="text-gray-400 hover:text-red-600"
                   title="Delete Employee"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => archiveEmployee(employee.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    archiveEmployee(employee.id);
+                  }}
                   className="text-gray-400 hover:text-orange-600"
                   title="Archive Employee"
                 >
                   <ArchiveBoxIcon className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => generatePrintReport(employee)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    generatePrintReport(employee);
+                  }}
                   className="text-gray-400 hover:text-green-600"
                   title="Print Report"
                 >
@@ -2304,10 +2771,9 @@ const archiveEntireClass = async (classGroup: OnboardingClass) => {
   ) => <TaskItem key={task.id} employee={employee} task={task} />;
 
   // NEW: Render portal item function
-  const renderPortalItem = (
-    employee: EmployeeWithDetails,
-    portal: Portal
-  ) => <PortalItem key={portal.id} employee={employee} portal={portal} />;
+  const renderPortalItem = (employee: EmployeeWithDetails, portal: Portal) => (
+    <PortalItem key={portal.id} employee={employee} portal={portal} />
+  );
 
   if (!isClient || loading) {
     return (
