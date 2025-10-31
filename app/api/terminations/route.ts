@@ -124,12 +124,14 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT 
         t.*,
-        DATEDIFF(day, t.terminationDate, GETDATE()) as daysPassed,
         CASE 
           WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 30 AND t.status = 'pending' THEN 1
           ELSE 0
         END as isOverdue,
-        30 - DATEDIFF(day, t.terminationDate, GETDATE()) as daysRemaining
+        CASE 
+          WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 30 THEN 0
+          ELSE 30 - DATEDIFF(day, t.terminationDate, GETDATE())
+        END as daysRemaining
       FROM Terminations t
       WHERE t.status != 'archived'
     `;
@@ -144,24 +146,24 @@ export async function GET(request: NextRequest) {
     
     // Parse checklist JSON if it exists, otherwise use default
     const terminations = result.recordset.map(termination => {
-      let checklist = defaultChecklist; // Default to full checklist
+      let checklist = defaultChecklist;
       
       try {
         if (termination.checklist) {
           const parsedChecklist = JSON.parse(termination.checklist);
-          // Only use parsed checklist if it has items, otherwise use default
           if (Array.isArray(parsedChecklist) && parsedChecklist.length > 0) {
             checklist = parsedChecklist;
           }
         }
       } catch (error) {
         console.error("Error parsing checklist for termination", termination.id, error);
-        // Keep default checklist if parsing fails
       }
 
       return {
         ...termination,
-        checklist
+        checklist,
+        // Ensure daysRemaining is never negative
+        daysRemaining: Math.max(0, termination.daysRemaining || 0)
       };
     });
 

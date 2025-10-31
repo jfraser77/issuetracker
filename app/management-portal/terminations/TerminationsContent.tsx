@@ -1141,6 +1141,7 @@ export default function TerminationsContent() {
       </div>
     );
   };
+  
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
     if (!confirm("Are you sure you want to remove this checklist item?")) {
@@ -1176,6 +1177,34 @@ export default function TerminationsContent() {
       fetchTerminations();
     }
   };
+
+  // Helper function to determine if a termination can be archived
+const canArchiveTermination = (termination: Termination) => {
+  if (termination.status !== 'equipment_returned') return false;
+  if (!termination.trackingNumber) return false;
+  if (!termination.completedByUserId) return false;
+  
+  // Check checklist completion
+  const completedItems = termination.checklist?.filter(item => item.completed).length || 0;
+  const totalItems = termination.checklist?.length || 0;
+  const checklistCompletion = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+  
+  return checklistCompletion === 100;
+};
+
+// Helper function to get checklist completion status
+const getCompletionStatus = (termination: Termination) => {
+  const completedItems = termination.checklist?.filter(item => item.completed).length || 0;
+  const totalItems = termination.checklist?.length || 0;
+  const checklistCompletion = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+  
+  return {
+    checklistCompletion: Math.round(checklistCompletion),
+    isChecklistComplete: checklistCompletion === 100,
+    completedItems,
+    totalItems
+  };
+};
 
   if (!isClient || loading) {
     return (
@@ -1344,6 +1373,15 @@ export default function TerminationsContent() {
                         <h3 className="text-xl font-semibold text-gray-900">
                           {termination.employeeName}
                         </h3>
+
+                        <button
+                          onClick={() => router.push(`/management-portal/terminations/${termination.id}/edit`)}
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Edit Termination"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
+
                         <button
                           onClick={() => generatePrintReport(termination)}
                           className="text-gray-400 hover:text-green-600"
@@ -1481,6 +1519,25 @@ export default function TerminationsContent() {
                       </div>
                     </div>
 
+                    {/* Completion Status - MOVED OUTSIDE THE GRID */}
+                    <div className="mt-3 p-3 bg-gray-50 rounded border">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Completion Status</h4>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className={`p-2 rounded ${termination.trackingNumber ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          Tracking Number: {termination.trackingNumber ? '✓ Provided' : '✗ Missing'}
+                        </div>
+                        <div className={`p-2 rounded ${termination.completedByUserId ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          IT Staff: {termination.completedByUserId ? '✓ Assigned' : '✗ Not Assigned'}
+                        </div>
+                        <div className={`p-2 rounded ${termination.equipmentDisposition && termination.equipmentDisposition !== 'pending_assessment' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          Disposition: {termination.equipmentDisposition && termination.equipmentDisposition !== 'pending_assessment' ? '✓ Set' : '✗ Not Set'}
+                        </div>
+                        <div className={`p-2 rounded ${getCompletionStatus(termination).isChecklistComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                          Checklist: {getCompletionStatus(termination).checklistCompletion}%
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Mark Equipment Returned Button */}
                     {isAdminOrIT && (
                       <div className="mt-4">
@@ -1551,26 +1608,65 @@ export default function TerminationsContent() {
                   <div className="border-t pt-4 flex justify-between items-center">
                     <div className="text-sm text-gray-500">
                       {termination.isOverdue ? (
-                        <span className="text-red-600 font-medium">
-                          ⚠️ Equipment return is overdue!
+                        <span className="text-red-600 font-medium flex items-center">
+                          <ExclamationTriangleIcon className="h-4 w-4 mr-1" />
+                          Equipment return is overdue!
                         </span>
-                      ) : (
-                        termination.status === "pending" && (
-                          <span className="text-amber-600 font-medium">
-                            {termination.daysRemaining} days remaining for
-                            equipment return
+                      ) : termination.status === "pending" ? (
+                        <span className="text-amber-600 font-medium">
+                          {termination.daysRemaining} days remaining for equipment return
+                        </span>
+                      ) : termination.status === "equipment_returned" ? (
+                        <div className="flex items-center space-x-4">
+                          <span className="text-green-600 font-medium flex items-center">
+                            <CheckCircleIcon className="h-4 w-4 mr-1" />
+                            Equipment Returned - Ready for Archive
                           </span>
-                        )
-                      )}
+                          <span className="text-blue-600">
+                            Checklist: {getCompletionStatus(termination).checklistCompletion}% Complete
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
+                    
                     <div className="flex gap-2">
+                      {/* Archive Button with better visibility */}
                       {termination.status === "equipment_returned" && (
                         <button
-                          onClick={() => archiveTermination(termination.id)}
-                          className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                          onClick={() => {
+                            const completion = getCompletionStatus(termination);
+                            if (!canArchiveTermination(termination)) {
+                              alert(`Cannot archive yet:\n• Checklist must be 100% complete (currently ${completion.checklistCompletion}%)\n• All fields must be completed`);
+                              return;
+                            }
+                            archiveTermination(termination.id);
+                          }}
+                          className={`px-3 py-1 rounded text-sm flex items-center ${
+                            canArchiveTermination(termination)
+                              ? "bg-green-500 hover:bg-green-600 text-white shadow-sm"
+                              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          }`}
+                          disabled={!canArchiveTermination(termination)}
+                          title={
+                            canArchiveTermination(termination)
+                              ? "Archive this completed termination"
+                              : "Complete all requirements to archive"
+                          }
                         >
+                          <CheckCircleIcon className="h-4 w-4 mr-1" />
                           Archive
+                          {canArchiveTermination(termination) && (
+                            <span className="ml-1 text-xs bg-green-600 px-1 rounded">✓</span>
+                          )}
                         </button>
+                      )}
+                      
+                      {/* Add a quick status indicator */}
+                      {termination.status === "equipment_returned" && !canArchiveTermination(termination) && (
+                        <div className="text-xs text-amber-600 flex items-center">
+                          <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+                          Complete checklist to archive
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1582,4 +1678,3 @@ export default function TerminationsContent() {
       )}
     </div>
   );
-}
