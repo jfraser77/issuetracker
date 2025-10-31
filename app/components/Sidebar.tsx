@@ -111,42 +111,19 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     },
   ];
 
-  // Admin-only collapsible menu
-const adminCollapsibleMenus: CollapsibleMenu[] = [
-  {
-    name: "Admin Utilities",
-    icon: ShieldCheckIcon,
-    adminOnly: true,
-    items: [
-      {
-        name: "User Management",
-        href: "/management-portal/admin/users",
-        icon: UserGroupIcon,
-        adminOnly: true,
-      },
-      {
-        name: "Role Approvals",
-        href: "/management-portal/admin/approvals",
-        icon: UserGroupIcon,
-        adminOnly: true,
-      },
-    ],
-  },
-];
-
-  //Reports and Settings 
-  const endNavItems: NavItem[] = [
-    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
-    { name: "Settings", href: "/management-portal/settings", icon: Cog6ToothIcon },
-  ];
-
-  // Admin-only collapsible menu
+  // Admin-only collapsible menu - REMOVED DUPLICATE
   const adminCollapsibleMenus: CollapsibleMenu[] = [
     {
       name: "Admin Utilities",
       icon: ShieldCheckIcon,
       adminOnly: true,
       items: [
+        {
+          name: "User Management",
+          href: "/management-portal/admin/users",
+          icon: UserGroupIcon,
+          adminOnly: true,
+        },
         {
           name: "Role Approvals",
           href: "/management-portal/admin/approvals",
@@ -155,6 +132,14 @@ const adminCollapsibleMenus: CollapsibleMenu[] = [
         },
       ],
     },
+  ];
+
+  // REMOVED THE DUPLICATE adminCollapsibleMenus DECLARATION HERE
+
+  //Reports and Settings 
+  const endNavItems: NavItem[] = [
+    { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
+    { name: "Settings", href: "/management-portal/settings", icon: Cog6ToothIcon },
   ];
 
   useEffect(() => {

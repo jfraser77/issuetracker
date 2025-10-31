@@ -1519,7 +1519,7 @@ const getCompletionStatus = (termination: Termination) => {
                       </div>
                     </div>
 
-                    {/* Completion Status - MOVED OUTSIDE THE GRID */}
+                    {/* Completion Status */}
                     <div className="mt-3 p-3 bg-gray-50 rounded border">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Completion Status</h4>
                       <div className="grid grid-cols-2 gap-4 text-xs">
@@ -1543,7 +1543,6 @@ const getCompletionStatus = (termination: Termination) => {
                       <div className="mt-4">
                         <button
                           onClick={() => {
-                            // Validate required fields
                             if (!termination.trackingNumber) {
                               alert("Please enter a tracking number");
                               return;
@@ -1585,7 +1584,6 @@ const getCompletionStatus = (termination: Termination) => {
                           )}
                         </button>
                         
-                        {/* Show validation messages */}
                         {(!termination.trackingNumber || !termination.completedByUserId || 
                           !termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && (
                           <div className="mt-2 text-xs text-amber-600">
@@ -1599,7 +1597,7 @@ const getCompletionStatus = (termination: Termination) => {
                     )}
                   </div>
 
-                  {/* IT Checklist Section - Only for Admin/IT */}
+                  {/* IT Checklist Section */}
                   {isAdminOrIT && termination.checklist && (
                     <ChecklistSection termination={termination} />
                   )}
@@ -1630,7 +1628,6 @@ const getCompletionStatus = (termination: Termination) => {
                     </div>
                     
                     <div className="flex gap-2">
-                      {/* Archive Button with better visibility */}
                       {termination.status === "equipment_returned" && (
                         <button
                           onClick={() => {
@@ -1661,7 +1658,6 @@ const getCompletionStatus = (termination: Termination) => {
                         </button>
                       )}
                       
-                      {/* Add a quick status indicator */}
                       {termination.status === "equipment_returned" && !canArchiveTermination(termination) && (
                         <div className="text-xs text-amber-600 flex items-center">
                           <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
@@ -1678,3 +1674,4 @@ const getCompletionStatus = (termination: Termination) => {
       )}
     </div>
   );
+}
