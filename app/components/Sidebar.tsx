@@ -83,21 +83,21 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       ],
     },
     {
-  name: "IT Assets",
-  icon: ComputerDesktopIcon,
-  items: [
-    {
-      name: "Manage IT Assets",
-      href: "/management-portal/it-assets",
+      name: "IT Assets",
       icon: ComputerDesktopIcon,
+      items: [
+        {
+          name: "Manage IT Assets",
+          href: "/management-portal/it-assets",
+          icon: ComputerDesktopIcon,
+        },
+        {
+          name: "Order History",
+          href: "/management-portal/order-history",
+          icon: ArchiveBoxIcon,
+        },
+      ],
     },
-    {
-      name: "Order History",
-      href: "/management-portal/order-history",
-      icon: ArchiveBoxIcon,
-    },
-  ],
-},
     {
       name: "Employee Terminations",
       icon: UserMinusIcon,
@@ -116,7 +116,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     },
   ];
 
-  // Admin-only collapsible menu - REMOVED DUPLICATE
+  // Admin-only collapsible menu
   const adminCollapsibleMenus: CollapsibleMenu[] = [
     {
       name: "Admin Utilities",
@@ -139,9 +139,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     },
   ];
 
-  // REMOVED THE DUPLICATE adminCollapsibleMenus DECLARATION HERE
-
-  //Reports and Settings 
+  // Reports and Settings 
   const endNavItems: NavItem[] = [
     { name: "Reports", href: "/management-portal/reports", icon: ChartBarIcon },
     { name: "Settings", href: "/management-portal/settings", icon: Cog6ToothIcon },
@@ -294,7 +292,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           </div>
         )}
 
-        <nav className="mt-4 px-2">
+        <nav className="mt-4 px-2 space-y-1"> {/* CHANGED: Added consistent spacing */}
           {/* Dashboard */}
           {baseNavItems.map((item) => {
             const IconComponent = item.icon;
@@ -302,7 +300,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors
+                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md transition-colors
                   ${
                     isActive(item.href)
                       ? "bg-blue-700 border-l-4 border-blue-400"
@@ -322,7 +320,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             const isMenuOpen = openMenus.has(menu.name);
             
             return (
-              <div key={menu.name} className="mb-1">
+              <div key={menu.name} className="space-y-1"> {/* CHANGED: Consistent spacing */}
                 {/* Menu Header */}
                 <button
                   onClick={() => toggleMenu(menu.name)}
@@ -350,45 +348,44 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
                 {/* Menu Items */}
                 {isMenuOpen && (
-                  <ul className="mt-1 space-y-1 pl-4">
+                  <div className="space-y-1 pl-4"> {/* CHANGED: Consistent spacing */}
                     {menu.items.map((item) => {
                       const ItemIcon = item.icon;
                       return (
-                        <li key={item.href}>
-                          <Link
-                            href={item.href}
-                            className={`flex items-center px-4 py-2 text-white hover:bg-blue-700 rounded-md transition-colors ${
-                              isActive(item.href)
-                                ? "bg-blue-700 border-l-4 border-blue-400"
-                                : ""
-                            }`}
-                            onClick={() => setSidebarOpen(false)}
-                          >
-                            <ItemIcon className="h-5 w-5" />
-                            <span className="ml-3 text-sm">-&nbsp;{item.name}</span>
-                            {item.adminOnly && (
-                              <span className="ml-auto bg-blue-600 text-blue-100 text-xs px-1 py-0.5 rounded-full">
-                                Admin
-                              </span>
-                            )}
-                          </Link>
-                        </li>
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`flex items-center px-4 py-2 text-white hover:bg-blue-700 rounded-md transition-colors ${
+                            isActive(item.href)
+                              ? "bg-blue-700 border-l-4 border-blue-400"
+                              : ""
+                          }`}
+                          onClick={() => setSidebarOpen(false)}
+                        >
+                          <ItemIcon className="h-5 w-5" />
+                          <span className="ml-3 text-sm">{item.name}</span>
+                          {item.adminOnly && (
+                            <span className="ml-auto bg-blue-600 text-blue-100 text-xs px-1 py-0.5 rounded-full">
+                              Admin
+                            </span>
+                          )}
+                        </Link>
                       );
                     })}
-                  </ul>
+                  </div>
                 )}
               </div>
             );
           })}
 
-          {/* End Navigation Items  */}
+          {/* End Navigation Items */}
           {endNavItems.map((item) => {
             const IconComponent = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors
+                className={`flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md transition-colors
                   ${
                     isActive(item.href)
                       ? "bg-blue-700 border-l-4 border-blue-400"
@@ -405,7 +402,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           {/* Logout button */}
           <button
             onClick={handleSignout}
-            className="flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full mb-1 transition-colors mt-4"
+            className="flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-md w-full transition-colors mt-4"
           >
             <ArrowRightOnRectangleIcon className="h-6 w-6" />
             <span className="ml-3">Logout</span>
