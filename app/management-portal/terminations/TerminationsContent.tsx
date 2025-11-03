@@ -38,14 +38,14 @@ interface Termination {
   employeeEmail: string;
   jobTitle: string;
   department: string;
-  terminationDate: string;
+  terminationDate: string; // This is the key date for calculation
   terminationReason: string;
   initiatedBy: string;
   status: "pending" | "equipment_returned" | "archived" | "overdue";
   trackingNumber?: string;
   equipmentDisposition: "return_to_pool" | "retire" | "pending_assessment";
-  daysRemaining: number;
-  isOverdue: boolean;
+  daysRemaining: number; // Calculated field
+  isOverdue: boolean; // Calculated field
   licensesRemoved: {
     automateLicense: boolean;
     screenConnect: boolean;
@@ -241,37 +241,44 @@ export default function TerminationsContent() {
   };
 
   const fetchTerminations = async () => {
-    try {
-      const url = filter
-        ? `/api/terminations?filter=${filter}`
-        : "/api/terminations";
-      const response = await fetch(url);
-      if (response.ok) {
-        const terminationsData = await response.json();
+  try {
+    const url = filter
+      ? `/api/terminations?filter=${filter}`
+      : "/api/terminations";
+    const response = await fetch(url);
+    if (response.ok) {
+      const terminationsData = await response.json();
 
-        // Ensure each termination has the full checklist
-        const terminationsWithChecklist = terminationsData.map(
-          (t: Termination) => ({
+      // Calculate overdue status for each termination
+      const terminationsWithCalculatedStatus = terminationsData.map(
+        (t: Termination) => {
+          const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
+          const daysRemaining = calculateDaysRemaining(t.terminationDate, t.status);
+          
+          return {
             ...t,
+            isOverdue,
+            daysRemaining,
             isExpanded: false,
             // Always ensure we have the full checklist
             checklist:
               t.checklist && t.checklist.length > 0
                 ? t.checklist
                 : [...defaultChecklist],
-          })
-        );
+          };
+        }
+      );
 
-        setTerminations(terminationsWithChecklist);
-      } else {
-        console.error("Failed to fetch terminations:", response.status);
-      }
-    } catch (error) {
-      console.error("Error fetching terminations:", error);
-    } finally {
-      setLoading(false);
+      setTerminations(terminationsWithCalculatedStatus);
+    } else {
+      console.error("Failed to fetch terminations:", response.status);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching terminations:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const debouncedUpdateTrackingNumber = useCallback(
     (terminationId: number, trackingNumber: string) => {
@@ -556,53 +563,90 @@ export default function TerminationsContent() {
   );
 
   const getStatusColor = (status: string, isOverdue: boolean, equipmentDisposition?: string) => {
-    if (isOverdue) return "bg-red-100 text-red-800";
-    
-    if (status === "pending" && equipmentDisposition === "pending_assessment") {
-      return "bg-blue-100 text-blue-800";
-    }
+  if (isOverdue) return "bg-red-100 text-red-800 border border-red-200";
+  
+  if (status === "pending" && equipmentDisposition === "pending_assessment") {
+    return "bg-blue-100 text-blue-800 border border-blue-200";
+  }
 
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "equipment_returned":
-        return "bg-green-100 text-green-800";
-      case "archived":
-        return "bg-gray-100 text-gray-800";
-      case "overdue":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
+  switch (status) {
+    case "pending":
+      return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+    case "equipment_returned":
+      return "bg-green-100 text-green-800 border border-green-200";
+    case "archived":
+      return "bg-gray-100 text-gray-800 border border-gray-200";
+    case "overdue":
+      return "bg-red-100 text-red-800 border border-red-200";
+    default:
+      return "bg-gray-100 text-gray-800 border border-gray-200";
+  }
+};
 
   const getStatusText = (
-    status: string,
-    daysRemaining: number,
-    isOverdue: boolean,
-    equipmentDisposition?: string
-  ) => {
-    if (isOverdue) return "OVERDUE - Equipment Not Returned";
-    
-    if (status === "pending" && equipmentDisposition === "pending_assessment") {
-      return "Awaiting Equipment Return";
-    }
+  status: string,
+  daysRemaining: number,
+  isOverdue: boolean,
+  equipmentDisposition?: string
+) => {
+  if (isOverdue) return "OVERDUE - Equipment Not Returned";
+  
+  if (status === "pending" && equipmentDisposition === "pending_assessment") {
+    return `Awaiting Equipment Return - ${daysRemaining} days remaining`;
+  }
 
-    switch (status) {
-      case "pending":
-        return `${daysRemaining} days remaining`;
-      case "equipment_returned":
-        return "Equipment Returned";
-      case "archived":
-        return "Archived";
-      case "overdue":
-        return "Overdue";
-      default:
-        return "Pending";
-    }
-  };
+  switch (status) {
+    case "pending":
+      return `${daysRemaining} days remaining for equipment return`;
+    case "equipment_returned":
+      return "Equipment Returned - Ready for Archive";
+    case "archived":
+      return "Archived";
+    case "overdue":
+      return "Overdue";
+    default:
+      return "Pending";
+  }
+};
 
-  // Rest of your component functions (archiveTermination, deleteTermination, etc.)
+  
+  const calculateOverdueStatus = (terminationDate: string, status: string): boolean => {
+  // Only pending terminations can be overdue
+  if (status !== 'pending') return false;
+  
+  const termination = new Date(terminationDate);
+  const today = new Date();
+  
+  // Calculate days since termination
+  const daysSinceTermination = Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Consider overdue after 30 days
+  return daysSinceTermination > 30;
+};
+
+// calculate days remaining
+const calculateDaysRemaining = (terminationDate: string, status: string): number => {
+  if (status !== 'pending') return 0;
+  
+  const termination = new Date(terminationDate);
+  const today = new Date();
+  
+  // Calculate days since termination
+  const daysSinceTermination = Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Days remaining until overdue (30 days total)
+  const daysRemaining = 30 - daysSinceTermination;
+  
+  return Math.max(0, daysRemaining);
+};
+
+// Helper function to calculate days since termination
+const calculateDaysSinceTermination = (terminationDate: string): number => {
+  const termination = new Date(terminationDate);
+  const today = new Date();
+  return Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
+};
+
   const archiveTermination = async (terminationId: number) => {
     try {
       const response = await fetch(
@@ -648,13 +692,27 @@ export default function TerminationsContent() {
   };
 
   const checkOverdueTerminations = async () => {
-    try {
-      await fetch("/api/terminations/check-overdue", { method: "POST" });
-      fetchTerminations();
-    } catch (error) {
-      console.error("Error checking overdue terminations:", error);
-    }
-  };
+  try {
+    
+    setTerminations(prev => 
+      prev.map(t => {
+        const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
+        const daysRemaining = calculateDaysRemaining(t.terminationDate, t.status);
+        
+        return {
+          ...t,
+          isOverdue,
+          daysRemaining
+        };
+      })
+    );
+    
+    // update on server 
+    await fetch("/api/terminations/check-overdue", { method: "POST" });
+  } catch (error) {
+    console.error("Error checking overdue terminations:", error);
+  }
+};
 
   const generatePrintReport = (termination: Termination) => {
     const printWindow = window.open("", "_blank");
@@ -1428,6 +1486,12 @@ const getCompletionStatus = (termination: Termination) => {
                         termination.equipmentDisposition
                       )}
                     </div>
+
+                     {termination.isOverdue && (
+    <div className="text-xs text-red-600 mt-1 font-medium">
+      ⚠️ {Math.abs(30 - calculateDaysSinceTermination(termination.terminationDate))} days overdue
+    </div>
+  )}
                     {termination.trackingNumber && (
                       <div className="text-sm text-gray-500 mt-1">
                         Tracking: {termination.trackingNumber}

@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
                   <div style="background-color: #f8fafc; padding: 15px; margin: 20px 0; border-left: 4px solid #3b82f6; border-radius: 4px;">
                     <p style="font-size: 14px; color: #374151; margin: 0;">
                       <strong>HR Contact:</strong><br>
-                      Please contact Amy Ogden, Amanda Evans, or Andrew Waters for assistance.
+                      HR@nsnrevenue.com
                     </p>
                   </div>
                   
@@ -165,18 +165,8 @@ export async function POST(request: NextRequest) {
                         termination.terminationDate
                       ).toLocaleDateString()}</td>
                     </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Department:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.department
-                      }</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Job Title:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.jobTitle
-                      }</td>
-                    </tr>
+                 git pull
+                 
                   </table>
                   
                   <p style="font-size: 16px; color: #374151;">
