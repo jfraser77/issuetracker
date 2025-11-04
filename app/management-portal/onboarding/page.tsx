@@ -1001,35 +1001,7 @@ export default function OnboardingPage() {
 
   //  Class Card Component
   const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
-    //const [isExpanded, setIsExpanded] = useState(false);
 
-    // const handleClassToggle = useCallback(
-    //   (e: React.MouseEvent) => {
-    //     e.stopPropagation();
-    //     // Toggle ALL employees in this class
-    //     const allExpanded = classGroup.employees.every((emp) => emp.isExpanded);
-    //     setEmployees((prev) =>
-    //       prev.map((emp) =>
-    //         classGroup.employees.some((classEmp) => classEmp.id === emp.id)
-    //           ? { ...emp, isExpanded: !allExpanded }
-    //           : emp
-    //       )
-    //     );
-    //   },
-    //   [classGroup.employees]
-    // );
-
-    // const handleEmployeeCardClick = useCallback(
-    //   (employeeId: number) => {
-    //     toggleEmployeeExpanded(employeeId);
-    //   },
-    //   [toggleEmployeeExpanded]
-    // );
-
-    // // Calculate if class should be considered "expanded" (any employee is expanded)
-    // const isClassExpanded = classGroup.employees.some((emp) => emp.isExpanded);
-
-      // Add independent class expanded state
   const [isClassExpanded, setIsClassExpanded] = useState(false);
 
   const handleClassToggle = useCallback((e: React.MouseEvent) => {
@@ -1212,6 +1184,11 @@ export default function OnboardingPage() {
               <div className="text-xs text-gray-500">
                 {getCompletionStats(classGroup)}
               </div>
+              {isClassExpanded && (
+              <div className="text-xs text-blue-600 mt-1">
+                {classGroup.employees.filter(emp => emp.isExpanded).length} of {classGroup.employees.length} expanded
+              </div>
+            )}
             </div>
           </div>
         </div>
