@@ -1112,7 +1112,7 @@ export default function OnboardingPage() {
 
                     <button
                       onClick={handleCollapseAll}
-                      className="text-sm bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded flex items-center"
+                      className="text-sm bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded flex items-center"
                       title="Collapse All Employees"
                     >
                       <ChevronRightIcon className="h-4 w-4 mr-1" />
