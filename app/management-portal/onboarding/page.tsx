@@ -1003,31 +1003,63 @@ export default function OnboardingPage() {
   const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
     //const [isExpanded, setIsExpanded] = useState(false);
 
-    const handleClassToggle = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        // Toggle ALL employees in this class
-        const allExpanded = classGroup.employees.every((emp) => emp.isExpanded);
-        setEmployees((prev) =>
-          prev.map((emp) =>
-            classGroup.employees.some((classEmp) => classEmp.id === emp.id)
-              ? { ...emp, isExpanded: !allExpanded }
-              : emp
-          )
-        );
-      },
-      [classGroup.employees]
-    );
+    // const handleClassToggle = useCallback(
+    //   (e: React.MouseEvent) => {
+    //     e.stopPropagation();
+    //     // Toggle ALL employees in this class
+    //     const allExpanded = classGroup.employees.every((emp) => emp.isExpanded);
+    //     setEmployees((prev) =>
+    //       prev.map((emp) =>
+    //         classGroup.employees.some((classEmp) => classEmp.id === emp.id)
+    //           ? { ...emp, isExpanded: !allExpanded }
+    //           : emp
+    //       )
+    //     );
+    //   },
+    //   [classGroup.employees]
+    // );
 
-    const handleEmployeeCardClick = useCallback(
-      (employeeId: number) => {
-        toggleEmployeeExpanded(employeeId);
-      },
-      [toggleEmployeeExpanded]
-    );
+    // const handleEmployeeCardClick = useCallback(
+    //   (employeeId: number) => {
+    //     toggleEmployeeExpanded(employeeId);
+    //   },
+    //   [toggleEmployeeExpanded]
+    // );
 
-    // Calculate if class should be considered "expanded" (any employee is expanded)
-    const isClassExpanded = classGroup.employees.some((emp) => emp.isExpanded);
+    // // Calculate if class should be considered "expanded" (any employee is expanded)
+    // const isClassExpanded = classGroup.employees.some((emp) => emp.isExpanded);
+
+      // Add independent class expanded state
+  const [isClassExpanded, setIsClassExpanded] = useState(false);
+
+  const handleClassToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsClassExpanded(prev => !prev);
+  }, []);
+
+  // Expand All Employees
+  const handleExpandAll = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEmployees(prev => 
+      prev.map(emp => 
+        classGroup.employees.some(classEmp => classEmp.id === emp.id) 
+          ? { ...emp, isExpanded: true }
+          : emp
+      )
+    );
+  }, [classGroup.employees]);
+
+  // Collapse All Employees
+  const handleCollapseAll = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEmployees(prev => 
+      prev.map(emp => 
+        classGroup.employees.some(classEmp => classEmp.id === emp.id) 
+          ? { ...emp, isExpanded: false }
+          : emp
+      )
+    );
+  }, [classGroup.employees]);
 
     return (
       <div className="class-card bg-white rounded-lg shadow-sm border border-gray-200">
@@ -1065,6 +1097,29 @@ export default function OnboardingPage() {
                     <CheckCircleIcon className="h-4 w-4 mr-1" />
                     Bulk Actions
                   </button>
+
+                                {/* Expand/Collapse All Buttons */}
+                {isClassExpanded && (
+                  <>
+                    <button
+                      onClick={handleExpandAll}
+                      className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Expand All Employees"
+                    >
+                      <ChevronDownIcon className="h-4 w-4 mr-1" />
+                      Expand All
+                    </button>
+
+                    <button
+                      onClick={handleCollapseAll}
+                      className="text-sm bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Collapse All Employees"
+                    >
+                      <ChevronRightIcon className="h-4 w-4 mr-1" />
+                      Collapse All
+                    </button>
+                  </>
+                )}
 
                   {/* Print Class Notes Button */}
                   <button
