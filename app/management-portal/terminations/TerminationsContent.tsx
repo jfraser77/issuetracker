@@ -241,44 +241,50 @@ export default function TerminationsContent() {
   };
 
   const fetchTerminations = async () => {
-  try {
-    const url = filter
-      ? `/api/terminations?filter=${filter}`
-      : "/api/terminations";
-    const response = await fetch(url);
-    if (response.ok) {
-      const terminationsData = await response.json();
+    try {
+      const url = filter
+        ? `/api/terminations?filter=${filter}`
+        : "/api/terminations";
+      const response = await fetch(url);
+      if (response.ok) {
+        const terminationsData = await response.json();
 
-      // Calculate overdue status for each termination
-      const terminationsWithCalculatedStatus = terminationsData.map(
-        (t: Termination) => {
-          const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
-          const daysRemaining = calculateDaysRemaining(t.terminationDate, t.status);
-          
-          return {
-            ...t,
-            isOverdue,
-            daysRemaining,
-            isExpanded: false,
-            // Always ensure we have the full checklist
-            checklist:
-              t.checklist && t.checklist.length > 0
-                ? t.checklist
-                : [...defaultChecklist],
-          };
-        }
-      );
+        // Calculate overdue status for each termination
+        const terminationsWithCalculatedStatus = terminationsData.map(
+          (t: Termination) => {
+            const isOverdue = calculateOverdueStatus(
+              t.terminationDate,
+              t.status
+            );
+            const daysRemaining = calculateDaysRemaining(
+              t.terminationDate,
+              t.status
+            );
 
-      setTerminations(terminationsWithCalculatedStatus);
-    } else {
-      console.error("Failed to fetch terminations:", response.status);
+            return {
+              ...t,
+              isOverdue,
+              daysRemaining,
+              isExpanded: false,
+              // Always ensure we have the full checklist
+              checklist:
+                t.checklist && t.checklist.length > 0
+                  ? t.checklist
+                  : [...defaultChecklist],
+            };
+          }
+        );
+
+        setTerminations(terminationsWithCalculatedStatus);
+      } else {
+        console.error("Failed to fetch terminations:", response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching terminations:", error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching terminations:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const debouncedUpdateTrackingNumber = useCallback(
     (terminationId: number, trackingNumber: string) => {
@@ -322,7 +328,7 @@ export default function TerminationsContent() {
           checklist: defaultChecklist,
           // Set default values for removed fields
           jobTitle: "To be determined",
-          department: "To be determined", 
+          department: "To be determined",
           terminationReason: "Termination process initiated",
         }),
       });
@@ -339,11 +345,17 @@ export default function TerminationsContent() {
       } else {
         const errorData = await response.json();
         console.error("API Error:", errorData);
-        alert(`Failed to initiate termination: ${errorData.error || errorData.details || 'Unknown error'}`);
+        alert(
+          `Failed to initiate termination: ${
+            errorData.error || errorData.details || "Unknown error"
+          }`
+        );
       }
     } catch (error) {
       console.error("Error creating termination:", error);
-      alert("Failed to initiate termination process. Please check console for details.");
+      alert(
+        "Failed to initiate termination process. Please check console for details."
+      );
     }
   };
 
@@ -352,36 +364,48 @@ export default function TerminationsContent() {
     updates: Partial<Termination>
   ) => {
     try {
-      // Preserve expanded state during updates
-      const currentTermination = terminations.find(
-        (t) => t.id === terminationId
-      );
-      const updatesWithState = {
-        ...updates,
-        isExpanded: currentTermination?.isExpanded, // Preserve current expanded state
-      };
+      console.log(`🔄 Updating termination ${terminationId} with:`, updates);
 
       const response = await fetch(`/api/terminations/${terminationId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatesWithState),
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `❌ HTTP error! status: ${response.status}, response:`,
+          errorText
+        );
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log(`✅ Update response:`, result);
 
       if (!result.success) {
         throw new Error(result.error || "Failed to update termination");
       }
 
-      // Only refresh if the update was successful
-      fetchTerminations();
+      // ✅ DON'T call fetchTerminations() here - update local state instead
+      // This preserves the expanded state
+      if (result.termination) {
+        setTerminations((prev) =>
+          prev.map((t) =>
+            t.id === terminationId
+              ? {
+                  ...result.termination,
+                  isExpanded: t.isExpanded, // Preserve expanded state
+                }
+              : t
+          )
+        );
+      }
     } catch (error) {
-      console.error("Error updating termination:", error);
+      console.error("❌ Error updating termination:", error);
       alert("Failed to update termination. Please try again.");
+      // Only refresh on error
       fetchTerminations();
     }
   };
@@ -508,7 +532,10 @@ export default function TerminationsContent() {
   };
 
   const handleEquipmentDispositionChange = useCallback(
-    (terminationId: number, value: "return_to_pool" | "retire" | "pending_assessment") => {
+    (
+      terminationId: number,
+      value: "return_to_pool" | "retire" | "pending_assessment"
+    ) => {
       setTerminations((prev) =>
         prev.map((t) =>
           t.id === terminationId
@@ -528,6 +555,8 @@ export default function TerminationsContent() {
   const handleCompletedByChange = useCallback(
     (terminationId: number, value: string) => {
       const completedByUserId = value ? parseInt(value) : undefined;
+
+      // Update local state immediately for better UX
       setTerminations((prev) =>
         prev.map((t) =>
           t.id === terminationId
@@ -539,6 +568,8 @@ export default function TerminationsContent() {
             : t
         )
       );
+
+      // Update in database - this won't trigger a full refresh anymore
       updateTermination(terminationId, { completedByUserId });
     },
     []
@@ -562,90 +593,105 @@ export default function TerminationsContent() {
     [debouncedUpdateTrackingNumber]
   );
 
-  const getStatusColor = (status: string, isOverdue: boolean, equipmentDisposition?: string) => {
-  if (isOverdue) return "bg-red-100 text-red-800 border border-red-200";
-  
-  if (status === "pending" && equipmentDisposition === "pending_assessment") {
-    return "bg-blue-100 text-blue-800 border border-blue-200";
-  }
+  const getStatusColor = (
+    status: string,
+    isOverdue: boolean,
+    equipmentDisposition?: string
+  ) => {
+    if (isOverdue) return "bg-red-100 text-red-800 border border-red-200";
 
-  switch (status) {
-    case "pending":
-      return "bg-yellow-100 text-yellow-800 border border-yellow-200";
-    case "equipment_returned":
-      return "bg-green-100 text-green-800 border border-green-200";
-    case "archived":
-      return "bg-gray-100 text-gray-800 border border-gray-200";
-    case "overdue":
-      return "bg-red-100 text-red-800 border border-red-200";
-    default:
-      return "bg-gray-100 text-gray-800 border border-gray-200";
-  }
-};
+    if (status === "pending" && equipmentDisposition === "pending_assessment") {
+      return "bg-blue-100 text-blue-800 border border-blue-200";
+    }
+
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+      case "equipment_returned":
+        return "bg-green-100 text-green-800 border border-green-200";
+      case "archived":
+        return "bg-gray-100 text-gray-800 border border-gray-200";
+      case "overdue":
+        return "bg-red-100 text-red-800 border border-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 border border-gray-200";
+    }
+  };
 
   const getStatusText = (
-  status: string,
-  daysRemaining: number,
-  isOverdue: boolean,
-  equipmentDisposition?: string
-) => {
-  if (isOverdue) return "OVERDUE - Equipment Not Returned";
-  
-  if (status === "pending" && equipmentDisposition === "pending_assessment") {
-    return `Awaiting Equipment Return - ${daysRemaining} days remaining`;
-  }
+    status: string,
+    daysRemaining: number,
+    isOverdue: boolean,
+    equipmentDisposition?: string
+  ) => {
+    if (isOverdue) return "OVERDUE - Equipment Not Returned";
 
-  switch (status) {
-    case "pending":
-      return `${daysRemaining} days remaining for equipment return`;
-    case "equipment_returned":
-      return "Equipment Returned - Ready for Archive";
-    case "archived":
-      return "Archived";
-    case "overdue":
-      return "Overdue";
-    default:
-      return "Pending";
-  }
-};
+    if (status === "pending" && equipmentDisposition === "pending_assessment") {
+      return `Awaiting Equipment Return - ${daysRemaining} days remaining`;
+    }
 
-  
-  const calculateOverdueStatus = (terminationDate: string, status: string): boolean => {
-  // Only pending terminations can be overdue
-  if (status !== 'pending') return false;
-  
-  const termination = new Date(terminationDate);
-  const today = new Date();
-  
-  // Calculate days since termination
-  const daysSinceTermination = Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Consider overdue after 30 days
-  return daysSinceTermination > 30;
-};
+    switch (status) {
+      case "pending":
+        return `${daysRemaining} days remaining for equipment return`;
+      case "equipment_returned":
+        return "Equipment Returned - Ready for Archive";
+      case "archived":
+        return "Archived";
+      case "overdue":
+        return "Overdue";
+      default:
+        return "Pending";
+    }
+  };
 
-// calculate days remaining
-const calculateDaysRemaining = (terminationDate: string, status: string): number => {
-  if (status !== 'pending') return 0;
-  
-  const termination = new Date(terminationDate);
-  const today = new Date();
-  
-  // Calculate days since termination
-  const daysSinceTermination = Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Days remaining until overdue (30 days total)
-  const daysRemaining = 30 - daysSinceTermination;
-  
-  return Math.max(0, daysRemaining);
-};
+  const calculateOverdueStatus = (
+    terminationDate: string,
+    status: string
+  ): boolean => {
+    // Only pending terminations can be overdue
+    if (status !== "pending") return false;
 
-// Helper function to calculate days since termination
-const calculateDaysSinceTermination = (terminationDate: string): number => {
-  const termination = new Date(terminationDate);
-  const today = new Date();
-  return Math.floor((today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24));
-};
+    const termination = new Date(terminationDate);
+    const today = new Date();
+
+    // Calculate days since termination
+    const daysSinceTermination = Math.floor(
+      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Consider overdue after 30 days
+    return daysSinceTermination > 30;
+  };
+
+  // calculate days remaining
+  const calculateDaysRemaining = (
+    terminationDate: string,
+    status: string
+  ): number => {
+    if (status !== "pending") return 0;
+
+    const termination = new Date(terminationDate);
+    const today = new Date();
+
+    // Calculate days since termination
+    const daysSinceTermination = Math.floor(
+      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Days remaining until overdue (30 days total)
+    const daysRemaining = 30 - daysSinceTermination;
+
+    return Math.max(0, daysRemaining);
+  };
+
+  // Helper function to calculate days since termination
+  const calculateDaysSinceTermination = (terminationDate: string): number => {
+    const termination = new Date(terminationDate);
+    const today = new Date();
+    return Math.floor(
+      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  };
 
   const archiveTermination = async (terminationId: number) => {
     try {
@@ -692,27 +738,29 @@ const calculateDaysSinceTermination = (terminationDate: string): number => {
   };
 
   const checkOverdueTerminations = async () => {
-  try {
-    
-    setTerminations(prev => 
-      prev.map(t => {
-        const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
-        const daysRemaining = calculateDaysRemaining(t.terminationDate, t.status);
-        
-        return {
-          ...t,
-          isOverdue,
-          daysRemaining
-        };
-      })
-    );
-    
-    // update on server 
-    await fetch("/api/terminations/check-overdue", { method: "POST" });
-  } catch (error) {
-    console.error("Error checking overdue terminations:", error);
-  }
-};
+    try {
+      setTerminations((prev) =>
+        prev.map((t) => {
+          const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
+          const daysRemaining = calculateDaysRemaining(
+            t.terminationDate,
+            t.status
+          );
+
+          return {
+            ...t,
+            isOverdue,
+            daysRemaining,
+          };
+        })
+      );
+
+      // update on server
+      await fetch("/api/terminations/check-overdue", { method: "POST" });
+    } catch (error) {
+      console.error("Error checking overdue terminations:", error);
+    }
+  };
 
   const generatePrintReport = (termination: Termination) => {
     const printWindow = window.open("", "_blank");
@@ -1194,7 +1242,6 @@ const calculateDaysSinceTermination = (terminationDate: string): number => {
       </div>
     );
   };
-  
 
   const removeChecklistItem = async (terminationId: number, itemId: string) => {
     if (!confirm("Are you sure you want to remove this checklist item?")) {
@@ -1232,32 +1279,36 @@ const calculateDaysSinceTermination = (terminationDate: string): number => {
   };
 
   // Helper function to determine if a termination can be archived
-const canArchiveTermination = (termination: Termination) => {
-  if (termination.status !== 'equipment_returned') return false;
-  if (!termination.trackingNumber) return false;
-  if (!termination.completedByUserId) return false;
-  
-  // Check checklist completion
-  const completedItems = termination.checklist?.filter(item => item.completed).length || 0;
-  const totalItems = termination.checklist?.length || 0;
-  const checklistCompletion = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-  
-  return checklistCompletion === 100;
-};
+  const canArchiveTermination = (termination: Termination) => {
+    if (termination.status !== "equipment_returned") return false;
+    if (!termination.trackingNumber) return false;
+    if (!termination.completedByUserId) return false;
 
-// Helper function to get checklist completion status
-const getCompletionStatus = (termination: Termination) => {
-  const completedItems = termination.checklist?.filter(item => item.completed).length || 0;
-  const totalItems = termination.checklist?.length || 0;
-  const checklistCompletion = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-  
-  return {
-    checklistCompletion: Math.round(checklistCompletion),
-    isChecklistComplete: checklistCompletion === 100,
-    completedItems,
-    totalItems
+    // Check checklist completion
+    const completedItems =
+      termination.checklist?.filter((item) => item.completed).length || 0;
+    const totalItems = termination.checklist?.length || 0;
+    const checklistCompletion =
+      totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+    return checklistCompletion === 100;
   };
-};
+
+  // Helper function to get checklist completion status
+  const getCompletionStatus = (termination: Termination) => {
+    const completedItems =
+      termination.checklist?.filter((item) => item.completed).length || 0;
+    const totalItems = termination.checklist?.length || 0;
+    const checklistCompletion =
+      totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+    return {
+      checklistCompletion: Math.round(checklistCompletion),
+      isChecklistComplete: checklistCompletion === 100,
+      completedItems,
+      totalItems,
+    };
+  };
 
   if (!isClient || loading) {
     return (
@@ -1347,7 +1398,7 @@ const getCompletionStatus = (termination: Termination) => {
                   />
                 </div>
               </div>
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">
@@ -1355,7 +1406,8 @@ const getCompletionStatus = (termination: Termination) => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-blue-700">
-                      <strong>Note:</strong> HR must provide the equipment return tracking number in the termination record.
+                      <strong>Note:</strong> HR must provide the equipment
+                      return tracking number in the termination record.
                     </p>
                   </div>
                 </div>
@@ -1423,41 +1475,45 @@ const getCompletionStatus = (termination: Termination) => {
                     </button>
                     <div>
                       <div className="flex items-center space-x-2">
-    <h3 className="text-xl font-semibold text-gray-900">
-      {termination.employeeName}
-    </h3>
+                        <h3 className="text-xl font-semibold text-gray-900">
+                          {termination.employeeName}
+                        </h3>
 
-    <button
-      onClick={() => router.push(`/management-portal/terminations/${termination.id}/edit`)}
-      className="text-gray-400 hover:text-blue-600 transition-colors"
-      title="Edit Termination"
-    >
-      <PencilIcon className="h-4 w-4" />
-    </button>
+                        <button
+                          onClick={() =>
+                            router.push(
+                              `/management-portal/terminations/${termination.id}/edit`
+                            )
+                          }
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Edit Termination"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </button>
 
-    <button
-      onClick={() => generatePrintReport(termination)}
-      className="text-gray-400 hover:text-green-600"
-      title="Print Report"
-    >
-      <PrinterIcon className="h-4 w-4" />
-    </button>
-    <button
-      onClick={() => deleteTermination(termination.id)}
-      className="text-gray-400 hover:text-red-600"
-      title="Delete Termination"
-    >
-      <TrashIcon className="h-4 w-4" />
-    </button>
-    {termination.isOverdue && (
-      <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-    )}
-  </div>
-                        {termination.jobTitle && termination.department && (
-    <p className="text-gray-600">
-      {termination.jobTitle} - {termination.department}
-    </p>
-  )}
+                        <button
+                          onClick={() => generatePrintReport(termination)}
+                          className="text-gray-400 hover:text-green-600"
+                          title="Print Report"
+                        >
+                          <PrinterIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteTermination(termination.id)}
+                          className="text-gray-400 hover:text-red-600"
+                          title="Delete Termination"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                        {termination.isOverdue && (
+                          <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+                        )}
+                      </div>
+                      {termination.jobTitle && termination.department && (
+                        <p className="text-gray-600">
+                          {termination.jobTitle} - {termination.department}
+                        </p>
+                      )}
                       <p className="text-sm text-gray-500">
                         Terminated:{" "}
                         {new Date(
@@ -1487,11 +1543,18 @@ const getCompletionStatus = (termination: Termination) => {
                       )}
                     </div>
 
-                     {termination.isOverdue && (
-    <div className="text-xs text-red-600 mt-1 font-medium">
-      ⚠️ {Math.abs(30 - calculateDaysSinceTermination(termination.terminationDate))} days overdue
-    </div>
-  )}
+                    {termination.isOverdue && (
+                      <div className="text-xs text-red-600 mt-1 font-medium">
+                        ⚠️{" "}
+                        {Math.abs(
+                          30 -
+                            calculateDaysSinceTermination(
+                              termination.terminationDate
+                            )
+                        )}{" "}
+                        days overdue
+                      </div>
+                    )}
                     {termination.trackingNumber && (
                       <div className="text-sm text-gray-500 mt-1">
                         Tracking: {termination.trackingNumber}
@@ -1538,18 +1601,28 @@ const getCompletionStatus = (termination: Termination) => {
                           Equipment Disposition *
                         </label>
                         <select
-                          value={termination.equipmentDisposition || "pending_assessment"}
+                          value={
+                            termination.equipmentDisposition ||
+                            "pending_assessment"
+                          }
                           onChange={(e) =>
                             handleEquipmentDispositionChange(
                               termination.id,
-                              e.target.value as "return_to_pool" | "retire" | "pending_assessment"
+                              e.target.value as
+                                | "return_to_pool"
+                                | "retire"
+                                | "pending_assessment"
                             )
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                           required
                         >
-                          <option value="pending_assessment">Pending Assessment</option>
-                          <option value="return_to_pool">Return to Available Pool</option>
+                          <option value="pending_assessment">
+                            Pending Assessment
+                          </option>
+                          <option value="return_to_pool">
+                            Return to Available Pool
+                          </option>
                           <option value="retire">Retire Equipment</option>
                         </select>
                       </div>
@@ -1582,19 +1655,60 @@ const getCompletionStatus = (termination: Termination) => {
 
                     {/* Completion Status */}
                     <div className="mt-3 p-3 bg-gray-50 rounded border">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Completion Status</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Completion Status
+                      </h4>
                       <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div className={`p-2 rounded ${termination.trackingNumber ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          Tracking Number: {termination.trackingNumber ? '✓ Provided' : '✗ Missing'}
+                        <div
+                          className={`p-2 rounded ${
+                            termination.trackingNumber
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          Tracking Number:{" "}
+                          {termination.trackingNumber
+                            ? "✓ Provided"
+                            : "✗ Missing"}
                         </div>
-                        <div className={`p-2 rounded ${termination.completedByUserId ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          IT Staff: {termination.completedByUserId ? '✓ Assigned' : '✗ Not Assigned'}
+                        <div
+                          className={`p-2 rounded ${
+                            termination.completedByUserId
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          IT Staff:{" "}
+                          {termination.completedByUserId
+                            ? "✓ Assigned"
+                            : "✗ Not Assigned"}
                         </div>
-                        <div className={`p-2 rounded ${termination.equipmentDisposition && termination.equipmentDisposition !== 'pending_assessment' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          Disposition: {termination.equipmentDisposition && termination.equipmentDisposition !== 'pending_assessment' ? '✓ Set' : '✗ Not Set'}
+                        <div
+                          className={`p-2 rounded ${
+                            termination.equipmentDisposition &&
+                            termination.equipmentDisposition !==
+                              "pending_assessment"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          Disposition:{" "}
+                          {termination.equipmentDisposition &&
+                          termination.equipmentDisposition !==
+                            "pending_assessment"
+                            ? "✓ Set"
+                            : "✗ Not Set"}
                         </div>
-                        <div className={`p-2 rounded ${getCompletionStatus(termination).isChecklistComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
-                          Checklist: {getCompletionStatus(termination).checklistCompletion}%
+                        <div
+                          className={`p-2 rounded ${
+                            getCompletionStatus(termination).isChecklistComplete
+                              ? "bg-green-100 text-green-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          Checklist:{" "}
+                          {getCompletionStatus(termination).checklistCompletion}
+                          %
                         </div>
                       </div>
                     </div>
@@ -1612,12 +1726,15 @@ const getCompletionStatus = (termination: Termination) => {
                               alert("Please select an IT staff member");
                               return;
                             }
-                            if (!termination.equipmentDisposition || 
-                                termination.equipmentDisposition === "pending_assessment") {
+                            if (
+                              !termination.equipmentDisposition ||
+                              termination.equipmentDisposition ===
+                                "pending_assessment"
+                            ) {
                               alert("Please select equipment disposition");
                               return;
                             }
-                            
+
                             markEquipmentReturned(
                               termination.id,
                               termination.trackingNumber!,
@@ -1626,13 +1743,18 @@ const getCompletionStatus = (termination: Termination) => {
                             );
                           }}
                           className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
-                          disabled={!termination.trackingNumber || !termination.completedByUserId || 
-                                    !termination.equipmentDisposition || 
-                                    termination.equipmentDisposition === "pending_assessment"}
+                          disabled={
+                            !termination.trackingNumber ||
+                            !termination.completedByUserId ||
+                            !termination.equipmentDisposition ||
+                            termination.equipmentDisposition ===
+                              "pending_assessment"
+                          }
                         >
                           <CheckCircleIcon className="h-4 w-4 mr-2" />
                           Mark Equipment Returned
-                          {termination.equipmentDisposition === "return_to_pool" && (
+                          {termination.equipmentDisposition ===
+                            "return_to_pool" && (
                             <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">
                               +1 Laptop to{" "}
                               {
@@ -1644,14 +1766,21 @@ const getCompletionStatus = (termination: Termination) => {
                             </span>
                           )}
                         </button>
-                        
-                        {(!termination.trackingNumber || !termination.completedByUserId || 
-                          !termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && (
+
+                        {(!termination.trackingNumber ||
+                          !termination.completedByUserId ||
+                          !termination.equipmentDisposition ||
+                          termination.equipmentDisposition ===
+                            "pending_assessment") && (
                           <div className="mt-2 text-xs text-amber-600">
-                            {!termination.trackingNumber && "• Tracking number required\n"}
-                            {!termination.completedByUserId && "• IT staff member required\n"}
-                            {(!termination.equipmentDisposition || termination.equipmentDisposition === "pending_assessment") && 
-                             "• Equipment disposition required"}
+                            {!termination.trackingNumber &&
+                              "• Tracking number required\n"}
+                            {!termination.completedByUserId &&
+                              "• IT staff member required\n"}
+                            {(!termination.equipmentDisposition ||
+                              termination.equipmentDisposition ===
+                                "pending_assessment") &&
+                              "• Equipment disposition required"}
                           </div>
                         )}
                       </div>
@@ -1673,7 +1802,8 @@ const getCompletionStatus = (termination: Termination) => {
                         </span>
                       ) : termination.status === "pending" ? (
                         <span className="text-amber-600 font-medium">
-                          {termination.daysRemaining} days remaining for equipment return
+                          {termination.daysRemaining} days remaining for
+                          equipment return
                         </span>
                       ) : termination.status === "equipment_returned" ? (
                         <div className="flex items-center space-x-4">
@@ -1682,19 +1812,26 @@ const getCompletionStatus = (termination: Termination) => {
                             Equipment Returned - Ready for Archive
                           </span>
                           <span className="text-blue-600">
-                            Checklist: {getCompletionStatus(termination).checklistCompletion}% Complete
+                            Checklist:{" "}
+                            {
+                              getCompletionStatus(termination)
+                                .checklistCompletion
+                            }
+                            % Complete
                           </span>
                         </div>
                       ) : null}
                     </div>
-                    
+
                     <div className="flex gap-2">
                       {termination.status === "equipment_returned" && (
                         <button
                           onClick={() => {
                             const completion = getCompletionStatus(termination);
                             if (!canArchiveTermination(termination)) {
-                              alert(`Cannot archive yet:\n• Checklist must be 100% complete (currently ${completion.checklistCompletion}%)\n• All fields must be completed`);
+                              alert(
+                                `Cannot archive yet:\n• Checklist must be 100% complete (currently ${completion.checklistCompletion}%)\n• All fields must be completed`
+                              );
                               return;
                             }
                             archiveTermination(termination.id);
@@ -1714,17 +1851,20 @@ const getCompletionStatus = (termination: Termination) => {
                           <CheckCircleIcon className="h-4 w-4 mr-1" />
                           Archive
                           {canArchiveTermination(termination) && (
-                            <span className="ml-1 text-xs bg-green-600 px-1 rounded">✓</span>
+                            <span className="ml-1 text-xs bg-green-600 px-1 rounded">
+                              ✓
+                            </span>
                           )}
                         </button>
                       )}
-                      
-                      {termination.status === "equipment_returned" && !canArchiveTermination(termination) && (
-                        <div className="text-xs text-amber-600 flex items-center">
-                          <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
-                          Complete checklist to archive
-                        </div>
-                      )}
+
+                      {termination.status === "equipment_returned" &&
+                        !canArchiveTermination(termination) && (
+                          <div className="text-xs text-amber-600 flex items-center">
+                            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+                            Complete checklist to archive
+                          </div>
+                        )}
                     </div>
                   </div>
                 </div>

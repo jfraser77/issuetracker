@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -123,6 +124,9 @@ export default function OnboardingPage() {
     action: "complete",
     assignedTo: "",
   });
+  const [expandedClasses, setExpandedClasses] = useState<Set<string>>(
+    new Set()
+  );
 
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
@@ -659,6 +663,27 @@ export default function OnboardingPage() {
     );
   };
 
+  // Toggle class expansion
+  const toggleClassExpanded = useCallback((classId: string) => {
+    setExpandedClasses((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(classId)) {
+        newSet.delete(classId);
+      } else {
+        newSet.add(classId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Check if class is expanded
+  const isClassExpanded = useCallback(
+    (classId: string) => {
+      return expandedClasses.has(classId);
+    },
+    [expandedClasses]
+  );
+
   // NEW: Edit task note function
   const editTaskNote = (
     employeeId: number,
@@ -1000,908 +1025,947 @@ export default function OnboardingPage() {
   };
 
   //  Class Card Component
-  const ClassCard = ({ classGroup }: { classGroup: OnboardingClass }) => {
 
-  const [isClassExpanded, setIsClassExpanded] = useState(false);
+  const ClassCard = React.memo(
+    ({ classGroup }: { classGroup: OnboardingClass }) => {
+      const handleClassToggle = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation();
+          toggleClassExpanded(classGroup.id);
+        },
+        [classGroup.id, toggleClassExpanded]
+      );
 
-  const handleClassToggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsClassExpanded(prev => !prev);
-  }, []);
+      // Expand All Employees
+      const handleExpandAll = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation();
+          setEmployees((prev) =>
+            prev.map((emp) =>
+              classGroup.employees.some((classEmp) => classEmp.id === emp.id)
+                ? { ...emp, isExpanded: true }
+                : emp
+            )
+          );
+        },
+        [classGroup.employees]
+      );
 
-  // Expand All Employees
-  const handleExpandAll = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEmployees(prev => 
-      prev.map(emp => 
-        classGroup.employees.some(classEmp => classEmp.id === emp.id) 
-          ? { ...emp, isExpanded: true }
-          : emp
-      )
-    );
-  }, [classGroup.employees]);
+      // Collapse All Employees
+      const handleCollapseAll = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation();
+          setEmployees((prev) =>
+            prev.map((emp) =>
+              classGroup.employees.some((classEmp) => classEmp.id === emp.id)
+                ? { ...emp, isExpanded: false }
+                : emp
+            )
+          );
+        },
+        [classGroup.employees]
+      );
 
-  // Collapse All Employees
-  const handleCollapseAll = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEmployees(prev => 
-      prev.map(emp => 
-        classGroup.employees.some(classEmp => classEmp.id === emp.id) 
-          ? { ...emp, isExpanded: false }
-          : emp
-      )
-    );
-  }, [classGroup.employees]);
-
-    return (
-      <div className="class-card bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* Class Header with Enhanced Controls */}
-        <div className="class-header bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-4 mb-2">
-                <button
-                  onClick={handleClassToggle}
-                  className="mt-1 text-gray-400 hover:text-gray-600"
-                >
-                  {isClassExpanded ? (
-                    <ChevronDownIcon className="h-5 w-5" />
-                  ) : (
-                    <ChevronRightIcon className="h-5 w-5" />
-                  )}
-                </button>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {classGroup.className}
-                </h2>
-                <div className="flex gap-2">
+      return (
+        <div className="class-card bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Class Header with Enhanced Controls */}
+          <div className="class-header bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-6">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <div className="flex items-center gap-4 mb-2">
                   <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setBulkOperation((prev) => ({
-                        ...prev,
-                        classId: classGroup.id,
-                      }));
-                      setShowBulkOperationsModal(true);
-                    }}
-                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Bulk Operations"
+                    onClick={handleClassToggle}
+                    className="mt-1 text-gray-400 hover:text-gray-600"
                   >
-                    <CheckCircleIcon className="h-4 w-4 mr-1" />
-                    Bulk Actions
+                    {isClassExpanded(classGroup.id) ? (
+                      <ChevronDownIcon className="h-5 w-5" />
+                    ) : (
+                      <ChevronRightIcon className="h-5 w-5" />
+                    )}
                   </button>
-
-                                {/* Expand/Collapse All Buttons */}
-                {isClassExpanded && (
-                  <>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {classGroup.className}
+                  </h2>
+                  <div className="flex gap-2">
                     <button
-                      onClick={handleExpandAll}
+                      onClick={() => {
+                        setSelectedClass(classGroup);
+                        setBulkOperation((prev) => ({
+                          ...prev,
+                          classId: classGroup.id,
+                        }));
+                        setShowBulkOperationsModal(true);
+                      }}
+                      className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Bulk Operations"
+                    >
+                      <CheckCircleIcon className="h-4 w-4 mr-1" />
+                      Bulk Actions
+                    </button>
+
+                    {/* Expand/Collapse All Buttons */}
+                    {isClassExpanded(classGroup.id) && (
+                      <>
+                        <button
+                          onClick={handleExpandAll}
+                          className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
+                          title="Expand All Employees"
+                        >
+                          <ChevronDownIcon className="h-4 w-4 mr-1" />
+                          Expand All
+                        </button>
+
+                        <button
+                          onClick={handleCollapseAll}
+                          className="text-sm bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded flex items-center"
+                          title="Collapse All Employees"
+                        >
+                          <ChevronRightIcon className="h-4 w-4 mr-1" />
+                          Collapse All
+                        </button>
+                      </>
+                    )}
+
+                    {/* Print Class Notes Button */}
+                    <button
+                      onClick={() => generateClassNotesReport(classGroup)}
+                      className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Print Class Notes"
+                      disabled={
+                        !classGroup.classNotes &&
+                        !classGroup.trainerNotes &&
+                        !classGroup.itNotes
+                      }
+                    >
+                      <PrinterIcon className="h-4 w-4 mr-1" />
+                      Print Notes
+                    </button>
+
+                    {/* Bulk Print Reports Button */}
+                    <button
+                      onClick={() => generateBulkPrintReport(classGroup)}
                       className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
-                      title="Expand All Employees"
+                      title="Print Reports for All Employees"
                     >
-                      <ChevronDownIcon className="h-4 w-4 mr-1" />
-                      Expand All
+                      <PrinterIcon className="h-4 w-4 mr-1" />
+                      Print All Reports
+                    </button>
+
+                    {/* Archive Entire Class Button */}
+                    <button
+                      onClick={() => archiveEntireClass(classGroup)}
+                      className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Archive Entire Class"
+                    >
+                      <ArchiveBoxIcon className="h-4 w-4 mr-1" />
+                      Archive Class
                     </button>
 
                     <button
-                      onClick={handleCollapseAll}
-                      className="text-sm bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded flex items-center"
-                      title="Collapse All Employees"
+                      onClick={() => {
+                        setSelectedClass(classGroup);
+                        setClassNotes(classGroup.classNotes || "");
+                        setShowClassNotesModal(true);
+                      }}
+                      className="text-sm bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded flex items-center"
+                      title="Class Notes"
                     >
-                      <ChevronRightIcon className="h-4 w-4 mr-1" />
-                      Collapse All
+                      <PencilIcon className="h-4 w-4 mr-1" />
+                      Class Notes
                     </button>
-                  </>
-                )}
+                  </div>
+                </div>
 
-                  {/* Print Class Notes Button */}
-                  <button
-                    onClick={() => generateClassNotesReport(classGroup)}
-                    className="text-sm bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Print Class Notes"
-                    disabled={
-                      !classGroup.classNotes &&
-                      !classGroup.trainerNotes &&
-                      !classGroup.itNotes
-                    }
-                  >
-                    <PrinterIcon className="h-4 w-4 mr-1" />
-                    Print Notes
-                  </button>
-
-                  {/* Bulk Print Reports Button */}
-                  <button
-                    onClick={() => generateBulkPrintReport(classGroup)}
-                    className="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Print Reports for All Employees"
-                  >
-                    <PrinterIcon className="h-4 w-4 mr-1" />
-                    Print All Reports
-                  </button>
-
-                  {/* Archive Entire Class Button */}
-                  <button
-                    onClick={() => archiveEntireClass(classGroup)}
-                    className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Archive Entire Class"
-                  >
-                    <ArchiveBoxIcon className="h-4 w-4 mr-1" />
-                    Archive Class
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSelectedClass(classGroup);
-                      setClassNotes(classGroup.classNotes || "");
-                      setShowClassNotesModal(true);
-                    }}
-                    className="text-sm bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded flex items-center"
-                    title="Class Notes"
-                  >
-                    <PencilIcon className="h-4 w-4 mr-1" />
-                    Class Notes
-                  </button>
+                <div className="flex items-center gap-6 text-sm text-gray-600">
+                  <span>{classGroup.employees.length} employees</span>
+                  <span>•</span>
+                  <span>
+                    Starts{" "}
+                    {new Date(classGroup.startDate).toLocaleDateString(
+                      "en-US",
+                      {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )}
+                  </span>
+                  {classGroup.classNotes && (
+                    <>
+                      <span>•</span>
+                      <span className="text-blue-600 flex items-center">
+                        <ExclamationCircleIcon className="h-4 w-4 mr-1" />
+                        Has Notes
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 text-sm text-gray-600">
-                <span>{classGroup.employees.length} employees</span>
-                <span>•</span>
-                <span>
-                  Starts{" "}
-                  {new Date(classGroup.startDate).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </span>
-                {classGroup.classNotes && (
-                  <>
-                    <span>•</span>
-                    <span className="text-blue-600 flex items-center">
-                      <ExclamationCircleIcon className="h-4 w-4 mr-1" />
-                      Has Notes
-                    </span>
-                  </>
+              {/* Progress and Stats */}
+              <div className="text-right">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="text-sm text-gray-500">Class Progress</div>
+                  <div className="w-32 bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${calculateClassProgress(classGroup)}%`,
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-sm font-medium text-gray-700">
+                    {calculateClassProgress(classGroup)}%
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {getCompletionStats(classGroup)}
+                </div>
+                {isClassExpanded(classGroup.id) && (
+                  <div className="text-xs text-blue-600 mt-1">
+                    {
+                      classGroup.employees.filter((emp) => emp.isExpanded)
+                        .length
+                    }{" "}
+                    of {classGroup.employees.length} expanded
+                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Progress and Stats */}
-            <div className="text-right">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="text-sm text-gray-500">Class Progress</div>
-                <div className="w-32 bg-gray-200 rounded-full h-2">
+          {/* Class Notes Preview */}
+          {classGroup.classNotes && (
+            <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+              <div className="flex items-start">
+                <ExclamationCircleIcon className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                <p className="text-sm text-yellow-800 line-clamp-2">
+                  {classGroup.classNotes}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Employees List */}
+          {isClassExpanded(classGroup.id) && (
+            <div className="p-6">
+              <div className="grid gap-6">
+                {classGroup.employees.map((employee) => (
                   <div
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${calculateClassProgress(classGroup)}%` }}
-                  ></div>
-                </div>
-                <div className="text-sm font-medium text-gray-700">
-                  {calculateClassProgress(classGroup)}%
-                </div>
-              </div>
-              <div className="text-xs text-gray-500">
-                {getCompletionStats(classGroup)}
-              </div>
-              {isClassExpanded && (
-              <div className="text-xs text-blue-600 mt-1">
-                {classGroup.employees.filter(emp => emp.isExpanded).length} of {classGroup.employees.length} expanded
-              </div>
-            )}
-            </div>
-          </div>
-        </div>
+                    key={employee.id}
+                    className="employee-card bg-white rounded-lg shadow-sm border border-gray-200"
+                  >
+                    {renderEmployeeHeader(employee)}
 
-        {/* Class Notes Preview */}
-        {classGroup.classNotes && (
-          <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
-            <div className="flex items-start">
-              <ExclamationCircleIcon className="h-4 w-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
-              <p className="text-sm text-yellow-800 line-clamp-2">
-                {classGroup.classNotes}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Employees List */}
-        {isClassExpanded && (
-          <div className="p-6">
-            <div className="grid gap-6">
-              {classGroup.employees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="employee-card bg-white rounded-lg shadow-sm border border-gray-200"
-                  // onClick={(e) => handleEmployeeCardClick(e, employee.id)}
-                >
-                  {renderEmployeeHeader(employee)}
-
-                  {employee.isExpanded && (
-                    <div className="border-t border-gray-200 px-6 py-4 space-y-6">
-                      {/* Onboarding Tasks Section */}
-                      <div>
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="font-medium text-gray-900">
-                            Onboarding Tasks
-                          </h3>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              addCustomTask(employee.id);
-                            }}
-                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
-                          >
-                            <PlusIcon className="h-4 w-4 mr-1" />
-                            Add Task
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {employee.onboardingTasks.map((task) =>
-                            renderTaskItem(employee, task)
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Portals Section */}
-                      <div className="border-t pt-6">
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="font-medium text-gray-900 flex items-center">
-                            <ComputerDesktopIcon className="h-5 w-5 mr-2 text-blue-500" />
-                            Portals
-                          </h3>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              addCustomPortal(employee.id);
-                            }}
-                            className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                          >
-                            <PlusIcon className="h-4 w-4 mr-1" />
-                            Add Portal
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {employee.portals.map((portal) =>
-                            renderPortalItem(employee, portal)
-                          )}
-                        </div>
-                      </div>
-
-                      {/* IT Staff Assignment Section */}
-                      {isAdminOrIT && (
-                        <div className="border-t pt-4">
-                          <h3 className="font-medium text-gray-900 mb-3">
-                            IT Staff Assignment
-                          </h3>
-                          <div className="flex items-end space-x-4">
-                            <div className="flex-1">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Assign to IT Staff
-                              </label>
-                              <select
-                                value={
-                                  employee.itStaffAssignment?.assignedToId || ""
-                                }
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  updateITAssignment(employee.id, {
-                                    ...employee.itStaffAssignment!,
-                                    assignedToId: e.target.value
-                                      ? parseInt(e.target.value)
-                                      : undefined,
-                                  });
-                                }}
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                              >
-                                <option value="">Not Assigned</option>
-                                {itStaff.map((staff) => (
-                                  <option key={staff.id} value={staff.id}>
-                                    {staff.name} ({staff.role})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="flex-1">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Status
-                              </label>
-                              <select
-                                value={
-                                  employee.itStaffAssignment?.status ||
-                                  "not assigned"
-                                }
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  updateITAssignment(employee.id, {
-                                    ...employee.itStaffAssignment!,
-                                    status: e.target
-                                      .value as ITStaffAssignment["status"],
-                                  });
-                                }}
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                              >
-                                <option value="not assigned">
-                                  Not Assigned
-                                </option>
-                                <option value="in progress">In Progress</option>
-                                <option value="on hold">On Hold</option>
-                                <option value="completed">Completed</option>
-                              </select>
-                            </div>
-                            <div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateITAssignment(
-                                    employee.id,
-                                    employee.itStaffAssignment!
-                                  );
-                                }}
-                                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
-                              >
-                                Apply
-                              </button>
-                            </div>
+                    {employee.isExpanded && (
+                      <div className="border-t border-gray-200 px-6 py-4 space-y-6">
+                        {/* Onboarding Tasks Section */}
+                        <div>
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-medium text-gray-900">
+                              Onboarding Tasks
+                            </h3>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addCustomTask(employee.id);
+                              }}
+                              className="flex items-center bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <PlusIcon className="h-4 w-4 mr-1" />
+                              Add Task
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {employee.onboardingTasks.map((task) =>
+                              renderTaskItem(employee, task)
+                            )}
                           </div>
                         </div>
-                      )}
 
-                      <div className="border-t pt-4 flex justify-between items-center">
-                        <div className="text-sm text-gray-500">
-                          {getDaysSinceAdded(employee.timestamp) >= 25 && (
-                            <span className="text-amber-600 font-medium">
-                              Will be archived in{" "}
-                              {30 - getDaysSinceAdded(employee.timestamp)} days
-                            </span>
-                          )}
+                        {/* Portals Section */}
+                        <div className="border-t pt-6">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-medium text-gray-900 flex items-center">
+                              <ComputerDesktopIcon className="h-5 w-5 mr-2 text-blue-500" />
+                              Portals
+                            </h3>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addCustomPortal(employee.id);
+                              }}
+                              className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <PlusIcon className="h-4 w-4 mr-1" />
+                              Add Portal
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {employee.portals.map((portal) =>
+                              renderPortalItem(employee, portal)
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              generatePrintReport(employee);
-                            }}
-                            className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
-                          >
-                            <PrinterIcon className="h-4 w-4 mr-1" />
-                            Print Report
-                          </button>
+
+                        {/* IT Staff Assignment Section */}
+                        {isAdminOrIT && (
+                          <div className="border-t pt-4">
+                            <h3 className="font-medium text-gray-900 mb-3">
+                              IT Staff Assignment
+                            </h3>
+                            <div className="flex items-end space-x-4">
+                              <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Assign to IT Staff
+                                </label>
+                                <select
+                                  value={
+                                    employee.itStaffAssignment?.assignedToId ||
+                                    ""
+                                  }
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateITAssignment(employee.id, {
+                                      ...employee.itStaffAssignment!,
+                                      assignedToId: e.target.value
+                                        ? parseInt(e.target.value)
+                                        : undefined,
+                                    });
+                                  }}
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                >
+                                  <option value="">Not Assigned</option>
+                                  {itStaff.map((staff) => (
+                                    <option key={staff.id} value={staff.id}>
+                                      {staff.name} ({staff.role})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Status
+                                </label>
+                                <select
+                                  value={
+                                    employee.itStaffAssignment?.status ||
+                                    "not assigned"
+                                  }
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateITAssignment(employee.id, {
+                                      ...employee.itStaffAssignment!,
+                                      status: e.target
+                                        .value as ITStaffAssignment["status"],
+                                    });
+                                  }}
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                >
+                                  <option value="not assigned">
+                                    Not Assigned
+                                  </option>
+                                  <option value="in progress">
+                                    In Progress
+                                  </option>
+                                  <option value="on hold">On Hold</option>
+                                  <option value="completed">Completed</option>
+                                </select>
+                              </div>
+                              <div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateITAssignment(
+                                      employee.id,
+                                      employee.itStaffAssignment!
+                                    );
+                                  }}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm h-[42px]"
+                                >
+                                  Apply
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t pt-4 flex justify-between items-center">
+                          <div className="text-sm text-gray-500">
+                            {getDaysSinceAdded(employee.timestamp) >= 25 && (
+                              <span className="text-amber-600 font-medium">
+                                Will be archived in{" "}
+                                {30 - getDaysSinceAdded(employee.timestamp)}{" "}
+                                days
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                generatePrintReport(employee);
+                              }}
+                              className="flex items-center bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
+                            >
+                              <PrinterIcon className="h-4 w-4 mr-1" />
+                              Print Report
+                            </button>
+                          </div>
                         </div>
                       </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Employee */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <Link
+                  href="/management-portal/onboarding/new"
+                  className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Add Employee to this Class
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+  );
+
+  // Task Item Component with Local State
+  const TaskItem = React.memo(
+    ({
+      employee,
+      task,
+    }: {
+      employee: EmployeeWithDetails;
+      task: OnboardingTask;
+    }) => {
+      const [localTaskName, setLocalTaskName] = useState(task.name);
+      const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+      const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
+        null
+      );
+      const [editingNoteContent, setEditingNoteContent] = useState("");
+
+      // Update local state when task changes
+      useEffect(() => {
+        setLocalTaskName(task.name);
+        setHasUnsavedChanges(false);
+      }, [task.name]);
+
+      const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocalTaskName(e.target.value);
+        setHasUnsavedChanges(true);
+      };
+
+      // NEW: Start editing a note
+      const startEditingNote = (noteIndex: number, currentContent: string) => {
+        setEditingNoteIndex(noteIndex);
+        setEditingNoteContent(currentContent);
+      };
+
+      // NEW: Save edited note
+      const saveEditedNote = () => {
+        if (editingNoteIndex !== null && editingNoteContent.trim()) {
+          editTaskNote(
+            employee.id,
+            task.id,
+            editingNoteIndex,
+            editingNoteContent.trim()
+          );
+          setEditingNoteIndex(null);
+          setEditingNoteContent("");
+        }
+      };
+
+      // NEW: Cancel editing
+      const cancelEditingNote = () => {
+        setEditingNoteIndex(null);
+        setEditingNoteContent("");
+      };
+
+      const saveTaskName = () => {
+        if (localTaskName.trim() && hasUnsavedChanges) {
+          setEmployees((prev) =>
+            prev.map((emp) =>
+              emp.id === employee.id
+                ? {
+                    ...emp,
+                    onboardingTasks: emp.onboardingTasks.map((t) =>
+                      t.id === task.id
+                        ? { ...t, name: localTaskName.trim() }
+                        : t
+                    ),
+                    isExpanded: emp.isExpanded, // Preserve expanded state
+                  }
+                : emp
+            )
+          );
+          setHasUnsavedChanges(false);
+        }
+      };
+
+      const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+          saveTaskName();
+        }
+      };
+
+      const handleBlur = () => {
+        saveTaskName();
+      };
+
+      return (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              {task.isCustom ? (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={localTaskName}
+                    onChange={handleNameChange}
+                    onKeyPress={handleKeyPress}
+                    onBlur={handleBlur}
+                    placeholder="Enter task name..."
+                    className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm pr-8"
+                  />
+                  {hasUnsavedChanges && (
+                    <div className="absolute right-0 top-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-
-            {/* Add Employee */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <Link
-                href="/management-portal/onboarding/new"
-                className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Add Employee to this Class
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Task Item Component with Local State
-  const TaskItem = ({
-    employee,
-    task,
-  }: {
-    employee: EmployeeWithDetails;
-    task: OnboardingTask;
-  }) => {
-    const [localTaskName, setLocalTaskName] = useState(task.name);
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
-      null
-    );
-    const [editingNoteContent, setEditingNoteContent] = useState("");
-
-    // Update local state when task changes
-    useEffect(() => {
-      setLocalTaskName(task.name);
-      setHasUnsavedChanges(false);
-    }, [task.name]);
-
-    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setLocalTaskName(e.target.value);
-      setHasUnsavedChanges(true);
-    };
-
-    // NEW: Start editing a note
-    const startEditingNote = (noteIndex: number, currentContent: string) => {
-      setEditingNoteIndex(noteIndex);
-      setEditingNoteContent(currentContent);
-    };
-
-    // NEW: Save edited note
-    const saveEditedNote = () => {
-      if (editingNoteIndex !== null && editingNoteContent.trim()) {
-        editTaskNote(
-          employee.id,
-          task.id,
-          editingNoteIndex,
-          editingNoteContent.trim()
-        );
-        setEditingNoteIndex(null);
-        setEditingNoteContent("");
-      }
-    };
-
-    // NEW: Cancel editing
-    const cancelEditingNote = () => {
-      setEditingNoteIndex(null);
-      setEditingNoteContent("");
-    };
-
-    const saveTaskName = () => {
-      if (localTaskName.trim() && hasUnsavedChanges) {
-        setEmployees((prev) =>
-          prev.map((emp) =>
-            emp.id === employee.id
-              ? {
-                  ...emp,
-                  onboardingTasks: emp.onboardingTasks.map((t) =>
-                    t.id === task.id ? { ...t, name: localTaskName.trim() } : t
-                  ),
-                  isExpanded: emp.isExpanded, // Preserve expanded state
-                }
-              : emp
-          )
-        );
-        setHasUnsavedChanges(false);
-      }
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        saveTaskName();
-      }
-    };
-
-    const handleBlur = () => {
-      saveTaskName();
-    };
-
-    return (
-      <div className="border border-gray-200 rounded-lg p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            {task.isCustom ? (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={localTaskName}
-                  onChange={handleNameChange}
-                  onKeyPress={handleKeyPress}
-                  onBlur={handleBlur}
-                  placeholder="Enter task name..."
-                  className="w-full border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-sm pr-8"
-                />
-                {hasUnsavedChanges && (
-                  <div className="absolute right-0 top-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <span className="text-sm font-medium text-gray-900">
-                {task.name}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2 ml-4">
-            <select
-              value={task.status}
-              onChange={(e) =>
-                updateTaskStatus(
-                  employee.id,
-                  task.id,
-                  e.target.value as OnboardingTask["status"]
-                )
-              }
-              className="border border-gray-300 rounded px-2 py-1 text-xs"
-            >
-              <option value="not begun">Not Begun</option>
-              <option value="in progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="not applicable">Not Applicable</option>
-            </select>
-            <span
-              className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                task.status
-              )}`}
-            >
-              {task.status}
-            </span>
-            {task.isCustom && (
-              <button
-                onClick={() => deleteTask(employee.id, task.id)}
-                className="text-red-400 hover:text-red-600"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {task.status === "completed" && task.completedBy && (
-          <div className="text-xs text-gray-500 mb-2">
-            Completed by {task.completedBy} on{" "}
-            {task.completedAt
-              ? new Date(task.completedAt).toLocaleDateString()
-              : "Unknown date"}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          {task.notes.map((note, noteIndex) => (
-            <div
-              key={noteIndex}
-              className="text-xs text-gray-600 bg-gray-50 p-2 rounded group relative"
-            >
-              {editingNoteIndex === noteIndex ? (
-                // EDIT MODE
-                <div className="space-y-2">
-                  <textarea
-                    value={editingNoteContent}
-                    onChange={(e) => setEditingNoteContent(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs resize-none"
-                    rows={3}
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveEditedNote}
-                      className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={cancelEditingNote}
-                      className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
               ) : (
-                // VIEW MODE
-                <>
-                  <div className="font-medium">{note.author || "Unknown"}:</div>
-                  <div>{note.content}</div>
-                  <div className="text-gray-400 text-xs mt-1">
-                    {new Date(note.timestamp).toLocaleDateString()}
-                  </div>
-                  {/* EDIT/DELETE BUTTONS - Only show on hover */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    <button
-                      onClick={() => startEditingNote(noteIndex, note.content)}
-                      className="text-blue-500 hover:text-blue-700 text-xs"
-                      title="Edit note"
-                    >
-                      <PencilIcon className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (
-                          confirm("Are you sure you want to delete this note?")
-                        ) {
-                          removeTaskNote(employee.id, task.id, noteIndex);
-                        }
-                      }}
-                      className="text-red-500 hover:text-red-700 text-xs"
-                      title="Delete note"
-                    >
-                      <TrashIcon className="h-3 w-3" />
-                    </button>
-                  </div>
-                </>
+                <span className="text-sm font-medium text-gray-900">
+                  {task.name}
+                </span>
               )}
             </div>
-          ))}
+            <div className="flex items-center space-x-2 ml-4">
+              <select
+                value={task.status}
+                onChange={(e) =>
+                  updateTaskStatus(
+                    employee.id,
+                    task.id,
+                    e.target.value as OnboardingTask["status"]
+                  )
+                }
+                className="border border-gray-300 rounded px-2 py-1 text-xs"
+              >
+                <option value="not begun">Not Begun</option>
+                <option value="in progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="not applicable">Not Applicable</option>
+              </select>
+              <span
+                className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                  task.status
+                )}`}
+              >
+                {task.status}
+              </span>
+              {task.isCustom && (
+                <button
+                  onClick={() => deleteTask(employee.id, task.id)}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
 
-          {/* ADD NOTE SECTION */}
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder="Add a note..."
-              className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  const input = e.target as HTMLInputElement;
+          {task.status === "completed" && task.completedBy && (
+            <div className="text-xs text-gray-500 mb-2">
+              Completed by {task.completedBy} on{" "}
+              {task.completedAt
+                ? new Date(task.completedAt).toLocaleDateString()
+                : "Unknown date"}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {task.notes.map((note, noteIndex) => (
+              <div
+                key={noteIndex}
+                className="text-xs text-gray-600 bg-gray-50 p-2 rounded group relative"
+              >
+                {editingNoteIndex === noteIndex ? (
+                  // EDIT MODE
+                  <div className="space-y-2">
+                    <textarea
+                      value={editingNoteContent}
+                      onChange={(e) => setEditingNoteContent(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-2 py-1 text-xs resize-none"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEditedNote}
+                        className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditingNote}
+                        className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // VIEW MODE
+                  <>
+                    <div className="font-medium">
+                      {note.author || "Unknown"}:
+                    </div>
+                    <div>{note.content}</div>
+                    <div className="text-gray-400 text-xs mt-1">
+                      {new Date(note.timestamp).toLocaleDateString()}
+                    </div>
+                    {/* EDIT/DELETE BUTTONS - Only show on hover */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button
+                        onClick={() =>
+                          startEditingNote(noteIndex, note.content)
+                        }
+                        className="text-blue-500 hover:text-blue-700 text-xs"
+                        title="Edit note"
+                      >
+                        <PencilIcon className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              "Are you sure you want to delete this note?"
+                            )
+                          ) {
+                            removeTaskNote(employee.id, task.id, noteIndex);
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                        title="Delete note"
+                      >
+                        <TrashIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+
+            {/* ADD NOTE SECTION */}
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                placeholder="Add a note..."
+                className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    const input = e.target as HTMLInputElement;
+                    if (input.value.trim()) {
+                      addTaskNote(employee.id, task.id, input.value.trim());
+                      input.value = "";
+                    }
+                  }
+                }}
+              />
+              <button
+                onClick={(e) => {
+                  const input = e.currentTarget
+                    .previousSibling as HTMLInputElement;
                   if (input.value.trim()) {
                     addTaskNote(employee.id, task.id, input.value.trim());
                     input.value = "";
                   }
-                }
-              }}
-            />
-            <button
-              onClick={(e) => {
-                const input = e.currentTarget
-                  .previousSibling as HTMLInputElement;
-                if (input.value.trim()) {
-                  addTaskNote(employee.id, task.id, input.value.trim());
-                  input.value = "";
-                }
-              }}
-              className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
-            >
-              Add Note
-            </button>
+                }}
+                className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+              >
+                Add Note
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    }
+  );
 
   // NEW: Portal Item Component
-  const PortalItem = ({
-    employee,
-    portal,
-  }: {
-    employee: EmployeeWithDetails;
-    portal: Portal;
-  }) => {
-    const [localPortalName, setLocalPortalName] = useState(portal.name);
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
-      null
-    );
-    const [editingNoteContent, setEditingNoteContent] = useState("");
+  const PortalItem = React.memo(
+    ({
+      employee,
+      portal,
+    }: {
+      employee: EmployeeWithDetails;
+      portal: Portal;
+    }) => {
+      const [localPortalName, setLocalPortalName] = useState(portal.name);
+      const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+      const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(
+        null
+      );
+      const [editingNoteContent, setEditingNoteContent] = useState("");
 
-    // Update local state when portal changes
-    useEffect(() => {
-      setLocalPortalName(portal.name);
-      setHasUnsavedChanges(false);
-    }, [portal.name]);
+      // Update local state when portal changes
+      useEffect(() => {
+        setLocalPortalName(portal.name);
+        setHasUnsavedChanges(false);
+      }, [portal.name]);
 
-    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setLocalPortalName(e.target.value);
-      setHasUnsavedChanges(true);
-    };
+      const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setLocalPortalName(e.target.value);
+        setHasUnsavedChanges(true);
+      };
 
-    const startEditingNote = (noteIndex: number, currentContent: string) => {
-      setEditingNoteIndex(noteIndex);
-      setEditingNoteContent(currentContent);
-    };
+      const startEditingNote = (noteIndex: number, currentContent: string) => {
+        setEditingNoteIndex(noteIndex);
+        setEditingNoteContent(currentContent);
+      };
 
-    const saveEditedNote = () => {
-      if (editingNoteIndex !== null && editingNoteContent.trim()) {
-        editPortalNote(
-          employee.id,
-          portal.id,
-          editingNoteIndex,
-          editingNoteContent.trim()
-        );
+      const saveEditedNote = () => {
+        if (editingNoteIndex !== null && editingNoteContent.trim()) {
+          editPortalNote(
+            employee.id,
+            portal.id,
+            editingNoteIndex,
+            editingNoteContent.trim()
+          );
+          setEditingNoteIndex(null);
+          setEditingNoteContent("");
+        }
+      };
+
+      const cancelEditingNote = () => {
         setEditingNoteIndex(null);
         setEditingNoteContent("");
-      }
-    };
+      };
 
-    const cancelEditingNote = () => {
-      setEditingNoteIndex(null);
-      setEditingNoteContent("");
-    };
+      const savePortalName = () => {
+        if (localPortalName.trim() && hasUnsavedChanges) {
+          setEmployees((prev) =>
+            prev.map((emp) =>
+              emp.id === employee.id
+                ? {
+                    ...emp,
+                    portals: emp.portals.map((p) =>
+                      p.id === portal.id
+                        ? { ...p, name: localPortalName.trim() }
+                        : p
+                    ),
+                    isExpanded: emp.isExpanded, // Preserve expanded state
+                  }
+                : emp
+            )
+          );
+          setHasUnsavedChanges(false);
+        }
+      };
 
-    const savePortalName = () => {
-      if (localPortalName.trim() && hasUnsavedChanges) {
-        setEmployees((prev) =>
-          prev.map((emp) =>
-            emp.id === employee.id
-              ? {
-                  ...emp,
-                  portals: emp.portals.map((p) =>
-                    p.id === portal.id
-                      ? { ...p, name: localPortalName.trim() }
-                      : p
-                  ),
-                  isExpanded: emp.isExpanded, // Preserve expanded state
-                }
-              : emp
-          )
-        );
-        setHasUnsavedChanges(false);
-      }
-    };
+      const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+          savePortalName();
+        }
+      };
 
-    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
+      const handleBlur = () => {
         savePortalName();
-      }
-    };
+      };
 
-    const handleBlur = () => {
-      savePortalName();
-    };
-
-    return (
-      <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            {portal.isCustom ? (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={localPortalName}
-                  onChange={handleNameChange}
-                  onKeyPress={handleKeyPress}
-                  onBlur={handleBlur}
-                  placeholder="Enter portal name..."
-                  className="w-full border-b border-blue-300 focus:border-blue-500 focus:outline-none py-1 text-sm pr-8 bg-transparent"
-                />
-                {hasUnsavedChanges && (
-                  <div className="absolute right-0 top-1">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <span className="text-sm font-medium text-gray-900">
-                {portal.name}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center space-x-2 ml-4">
-            <select
-              value={portal.status}
-              onChange={(e) =>
-                updatePortalStatus(
-                  employee.id,
-                  portal.id,
-                  e.target.value as Portal["status"]
-                )
-              }
-              className="border border-blue-300 rounded px-2 py-1 text-xs bg-white"
-            >
-              <option value="not begun">Not Begun</option>
-              <option value="in progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="not applicable">Not Applicable</option>
-            </select>
-            <span
-              className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                portal.status
-              )}`}
-            >
-              {portal.status}
-            </span>
-            {portal.isCustom && (
-              <button
-                onClick={() => deletePortal(employee.id, portal.id)}
-                className="text-red-400 hover:text-red-600"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {portal.status === "completed" && portal.completedBy && (
-          <div className="text-xs text-gray-500 mb-2">
-            Completed by {portal.completedBy} on{" "}
-            {portal.completedAt
-              ? new Date(portal.completedAt).toLocaleDateString()
-              : "Unknown date"}
-          </div>
-        )}
-
-        {/* UPDATED: Notes section with edit/remove functionality */}
-        <div className="space-y-2">
-          {portal.notes.map((note, noteIndex) => (
-            <div
-              key={noteIndex}
-              className="text-xs text-gray-600 bg-blue-100 p-2 rounded group relative"
-            >
-              {editingNoteIndex === noteIndex ? (
-                // EDIT MODE
-                <div className="space-y-2">
-                  <textarea
-                    value={editingNoteContent}
-                    onChange={(e) => setEditingNoteContent(e.target.value)}
-                    className="w-full border border-blue-300 rounded px-2 py-1 text-xs resize-none bg-white"
-                    rows={3}
-                    autoFocus
+      return (
+        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              {portal.isCustom ? (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={localPortalName}
+                    onChange={handleNameChange}
+                    onKeyPress={handleKeyPress}
+                    onBlur={handleBlur}
+                    placeholder="Enter portal name..."
+                    className="w-full border-b border-blue-300 focus:border-blue-500 focus:outline-none py-1 text-sm pr-8 bg-transparent"
                   />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveEditedNote}
-                      className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={cancelEditingNote}
-                      className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  {hasUnsavedChanges && (
+                    <div className="absolute right-0 top-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                // VIEW MODE
-                <>
-                  <div className="font-medium">{note.author || "Unknown"}:</div>
-                  <div className="break-words">{note.content}</div>
-                  <div className="text-gray-400 text-xs mt-1">
-                    {new Date(note.timestamp).toLocaleDateString()} at{" "}
-                    {new Date(note.timestamp).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                  {/* EDIT/DELETE BUTTONS - Only show on hover */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    <button
-                      onClick={() => startEditingNote(noteIndex, note.content)}
-                      className="text-blue-500 hover:text-blue-700 text-xs bg-white rounded p-1 shadow-sm"
-                      title="Edit note"
-                    >
-                      <PencilIcon className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (
-                          confirm("Are you sure you want to delete this note?")
-                        ) {
-                          removePortalNote(employee.id, portal.id, noteIndex);
-                        }
-                      }}
-                      className="text-red-500 hover:text-red-700 text-xs bg-white rounded p-1 shadow-sm"
-                      title="Delete note"
-                    >
-                      <TrashIcon className="h-3 w-3" />
-                    </button>
-                  </div>
-                </>
+                <span className="text-sm font-medium text-gray-900">
+                  {portal.name}
+                </span>
               )}
             </div>
-          ))}
+            <div className="flex items-center space-x-2 ml-4">
+              <select
+                value={portal.status}
+                onChange={(e) =>
+                  updatePortalStatus(
+                    employee.id,
+                    portal.id,
+                    e.target.value as Portal["status"]
+                  )
+                }
+                className="border border-blue-300 rounded px-2 py-1 text-xs bg-white"
+              >
+                <option value="not begun">Not Begun</option>
+                <option value="in progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="not applicable">Not Applicable</option>
+              </select>
+              <span
+                className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
+                  portal.status
+                )}`}
+              >
+                {portal.status}
+              </span>
+              {portal.isCustom && (
+                <button
+                  onClick={() => deletePortal(employee.id, portal.id)}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
 
-          {/* ADD NOTE SECTION */}
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder="Add a note..."
-              className="flex-1 border border-blue-300 rounded px-2 py-1 text-xs bg-white"
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  const input = e.target as HTMLInputElement;
+          {portal.status === "completed" && portal.completedBy && (
+            <div className="text-xs text-gray-500 mb-2">
+              Completed by {portal.completedBy} on{" "}
+              {portal.completedAt
+                ? new Date(portal.completedAt).toLocaleDateString()
+                : "Unknown date"}
+            </div>
+          )}
+
+          {/* UPDATED: Notes section with edit/remove functionality */}
+          <div className="space-y-2">
+            {portal.notes.map((note, noteIndex) => (
+              <div
+                key={noteIndex}
+                className="text-xs text-gray-600 bg-blue-100 p-2 rounded group relative"
+              >
+                {editingNoteIndex === noteIndex ? (
+                  // EDIT MODE
+                  <div className="space-y-2">
+                    <textarea
+                      value={editingNoteContent}
+                      onChange={(e) => setEditingNoteContent(e.target.value)}
+                      className="w-full border border-blue-300 rounded px-2 py-1 text-xs resize-none bg-white"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEditedNote}
+                        className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditingNote}
+                        className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // VIEW MODE
+                  <>
+                    <div className="font-medium">
+                      {note.author || "Unknown"}:
+                    </div>
+                    <div className="break-words">{note.content}</div>
+                    <div className="text-gray-400 text-xs mt-1">
+                      {new Date(note.timestamp).toLocaleDateString()} at{" "}
+                      {new Date(note.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    {/* EDIT/DELETE BUTTONS - Only show on hover */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button
+                        onClick={() =>
+                          startEditingNote(noteIndex, note.content)
+                        }
+                        className="text-blue-500 hover:text-blue-700 text-xs bg-white rounded p-1 shadow-sm"
+                        title="Edit note"
+                      >
+                        <PencilIcon className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              "Are you sure you want to delete this note?"
+                            )
+                          ) {
+                            removePortalNote(employee.id, portal.id, noteIndex);
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs bg-white rounded p-1 shadow-sm"
+                        title="Delete note"
+                      >
+                        <TrashIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+
+            {/* ADD NOTE SECTION */}
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                placeholder="Add a note..."
+                className="flex-1 border border-blue-300 rounded px-2 py-1 text-xs bg-white"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    const input = e.target as HTMLInputElement;
+                    if (input.value.trim()) {
+                      addPortalNote(employee.id, portal.id, input.value.trim());
+                      input.value = "";
+                    }
+                  }
+                }}
+              />
+              <button
+                onClick={(e) => {
+                  const input = e.currentTarget
+                    .previousSibling as HTMLInputElement;
                   if (input.value.trim()) {
                     addPortalNote(employee.id, portal.id, input.value.trim());
                     input.value = "";
                   }
-                }
-              }}
-            />
-            <button
-              onClick={(e) => {
-                const input = e.currentTarget
-                  .previousSibling as HTMLInputElement;
-                if (input.value.trim()) {
-                  addPortalNote(employee.id, portal.id, input.value.trim());
-                  input.value = "";
-                }
-              }}
-              className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
-            >
-              Add Note
-            </button>
+                }}
+                className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+              >
+                Add Note
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  };
+      );
+    }
+  );
 
   // Bulk Operations Modal
   const BulkOperationsModal = () => (
