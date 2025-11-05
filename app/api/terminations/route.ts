@@ -205,6 +205,10 @@ export async function POST(request: NextRequest) {
     const testResult = await pool.request().query('SELECT @@VERSION as version');
     console.log("✅ Database connection successful");
 
+        const terminationDate = new Date(terminationData.terminationDate);
+    // Set to noon to avoid timezone issues
+    terminationDate.setHours(12, 0, 0, 0);
+
     // Use provided checklist or default to full checklist
     const checklistToSave = terminationData.checklist && terminationData.checklist.length > 0 
       ? terminationData.checklist 
@@ -269,7 +273,8 @@ export async function POST(request: NextRequest) {
 
     const responseTermination = {
       ...createdTermination,
-      checklist: parsedChecklist
+      terminationDate: terminationDate.toISOString().split('T')[0], // Return as YYYY-MM-DD
+      checklist: checklistToSave
     };
 
     console.log("📤 Sending success response");

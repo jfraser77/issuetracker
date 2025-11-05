@@ -1310,6 +1310,19 @@ export default function TerminationsContent() {
     };
   };
 
+  const formatTerminationDate = (dateString: string) => {
+  const date = new Date(dateString);
+  // Add a day if the date appears off due to timezone
+  const adjustedDate = new Date(date);
+  adjustedDate.setDate(adjustedDate.getDate() + 1);
+  
+  return adjustedDate.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
   if (!isClient || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
@@ -1516,11 +1529,9 @@ export default function TerminationsContent() {
                       )}
                       <p className="text-sm text-gray-500">
                         Terminated:{" "}
-                        {new Date(
-                          termination.terminationDate
-                        ).toLocaleDateString()}{" "}
-                        | Email: {termination.employeeEmail} | Initiated by:{" "}
-                        {termination.initiatedBy}
+                        {formatTerminationDate(termination.terminationDate)}{" "}
+  | Email: {termination.employeeEmail} | Initiated by:{" "}
+  {termination.initiatedBy}
                       </p>
                     </div>
                   </div>
