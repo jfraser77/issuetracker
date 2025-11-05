@@ -127,12 +127,13 @@ export default function OnboardingPage() {
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(
     new Set()
   );
-
-  const isAdminOrIT =
-    currentUser?.role === "Admin" || currentUser?.role === "I.T.";
-
-  // Default system tasks
-  const defaultTasks: OnboardingTask[] = [
+  const [showDefaultTasksModal, setShowDefaultTasksModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<OnboardingTask | null>(null);
+  const [editTaskName, setEditTaskName] = useState("");
+  const [editTaskStatus, setEditTaskStatus] =
+    useState<OnboardingTask["status"]>("not begun");
+  // Update the defaultTasks state
+  const [defaultTasks, setDefaultTasks] = useState<OnboardingTask[]>([
     { id: "1", name: "E-Tenet ID #", status: "not begun", notes: [] },
     {
       id: "2",
@@ -205,7 +206,12 @@ export default function OnboardingPage() {
     },
     { id: "16", name: "ENVI - Billing Dept", status: "not begun", notes: [] },
     { id: "17", name: "Nimble - Billing Dept", status: "not begun", notes: [] },
-  ];
+
+    { id: "18", name: "Waystar", status: "not begun", notes: [] },
+  ]);
+
+  const isAdminOrIT =
+    currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
   // Default portals
   const defaultPortals: Portal[] = [];
@@ -251,6 +257,28 @@ export default function OnboardingPage() {
 
   const fetchEmployeesWithDetails = async () => {
     try {
+      // Fetch default tasks from API first
+      let defaultTasksFromAPI = defaultTasks;
+      try {
+        const defaultTasksResponse = await fetch(
+          "/api/onboarding/default-tasks"
+        );
+        if (defaultTasksResponse.ok) {
+          defaultTasksFromAPI = await defaultTasksResponse.json();
+          setDefaultTasks(defaultTasksFromAPI); // Update state with API tasks
+          console.log("✅ Loaded default tasks from API");
+        } else {
+          console.warn(
+            "⚠️ Could not fetch default tasks from API, using local defaults"
+          );
+        }
+      } catch (apiError) {
+        console.warn(
+          "⚠️ Error fetching default tasks from API, using local defaults:",
+          apiError
+        );
+      }
+
       const response = await fetch("/api/employees?status=active");
       if (response.ok) {
         const employeesData = await response.json();
@@ -258,7 +286,8 @@ export default function OnboardingPage() {
         const employeesWithDetails = await Promise.all(
           employeesData.map(async (employee: Employee) => {
             try {
-              let onboardingTasks = [...defaultTasks];
+              // Use default tasks from API (or fallback to local defaults)
+              let onboardingTasks = [...defaultTasksFromAPI];
               let portals = [...defaultPortals];
 
               // Fetch saved tasks
@@ -351,7 +380,7 @@ export default function OnboardingPage() {
               console.error(`Error processing employee ${employee.id}:`, error);
               return {
                 ...employee,
-                onboardingTasks: [...defaultTasks],
+                onboardingTasks: [...defaultTasksFromAPI], // Use API tasks as fallback
                 portals: [...defaultPortals],
                 itStaffAssignment: { status: "not assigned" },
                 isExpanded: false,
@@ -369,7 +398,7 @@ export default function OnboardingPage() {
     }
   };
 
-  // NEW: Function to manually trigger alerts
+  // Function to manually trigger alerts
   const triggerOnboardingAlerts = async () => {
     setSendingAlerts(true);
     try {
@@ -564,13 +593,22 @@ export default function OnboardingPage() {
     const allTasks = classGroup.employees.flatMap((emp) =>
       emp.onboardingTasks.filter((task) => task.status !== "not applicable")
     );
+    const allPortals = classGroup.employees.flatMap((emp) =>
+      emp.portals.filter((portal) => portal.status !== "not applicable")
+    );
 
-    if (allTasks.length === 0) return 0;
+    const totalItems = allTasks.length + allPortals.length;
+    if (totalItems === 0) return 0;
 
     const completedTasks = allTasks.filter(
       (task) => task.status === "completed"
     ).length;
-    return Math.round((completedTasks / allTasks.length) * 100);
+    const completedPortals = allPortals.filter(
+      (portal) => portal.status === "completed"
+    ).length;
+
+    const totalCompleted = completedTasks + completedPortals;
+    return Math.round((totalCompleted / totalItems) * 100);
   };
 
   // Get completion stats
@@ -938,6 +976,66 @@ export default function OnboardingPage() {
     }
   };
 
+  // Add this function with your other functions
+  const updateDefaultTasksForAllEmployees = async () => {
+    if (
+      !confirm(
+        "This will:\n1. Update default tasks for ALL FUTURE employees\n2. Add missing tasks to ALL EXISTING employees\n\nContinue?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 1. Save the updated default tasks to the database
+      const saveDefaultTasksResponse = await fetch(
+        "/api/onboarding/default-tasks",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(defaultTasks),
+        }
+      );
+
+      if (!saveDefaultTasksResponse.ok) {
+        throw new Error("Failed to save default tasks to database");
+      }
+
+      // 2. Update existing employees with missing tasks
+      const updatePromises = employees.map(async (employee) => {
+        const existingTaskIds = new Set(
+          employee.onboardingTasks.map((task) => task.id)
+        );
+        const newDefaultTasks = defaultTasks.filter(
+          (task) => !existingTaskIds.has(task.id)
+        );
+
+        const updatedTasks = [...employee.onboardingTasks, ...newDefaultTasks];
+
+        await updateEmployeeTasks(employee.id, updatedTasks);
+
+        return {
+          ...employee,
+          onboardingTasks: updatedTasks,
+        };
+      });
+
+      const updatedEmployees = await Promise.all(updatePromises);
+      setEmployees(updatedEmployees);
+
+      alert(
+        `✅ Successfully updated!\n\n• Default tasks saved for future employees\n• ${updatedEmployees.length} existing employees updated with new tasks`
+      );
+    } catch (error) {
+      console.error("Error updating default tasks:", error);
+      alert("Failed to update default tasks. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Add task note function that preserves expanded state
   const addTaskNote = (
     employeeId: number,
@@ -1022,6 +1120,518 @@ export default function OnboardingPage() {
         body: JSON.stringify(employee.portals),
       });
     }
+  };
+
+  const DefaultTasksModal = () => {
+    const [newTaskName, setNewTaskName] = useState("");
+    const [newTaskStatus, setNewTaskStatus] =
+      useState<OnboardingTask["status"]>("not begun");
+
+    const addNewDefaultTask = async () => {
+      if (!newTaskName.trim()) {
+        alert("Please enter a task name");
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        // Create the new task
+        const newTask: OnboardingTask = {
+          id: `task-${Date.now()}`,
+          name: newTaskName.trim(),
+          status: newTaskStatus,
+          notes: [],
+        };
+
+        // Add to default tasks state
+        const updatedDefaultTasks = [...defaultTasks, newTask];
+        setDefaultTasks(updatedDefaultTasks);
+
+        // Save to database via API
+        const saveDefaultTasksResponse = await fetch(
+          "/api/onboarding/default-tasks",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedDefaultTasks),
+          }
+        );
+
+        if (!saveDefaultTasksResponse.ok) {
+          throw new Error("Failed to save default tasks to database");
+        }
+
+        // Reset form
+        setNewTaskName("");
+        setNewTaskStatus("not begun");
+
+        alert(`✅ Task "${newTaskName}" added to default tasks!`);
+      } catch (error) {
+        console.error("Error adding new task:", error);
+        alert("Failed to add new task. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const startEditTask = (task: OnboardingTask) => {
+      setEditingTask(task);
+      setEditTaskName(task.name);
+      setEditTaskStatus(task.status);
+    };
+
+    const saveEditedTask = async () => {
+      if (!editingTask || !editTaskName.trim()) {
+        alert("Please enter a task name");
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        // Update default tasks state
+        const updatedDefaultTasks = defaultTasks.map((task) =>
+          task.id === editingTask.id
+            ? { ...task, name: editTaskName.trim(), status: editTaskStatus }
+            : task
+        );
+        setDefaultTasks(updatedDefaultTasks);
+
+        // Save to database via API
+        const saveDefaultTasksResponse = await fetch(
+          "/api/onboarding/default-tasks",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedDefaultTasks),
+          }
+        );
+
+        if (!saveDefaultTasksResponse.ok) {
+          throw new Error("Failed to save default tasks to database");
+        }
+
+        // Update all employees who have this task
+        const updatePromises = employees.map(async (employee) => {
+          const taskIndex = employee.onboardingTasks.findIndex(
+            (task) => task.id === editingTask.id
+          );
+
+          if (taskIndex !== -1) {
+            // Task exists in employee's tasks - update it
+            const updatedTasks = [...employee.onboardingTasks];
+            updatedTasks[taskIndex] = {
+              ...updatedTasks[taskIndex],
+              name: editTaskName.trim(),
+              status: editTaskStatus,
+            };
+
+            await updateEmployeeTasks(employee.id, updatedTasks);
+
+            return {
+              ...employee,
+              onboardingTasks: updatedTasks,
+            };
+          }
+
+          return employee;
+        });
+
+        const updatedEmployees = await Promise.all(updatePromises);
+        setEmployees(updatedEmployees);
+
+        // Reset editing state
+        setEditingTask(null);
+        setEditTaskName("");
+        setEditTaskStatus("not begun");
+
+        const employeesUpdated = updatedEmployees.filter((emp) =>
+          emp.onboardingTasks.some((task) => task.id === editingTask.id)
+        ).length;
+
+        alert(
+          `✅ Task updated successfully! Updated ${employeesUpdated} employees.`
+        );
+      } catch (error) {
+        console.error("Error updating task:", error);
+        alert("Failed to update task. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const deleteDefaultTask = async (taskId: string, taskName: string) => {
+      if (
+        !confirm(
+          `Are you sure you want to delete the task "${taskName}"?\n\nThis will:\n• Remove it from default tasks for FUTURE employees\n• Remove it from ALL EXISTING employees (${employees.length} employees)\n\nThis action cannot be undone.`
+        )
+      ) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        // 1. Remove from default tasks state
+        const updatedDefaultTasks = defaultTasks.filter(
+          (task) => task.id !== taskId
+        );
+        setDefaultTasks(updatedDefaultTasks);
+
+        // 2. Save to database via API
+        const saveDefaultTasksResponse = await fetch(
+          "/api/onboarding/default-tasks",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedDefaultTasks),
+          }
+        );
+
+        if (!saveDefaultTasksResponse.ok) {
+          throw new Error("Failed to save default tasks to database");
+        }
+
+        // 3. Remove this task from ALL existing employees
+        const updatePromises = employees.map(async (employee) => {
+          const updatedTasks = employee.onboardingTasks.filter(
+            (task) => task.id !== taskId
+          );
+
+          // Only update if the task was actually removed
+          if (updatedTasks.length !== employee.onboardingTasks.length) {
+            await updateEmployeeTasks(employee.id, updatedTasks);
+          }
+
+          return {
+            ...employee,
+            onboardingTasks: updatedTasks,
+          };
+        });
+
+        const updatedEmployees = await Promise.all(updatePromises);
+        setEmployees(updatedEmployees);
+
+        // Count how many employees actually had this task
+        const employeesAffected = employees.filter((emp) =>
+          emp.onboardingTasks.some((task) => task.id === taskId)
+        ).length;
+
+        alert(
+          `✅ Task "${taskName}" deleted successfully!\n\n• Removed from default tasks\n• Removed from ${employeesAffected} employees`
+        );
+      } catch (error) {
+        console.error("Error deleting task:", error);
+        alert("Failed to delete task. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const applyAllChangesToEmployees = async () => {
+      if (
+        !confirm(
+          `This will sync ALL ${employees.length} employees with the current default tasks.\n\nThis will:\n• Add missing default tasks\n• Update existing task names/status\n• Remove tasks that are no longer in default tasks\n• Preserve custom tasks\n\nContinue?`
+        )
+      ) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        // Create a set of current default task IDs for quick lookup
+        const defaultTaskIds = new Set(defaultTasks.map((task) => task.id));
+
+        const updatePromises = employees.map(async (employee) => {
+          // Create a map of existing tasks by ID for quick lookup
+          const existingTasksMap = new Map(
+            employee.onboardingTasks.map((task) => [task.id, task])
+          );
+
+          // Start with current default tasks
+          const mergedTasks = defaultTasks.map((defaultTask) => {
+            const existingTask = existingTasksMap.get(defaultTask.id);
+
+            if (existingTask) {
+              // Task exists - update name and status but preserve notes and custom data
+              return {
+                ...existingTask,
+                name: defaultTask.name,
+                status: defaultTask.status,
+              };
+            } else {
+              // Task doesn't exist - add it
+              return { ...defaultTask };
+            }
+          });
+
+          // Add any custom tasks that aren't in default tasks
+          const customTasks = employee.onboardingTasks.filter(
+            (task) => task.isCustom || !defaultTaskIds.has(task.id)
+          );
+
+          const finalTasks = [...mergedTasks, ...customTasks];
+
+          await updateEmployeeTasks(employee.id, finalTasks);
+
+          return {
+            ...employee,
+            onboardingTasks: finalTasks,
+          };
+        });
+
+        const updatedEmployees = await Promise.all(updatePromises);
+        setEmployees(updatedEmployees);
+
+        const tasksRemoved = employees.flatMap((emp) =>
+          emp.onboardingTasks.filter(
+            (task) => !task.isCustom && !defaultTaskIds.has(task.id)
+          )
+        ).length;
+
+        alert(
+          `✅ Successfully synced all ${updatedEmployees.length} employees!\n\n• Removed ${tasksRemoved} tasks no longer in default list\n• Updated task names/status\n• Preserved custom tasks`
+        );
+      } catch (error) {
+        console.error("Error applying changes to employees:", error);
+        alert("Failed to apply changes to employees. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const applyToAllEmployees = async (task: OnboardingTask) => {
+      if (
+        !confirm(`Add "${task.name}" to all ${employees.length} employees?`)
+      ) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const updatePromises = employees.map(async (employee) => {
+          // Check if task already exists
+          const taskExists = employee.onboardingTasks.some(
+            (empTask) =>
+              empTask.id === task.id ||
+              empTask.name.toLowerCase() === task.name.toLowerCase()
+          );
+
+          if (!taskExists) {
+            const updatedTasks = [...employee.onboardingTasks, { ...task }];
+            await updateEmployeeTasks(employee.id, updatedTasks);
+
+            return {
+              ...employee,
+              onboardingTasks: updatedTasks,
+            };
+          }
+
+          return employee;
+        });
+
+        const updatedEmployees = await Promise.all(updatePromises);
+        setEmployees(updatedEmployees);
+
+        const employeesUpdated = updatedEmployees.filter((emp) =>
+          emp.onboardingTasks.some((empTask) => empTask.id === task.id)
+        ).length;
+
+        alert(`✅ Task "${task.name}" added to ${employeesUpdated} employees!`);
+      } catch (error) {
+        console.error("Error applying task to employees:", error);
+        alert("Failed to apply task to employees. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <h3 className="text-lg font-semibold mb-4">Manage Default Tasks</h3>
+
+          <div className="flex gap-6 flex-1 overflow-hidden">
+            {/* Left Panel - Add New Task */}
+            <div className="w-1/3 border-r pr-6">
+              <h4 className="font-medium text-gray-900 mb-3">Add New Task</h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Task Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newTaskName}
+                    onChange={(e) => setNewTaskName(e.target.value)}
+                    placeholder="Enter task name..."
+                    className="w-full border border-gray-300 rounded px-3 py-2 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Initial Status
+                  </label>
+                  <select
+                    value={newTaskStatus}
+                    onChange={(e) =>
+                      setNewTaskStatus(
+                        e.target.value as OnboardingTask["status"]
+                      )
+                    }
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  >
+                    <option value="not begun">Not Begun</option>
+                    <option value="in progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="not applicable">Not Applicable</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={addNewDefaultTask}
+                  disabled={loading || !newTaskName.trim()}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Adding..." : "Add to Default Tasks"}
+                </button>
+              </div>
+            </div>
+
+            {/* Right Panel - Existing Tasks */}
+            <div className="w-2/3 overflow-y-auto">
+              <h4 className="font-medium text-gray-900 mb-3">
+                Default Tasks ({defaultTasks.length})
+              </h4>
+
+              {editingTask ? (
+                // Edit Mode
+                <div className="bg-yellow-50 border border-yellow-200 rounded p-4 mb-4">
+                  <h5 className="font-medium mb-3">Edit Task</h5>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={editTaskName}
+                      onChange={(e) => setEditTaskName(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+                    <select
+                      value={editTaskStatus}
+                      onChange={(e) =>
+                        setEditTaskStatus(
+                          e.target.value as OnboardingTask["status"]
+                        )
+                      }
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    >
+                      <option value="not begun">Not Begun</option>
+                      <option value="in progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="not applicable">Not Applicable</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEditedTask}
+                        disabled={loading}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingTask(null)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                {defaultTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between p-3 border border-gray-200 rounded hover:bg-gray-50"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{task.name}</div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span
+                          className={`px-2 py-1 rounded-full ${getStatusColor(
+                            task.status
+                          )}`}
+                        >
+                          {task.status}
+                        </span>
+                        <span>•</span>
+                        <span>ID: {task.id}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => applyToAllEmployees(task)}
+                        className="text-green-600 hover:text-green-800 text-sm"
+                        title="Add to all employees"
+                      >
+                        <PlusIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => startEditTask(task)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        title="Edit task"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteDefaultTask(task.id, task.name)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                        title="Delete from default tasks"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {defaultTasks.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    No default tasks configured
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center pt-4 mt-4 border-t">
+            <div className="text-sm text-gray-500">
+              {employees.length} active employees • {defaultTasks.length}{" "}
+              default tasks
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={applyAllChangesToEmployees}
+                disabled={loading}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? "Applying..." : "Apply All to Employees"}
+              </button>
+              <button
+                onClick={() => setShowDefaultTasksModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   //  Class Card Component
@@ -2213,16 +2823,26 @@ export default function OnboardingPage() {
   };
 
   const calculateOverallProgress = (employee: EmployeeWithDetails) => {
+    // Combine both tasks and portals for progress calculation
     const applicableTasks = employee.onboardingTasks.filter(
       (task) => task.status !== "not applicable"
     );
+    const applicablePortals = employee.portals.filter(
+      (portal) => portal.status !== "not applicable"
+    );
 
-    const totalTasks = applicableTasks.length;
+    const totalItems = applicableTasks.length + applicablePortals.length;
+
     const completedTasks = applicableTasks.filter(
       (task) => task.status === "completed"
     ).length;
+    const completedPortals = applicablePortals.filter(
+      (portal) => portal.status === "completed"
+    ).length;
 
-    return totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const totalCompleted = completedTasks + completedPortals;
+
+    return totalItems > 0 ? Math.round((totalCompleted / totalItems) * 100) : 0;
   };
 
   const getDaysSinceAdded = (timestamp: string) => {
@@ -2241,71 +2861,97 @@ export default function OnboardingPage() {
       (task) => task.status === "completed"
     );
     const pendingTasks = employee.onboardingTasks.filter(
-      (task) => task.status !== "completed"
+      (task) => task.status !== "completed" && task.status !== "not applicable"
+    );
+    const completedPortals = employee.portals.filter(
+      (portal) => portal.status === "completed"
+    );
+    const pendingPortals = employee.portals.filter(
+      (portal) =>
+        portal.status !== "completed" && portal.status !== "not applicable"
     );
 
     const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Onboarding Report - ${employee.firstName} ${
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Onboarding Report - ${employee.firstName} ${
       employee.lastName
     }</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-          .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-          .header h1 { color: #2563eb; margin: 0; }
-          .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
-          .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; }
-          .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-          .completed { color: #059669; }
-          .print-date { text-align: right; color: #6b7280; margin-top: 30px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Onboarding Report - ${employee.firstName} ${
-      employee.lastName
-    }</h1>
-          <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #2563eb; margin: 0; }
+        .progress-bar { background: #e5e7eb; height: 20px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+        .progress-fill { background: #2563eb; height: 100%; border-radius: 10px; }
+        .task-item { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+        .completed { color: #059669; }
+        .print-date { text-align: right; color: #6b7280; margin-top: 30px; }
+        .section { margin-bottom: 25px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Onboarding Report - ${employee.firstName} ${employee.lastName}</h1>
+        <div class="print-date">Generated on ${new Date().toLocaleDateString()}</div>
+      </div>
+      
+      <div>
+        <h3>Progress: ${progress}%</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress}%"></div>
         </div>
-        
-        <div>
-          <h3>Progress: ${progress}%</h3>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${progress}%"></div>
-          </div>
-        </div>
-        
-        <div>
-          <h3>Completed Tasks (${completedTasks.length})</h3>
-          ${completedTasks
-            .map(
-              (task) => `<div class="task-item completed">✓ ${task.name}</div>`
-            )
-            .join("")}
-        </div>
-        
-        <div>
-          <h3>Pending Tasks (${pendingTasks.length})</h3>
-          ${pendingTasks
-            .map(
-              (task) =>
-                `<div class="task-item">${task.name} - ${task.status}</div>`
-            )
-            .join("")}
-        </div>
-        
-        <script>window.print(); setTimeout(() => window.close(), 1000);</script>
-      </body>
-      </html>
-    `;
+      </div>
+      
+      <div class="section">
+        <h3>Completed Tasks (${completedTasks.length})</h3>
+        ${completedTasks
+          .map(
+            (task) => `<div class="task-item completed">✓ ${task.name}</div>`
+          )
+          .join("")}
+      </div>
+      
+      <div class="section">
+        <h3>Pending Tasks (${pendingTasks.length})</h3>
+        ${pendingTasks
+          .map(
+            (task) =>
+              `<div class="task-item">${task.name} - ${task.status}</div>`
+          )
+          .join("")}
+      </div>
+
+      <div class="section">
+        <h3>Completed Portals (${completedPortals.length})</h3>
+        ${completedPortals
+          .map(
+            (portal) =>
+              `<div class="task-item completed">✓ ${portal.name}</div>`
+          )
+          .join("")}
+      </div>
+      
+      <div class="section">
+        <h3>Pending Portals (${pendingPortals.length})</h3>
+        ${pendingPortals
+          .map(
+            (portal) =>
+              `<div class="task-item">${portal.name} - ${portal.status}</div>`
+          )
+          .join("")}
+      </div>
+      
+      <script>window.print(); setTimeout(() => window.close(), 1000);</script>
+    </body>
+    </html>
+  `;
 
     printWindow.document.write(printContent);
     printWindow.document.close();
   };
 
-  // NEW: Print Class Notes Function
+  // Print Class Notes Function
   const generateClassNotesReport = (classGroup: OnboardingClass) => {
     // Check if there are any notes to print
     const hasNotes =
@@ -2403,6 +3049,28 @@ export default function OnboardingPage() {
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
+        .employee-stats {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 15px;
+          margin-bottom: 20px;
+        }
+        .employee-stat-card {
+          background: #f8fafc;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 12px;
+        }
+        .employee-stat-number {
+          font-size: 18px;
+          font-weight: bold;
+          color: #6366f1;
+        }
+        .employee-stat-label {
+          font-size: 11px;
+          color: #6b7280;
+          text-transform: uppercase;
+        }
         .print-footer {
           text-align: center;
           color: #6b7280;
@@ -2410,6 +3078,29 @@ export default function OnboardingPage() {
           margin-top: 40px;
           padding-top: 20px;
           border-top: 1px solid #e5e7eb;
+        }
+        .progress-container {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 5px 0;
+        }
+        .progress-bar-small {
+          flex: 1;
+          background: #e5e7eb;
+          height: 8px;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .progress-fill-small {
+          background: #6366f1;
+          height: 100%;
+          border-radius: 4px;
+        }
+        .progress-text {
+          font-size: 11px;
+          color: #6b7280;
+          min-width: 40px;
         }
         @media print {
           body { margin: 20px; }
@@ -2459,6 +3150,50 @@ export default function OnboardingPage() {
         </div>
       </div>
 
+      <!-- Class Statistics Section -->
+      <div class="notes-section">
+        <h2>📊 Class Statistics</h2>
+        <div class="notes-content">
+          <div class="employee-stats">
+            <div class="employee-stat-card">
+              <div class="employee-stat-number">
+                ${
+                  classGroup.employees.flatMap((emp) => emp.onboardingTasks)
+                    .length
+                }
+              </div>
+              <div class="employee-stat-label">Total Tasks</div>
+            </div>
+            <div class="employee-stat-card">
+              <div class="employee-stat-number">
+                ${
+                  classGroup.employees
+                    .flatMap((emp) => emp.onboardingTasks)
+                    .filter((task) => task.status === "completed").length
+                }
+              </div>
+              <div class="employee-stat-label">Completed Tasks</div>
+            </div>
+            <div class="employee-stat-card">
+              <div class="employee-stat-number">
+                ${classGroup.employees.flatMap((emp) => emp.portals).length}
+              </div>
+              <div class="employee-stat-label">Total Portals</div>
+            </div>
+            <div class="employee-stat-card">
+              <div class="employee-stat-number">
+                ${
+                  classGroup.employees
+                    .flatMap((emp) => emp.portals)
+                    .filter((portal) => portal.status === "completed").length
+                }
+              </div>
+              <div class="employee-stat-label">Completed Portals</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="notes-section">
         <h2>📋 General Class Notes</h2>
         <div class="notes-content">
@@ -2501,32 +3236,55 @@ export default function OnboardingPage() {
                 <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e5e7eb;">Employee Name</th>
                 <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e5e7eb;">Job Title</th>
                 <th style="text-align: center; padding: 10px; border-bottom: 2px solid #e5e7eb;">Progress</th>
+                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #e5e7eb;">Tasks</th>
+                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #e5e7eb;">Portals</th>
               </tr>
             </thead>
             <tbody>
               ${classGroup.employees
-                .map(
-                  (employee) => `
-                <tr>
-                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
-                    employee.firstName
-                  } ${employee.lastName}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
-                    employee.jobTitle
-                  }</td>
-                  <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
-                    <div style="display: inline-block; width: 60px; background: #e5e7eb; border-radius: 10px; overflow: hidden;">
-                      <div style="height: 8px; background: #6366f1; width: ${calculateOverallProgress(
-                        employee
-                      )}%;"></div>
-                    </div>
-                    <span style="margin-left: 8px; font-size: 12px;">${calculateOverallProgress(
-                      employee
-                    )}%</span>
-                  </td>
-                </tr>
-              `
-                )
+                .map((employee) => {
+                  const completedTasks = employee.onboardingTasks.filter(
+                    (task) => task.status === "completed"
+                  ).length;
+                  const totalTasks = employee.onboardingTasks.filter(
+                    (task) => task.status !== "not applicable"
+                  ).length;
+                  const completedPortals = employee.portals.filter(
+                    (portal) => portal.status === "completed"
+                  ).length;
+                  const totalPortals = employee.portals.filter(
+                    (portal) => portal.status !== "not applicable"
+                  ).length;
+
+                  return `
+                    <tr>
+                      <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
+                        employee.firstName
+                      } ${employee.lastName}</td>
+                      <td style="padding: 10px; border-bottom: 1px solid #f3f4f6;">${
+                        employee.jobTitle
+                      }</td>
+                      <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <div class="progress-container">
+                          <div class="progress-bar-small">
+                            <div class="progress-fill-small" style="width: ${calculateOverallProgress(
+                              employee
+                            )}%;"></div>
+                          </div>
+                          <span class="progress-text">${calculateOverallProgress(
+                            employee
+                          )}%</span>
+                        </div>
+                      </td>
+                      <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <small>${completedTasks}/${totalTasks}</small>
+                      </td>
+                      <td style="text-align: center; padding: 10px; border-bottom: 1px solid #f3f4f6;">
+                        <small>${completedPortals}/${totalPortals}</small>
+                      </td>
+                    </tr>
+                  `;
+                })
                 .join("")}
             </tbody>
           </table>
@@ -2556,6 +3314,7 @@ export default function OnboardingPage() {
     printWindow.document.close();
   };
 
+  // Bulk Print Reports Function
   // Bulk Print Reports Function
   const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
     if (!classGroup.employees.length) {
@@ -2591,6 +3350,7 @@ export default function OnboardingPage() {
           .print-date { text-align: right; color: #6b7280; margin-top: 30px; }
           .section-title { color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin: 20px 0 10px 0; }
           .task-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+          .section { margin-bottom: 25px; }
           @media print {
             .employee-report { page-break-after: always; }
             .class-header { position: running(classHeader); }
@@ -2616,6 +3376,16 @@ export default function OnboardingPage() {
         );
         const notApplicableTasks = employee.onboardingTasks.filter(
           (task) => task.status === "not applicable"
+        );
+        const completedPortals = employee.portals.filter(
+          (portal) => portal.status === "completed"
+        );
+        const pendingPortals = employee.portals.filter(
+          (portal) =>
+            portal.status !== "completed" && portal.status !== "not applicable"
+        );
+        const notApplicablePortals = employee.portals.filter(
+          (portal) => portal.status === "not applicable"
         );
 
         allReportsContent += `
@@ -2660,20 +3430,68 @@ export default function OnboardingPage() {
                 .join("")}
             </div>
           </div>
-          
-          ${
-            notApplicableTasks.length > 0
-              ? `
+
+          <div class="task-grid">
             <div>
-              <h4 class="section-title">Not Applicable (${
-                notApplicableTasks.length
+              <h4 class="section-title">Completed Portals (${
+                completedPortals.length
               })</h4>
-              ${notApplicableTasks
+              ${completedPortals
                 .map(
-                  (task) =>
-                    `<div class="task-item" style="color: #6b7280;">⊘ ${task.name}</div>`
+                  (portal) =>
+                    `<div class="task-item completed">✓ ${portal.name}</div>`
                 )
                 .join("")}
+            </div>
+            
+            <div>
+              <h4 class="section-title">Pending Portals (${
+                pendingPortals.length
+              })</h4>
+              ${pendingPortals
+                .map(
+                  (portal) =>
+                    `<div class="task-item pending">${portal.name} - ${portal.status}</div>`
+                )
+                .join("")}
+            </div>
+          </div>
+          
+          ${
+            notApplicableTasks.length > 0 || notApplicablePortals.length > 0
+              ? `
+            <div class="section">
+              <h4 class="section-title">Not Applicable</h4>
+              ${
+                notApplicableTasks.length > 0
+                  ? `
+                <div style="margin-bottom: 15px;">
+                  <strong>Tasks (${notApplicableTasks.length}):</strong>
+                  ${notApplicableTasks
+                    .map(
+                      (task) =>
+                        `<div class="task-item" style="color: #6b7280;">⊘ ${task.name}</div>`
+                    )
+                    .join("")}
+                </div>
+              `
+                  : ""
+              }
+              ${
+                notApplicablePortals.length > 0
+                  ? `
+                <div>
+                  <strong>Portals (${notApplicablePortals.length}):</strong>
+                  ${notApplicablePortals
+                    .map(
+                      (portal) =>
+                        `<div class="task-item" style="color: #6b7280;">⊘ ${portal.name}</div>`
+                    )
+                    .join("")}
+                </div>
+              `
+                  : ""
+              }
             </div>
           `
               : ""
@@ -2710,7 +3528,6 @@ export default function OnboardingPage() {
       alert("Failed to generate bulk reports. Please try again.");
     }
   };
-
   //  Archive Entire Class Function
   const archiveEntireClass = async (classGroup: OnboardingClass) => {
     if (!classGroup.employees.length) {
@@ -2911,6 +3728,16 @@ export default function OnboardingPage() {
           >
             View Archived
           </Link> */}
+          {isAdminOrIT && (
+            <button
+              onClick={() => setShowDefaultTasksModal(true)}
+              className="flex items-center bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md font-medium"
+              title="Manage default tasks for all employees"
+            >
+              <CheckCircleIcon className="h-4 w-4 mr-2" />
+              Manage Default Tasks
+            </button>
+          )}
           <Link
             href="/management-portal/onboarding/new"
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
@@ -2920,7 +3747,7 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* NEW: Alert Status Display */}
+      {/*  Alert Status Display */}
       {lastAlertCheck && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
           <div className="flex items-center">
@@ -2959,6 +3786,7 @@ export default function OnboardingPage() {
       {/* Modals */}
       {showBulkOperationsModal && <BulkOperationsModal />}
       {showClassNotesModal && <ClassNotesModal />}
+      {showDefaultTasksModal && <DefaultTasksModal />}
     </div>
   );
 }
