@@ -10,6 +10,8 @@ export async function PUT(
     const { id } = params;
     const { name, email, role } = await request.json();
 
+    console.log(`🔄 Updating user ${id} with:`, { name, email, role });
+
     if (!name || !email || !role) {
       return NextResponse.json(
         { error: "All fields are required" },
@@ -18,6 +20,7 @@ export async function PUT(
     }
 
     const pool = await connectToDatabase();
+    console.log("✅ Database connected");
 
     // Check if email is already taken by another user
     const existingUser = await pool.request()
@@ -32,7 +35,9 @@ export async function PUT(
       );
     }
 
-    // Update user
+    // Update user with better error handling
+    console.log(`📝 Executing UPDATE for user ${id}`);
+    
     const result = await pool.request()
       .input("id", sql.Int, parseInt(id))
       .input("name", sql.NVarChar, name)
@@ -41,18 +46,22 @@ export async function PUT(
       .query(`
         UPDATE Users 
         SET name = @name, email = @email, role = @role, updatedAt = GETDATE()
+        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt, INSERTED.lastLogin, INSERTED.isActive 
         WHERE id = @id
-        SELECT id, name, email, role, createdAt, lastLogin, isActive 
-        FROM Users WHERE id = @id
       `);
 
+    console.log(`📊 Update result:`, result);
+
     if (result.recordset.length === 0) {
+      console.log(`❌ User ${id} not found`);
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
+    console.log(`✅ User ${id} updated successfully`);
+    
     return NextResponse.json({
       success: true,
       user: result.recordset[0],
@@ -60,9 +69,27 @@ export async function PUT(
     });
 
   } catch (error: any) {
-    console.error("Error updating user:", error);
+    console.error("❌ Error updating user:", error);
+    
+    // More detailed error information
+    const errorDetails = {
+      message: error.message,
+      number: error.number,
+      state: error.state,
+      class: error.class,
+      server: error.server,
+      procedure: error.procedure,
+      lineNumber: error.lineNumber,
+    };
+    
+    console.error("📋 SQL Error details:", errorDetails);
+
     return NextResponse.json(
-      { error: "Failed to update user" },
+      { 
+        error: "Failed to update user",
+        details: error.message,
+        sqlError: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+      },
       { status: 500 }
     );
   }
