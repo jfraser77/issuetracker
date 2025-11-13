@@ -6,74 +6,139 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  let pool;
   try {
+    console.log("🔄 PUT /api/admin/users/[id] started");
     const { id } = params;
-    const { name, email, role } = await request.json();
+    const body = await request.json();
+    const { name, email, role } = body;
 
-    console.log(`🔄 Updating user ${id} with:`, { name, email, role });
+    console.log("📦 Request details:", {
+      id,
+      name,
+      email,
+      role,
+      fullBody: body
+    });
 
+    // Basic validation
     if (!name || !email || !role) {
+      console.log("❌ Missing required fields");
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
       );
     }
 
-    const pool = await connectToDatabase();
-    console.log("✅ Database connected");
-
-    // Check if email is already taken by another user
-    const existingUser = await pool.request()
-      .input("email", sql.NVarChar, email)
-      .input("id", sql.Int, parseInt(id))
-      .query("SELECT id FROM Users WHERE email = @email AND id != @id");
-
-    if (existingUser.recordset.length > 0) {
+    // Validate role
+    const validRoles = ["Admin", "I.T.", "HR", "Trainer"];
+    if (!validRoles.includes(role)) {
+      console.log("❌ Invalid role:", role);
       return NextResponse.json(
-        { error: "Email is already taken by another user" },
+        { error: "Invalid role specified" },
         { status: 400 }
       );
     }
 
-    // Update user with better error handling
-    console.log(`📝 Executing UPDATE for user ${id}`);
-    
-    const result = await pool.request()
+    console.log("🔗 Connecting to database...");
+    pool = await connectToDatabase();
+    console.log("✅ Database connected successfully");
+
+    // Test connection with a simple query first
+    console.log("🧪 Testing database connection...");
+    const testResult = await pool.request().query("SELECT @@VERSION as version");
+    console.log("✅ Database test query successful");
+
+    // Check if user exists
+    console.log(`🔍 Checking if user ${id} exists...`);
+    const userCheck = await pool.request()
       .input("id", sql.Int, parseInt(id))
-      .input("name", sql.NVarChar, name)
-      .input("email", sql.NVarChar, email)
-      .input("role", sql.NVarChar, role)
-      .query(`
-        UPDATE Users 
-        SET name = @name, email = @email, role = @role, updatedAt = GETDATE()
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt, INSERTED.lastLogin, INSERTED.isActive 
-        WHERE id = @id
-      `);
+      .query("SELECT id, name, email, role FROM Users WHERE id = @id");
 
-    console.log(`📊 Update result:`, result);
+    console.log("📊 User check result:", userCheck.recordset);
 
-    if (result.recordset.length === 0) {
-      console.log(`❌ User ${id} not found`);
+    if (userCheck.recordset.length === 0) {
+      console.log("❌ User not found");
       return NextResponse.json(
         { error: "User not found" },
         { status: 404 }
       );
     }
 
-    console.log(`✅ User ${id} updated successfully`);
+    // Check if email is already taken by another user
+    console.log("📧 Checking email uniqueness...");
+    const emailCheck = await pool.request()
+      .input("email", sql.NVarChar, email)
+      .input("id", sql.Int, parseInt(id))
+      .query("SELECT id FROM Users WHERE email = @email AND id != @id");
+
+    console.log("📊 Email check result:", emailCheck.recordset);
+
+    if (emailCheck.recordset.length > 0) {
+      console.log("❌ Email already taken");
+      return NextResponse.json(
+        { error: "Email is already taken by another user" },
+        { status: 400 }
+      );
+    }
+
+    // Perform the update - SIMPLIFIED without OUTPUT clause
+    console.log("📝 Executing UPDATE query...");
+    const updateQuery = `
+      UPDATE Users 
+      SET name = @name, email = @email, role = @role
+      WHERE id = @id
+    `;
     
-    return NextResponse.json({
+    console.log("📋 SQL Query:", updateQuery);
+    console.log("📦 Parameters:", { id: parseInt(id), name, email, role });
+
+    const updateResult = await pool.request()
+      .input("id", sql.Int, parseInt(id))
+      .input("name", sql.NVarChar, name)
+      .input("email", sql.NVarChar, email)
+      .input("role", sql.NVarChar, role)
+      .query(updateQuery);
+
+    console.log("✅ UPDATE successful, rows affected:", updateResult.rowsAffected);
+
+    if (updateResult.rowsAffected[0] === 0) {
+      console.log("❌ No rows affected by UPDATE");
+      return NextResponse.json(
+        { error: "User not found or no changes made" },
+        { status: 404 }
+      );
+    }
+
+    // Fetch the updated user
+    console.log("🔍 Fetching updated user data...");
+    const updatedUser = await pool.request()
+      .input("id", sql.Int, parseInt(id))
+      .query(`
+        SELECT id, name, email, role, createdAt, lastLogin, isActive 
+        FROM Users 
+        WHERE id = @id
+      `);
+
+    console.log("📊 Updated user data:", updatedUser.recordset[0]);
+
+    const responseData = {
       success: true,
-      user: result.recordset[0],
+      user: updatedUser.recordset[0],
       message: "User updated successfully"
-    });
+    };
+
+    console.log("📤 Sending success response:", responseData);
+    
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
-    console.error("❌ Error updating user:", error);
+    console.error("❌ CRITICAL ERROR in PUT /api/admin/users/[id]:", error);
     
-    // More detailed error information
+    // Detailed error information
     const errorDetails = {
       message: error.message,
+      name: error.name,
       number: error.number,
       state: error.state,
       class: error.class,
@@ -81,8 +146,20 @@ export async function PUT(
       procedure: error.procedure,
       lineNumber: error.lineNumber,
     };
-    
-    console.error("📋 SQL Error details:", errorDetails);
+
+    console.error("📋 Full error details:", errorDetails);
+    console.error("🔍 Error stack:", error.stack);
+
+    // Check if it's a SQL connection error
+    if (error.message?.includes('connection') || error.message?.includes('timeout')) {
+      return NextResponse.json(
+        { 
+          error: "Database connection failed",
+          details: "Unable to connect to the database"
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { 
@@ -92,6 +169,16 @@ export async function PUT(
       },
       { status: 500 }
     );
+  } finally {
+    // Close connection if it exists
+    if (pool) {
+      try {
+        await pool.close();
+        console.log("🔒 Database connection closed");
+      } catch (closeError) {
+        console.error("Error closing connection:", closeError);
+      }
+    }
   }
 }
 
