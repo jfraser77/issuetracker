@@ -108,12 +108,6 @@ import { cookies } from "next/headers";
 //   }
 // }
 
-import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/db";
-import sql from "mssql";
-import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
-
 export async function POST(request: NextRequest) {
   console.log("🚀 LOGIN API CALLED =========================================");
 
