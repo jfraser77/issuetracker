@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export async function GET() {
   try {
     const pool = await connectToDatabase();
-    
+
     const result = await pool.request().query(`
       SELECT 
         id, 
@@ -44,7 +44,8 @@ export async function POST(request: Request) {
     const pool = await connectToDatabase();
 
     // Check if user already exists
-    const existingUser = await pool.request()
+    const existingUser = await pool
+      .request()
       .input("email", sql.NVarChar, email)
       .query("SELECT id FROM Users WHERE email = @email");
 
@@ -59,12 +60,12 @@ export async function POST(request: Request) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("name", sql.NVarChar, name)
       .input("email", sql.NVarChar, email)
       .input("role", sql.NVarChar, role)
-      .input("password", sql.NVarChar, hashedPassword)
-      .query(`
+      .input("password", sql.NVarChar, hashedPassword).query(`
         INSERT INTO Users (name, email, role, password, createdAt, isActive)
         OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt
         VALUES (@name, @email, @role, @password, GETDATE(), 1)
@@ -73,9 +74,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       user: result.recordset[0],
-      message: "User created successfully"
+      message: "User created successfully",
     });
-
   } catch (error: any) {
     console.error("Error creating user:", error);
     return NextResponse.json(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export async function POST(
   request: NextRequest,
@@ -23,27 +23,23 @@ export async function POST(
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("id", sql.Int, parseInt(id))
-      .input("password", sql.NVarChar, hashedPassword)
-      .query(`
+      .input("password", sql.NVarChar, hashedPassword).query(`
         UPDATE Users 
         SET password = @password, updatedAt = GETDATE()
         WHERE id = @id
       `);
 
     if (result.rowsAffected[0] === 0) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Password reset successfully"
+      message: "Password reset successfully",
     });
-
   } catch (error: any) {
     console.error("Error resetting password:", error);
     return NextResponse.json(

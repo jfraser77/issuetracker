@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { cookies } from "next/headers";
 import * as nodemailer from "nodemailer";
 
@@ -15,16 +15,20 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASSWORD,
   },
   tls: {
-    ciphers: 'SSLv3',
-    rejectUnauthorized: false
+    ciphers: "SSLv3",
+    rejectUnauthorized: false,
   },
 } as nodemailer.TransportOptions);
 
 // Function to send role approval notification
-async function sendRoleApprovalNotification(userName: string, userEmail: string, requestedRole: string) {
+async function sendRoleApprovalNotification(
+  userName: string,
+  userEmail: string,
+  requestedRole: string
+) {
   try {
     const adminEmail = "jfraser@nsnrevenue.com";
-    
+
     const mailOptions = {
       from: `NSN IT Portal <${process.env.SMTP_FROM}>`,
       to: adminEmail,
@@ -104,15 +108,18 @@ Request Date: ${new Date().toLocaleDateString()}
 The user has been assigned the default User role. Please review this request in the admin panel and upgrade their role if appropriate.
 
 Note: User will remain with basic "User" access until role is approved.
-      `
+      `,
     };
 
     console.log("📤 Sending role approval notification to:", adminEmail);
-    
+
     await transporter.verify();
     const emailResult = await transporter.sendMail(mailOptions);
-    console.log("✅ Role approval notification sent! Message ID:", emailResult.messageId);
-    
+    console.log(
+      "✅ Role approval notification sent! Message ID:",
+      emailResult.messageId
+    );
+
     return true;
   } catch (emailError: any) {
     console.error("❌ Failed to send role approval notification:", emailError);
@@ -165,15 +172,19 @@ export async function POST(request: NextRequest) {
       .input("name", sql.NVarChar, name)
       .input("email", sql.NVarChar, email)
       .input("password", sql.NVarChar, hashedPassword)
-      .input("role", sql.NVarChar, assignedRole)
-      .query(`
+      .input("role", sql.NVarChar, assignedRole).query(`
         INSERT INTO Users (name, email, password, role) 
         OUTPUT INSERTED.id
         VALUES (@name, @email, @password, @role)
       `);
 
     const newUserId = userResult.recordset[0].id;
-    console.log("User created with ID:", newUserId, "Assigned role:", assignedRole);
+    console.log(
+      "User created with ID:",
+      newUserId,
+      "Assigned role:",
+      assignedRole
+    );
 
     // Store pending approval if user requested a higher role
     if (role !== "User") {
@@ -181,8 +192,7 @@ export async function POST(request: NextRequest) {
         await pool
           .request()
           .input("userId", sql.Int, newUserId)
-          .input("requestedRole", sql.NVarChar, role)
-          .query(`
+          .input("requestedRole", sql.NVarChar, role).query(`
             INSERT INTO PendingApprovals (userId, requestedRole, status, createdAt) 
             VALUES (@userId, @requestedRole, 'pending', GETDATE())
           `);
@@ -190,7 +200,6 @@ export async function POST(request: NextRequest) {
 
         // Send email notification to admin for role approval
         await sendRoleApprovalNotification(name, email, role);
-        
       } catch (approvalError) {
         console.warn("Could not store pending approval:", approvalError);
         // Continue even if approval storage fails
@@ -222,9 +231,10 @@ export async function POST(request: NextRequest) {
 
     console.log("Session cookie set, returning success");
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: "Account created successfully. Role upgrade requests require admin approval."
+      message:
+        "Account created successfully. Role upgrade requests require admin approval.",
     });
   } catch (error: any) {
     console.error("Signup error:", error);

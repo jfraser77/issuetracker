@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,9 +24,12 @@ export async function POST(request: NextRequest) {
     const pool = await connectToDatabase();
 
     // Find user with valid reset token
-    const userResult = await pool.request()
-      .input('resetToken', sql.NVarChar, token)
-      .query('SELECT id, resetTokenExpiry FROM Users WHERE resetToken = @resetToken AND resetTokenExpiry > GETDATE()');
+    const userResult = await pool
+      .request()
+      .input("resetToken", sql.NVarChar, token)
+      .query(
+        "SELECT id, resetTokenExpiry FROM Users WHERE resetToken = @resetToken AND resetTokenExpiry > GETDATE()"
+      );
 
     if (userResult.recordset.length === 0) {
       return NextResponse.json(
@@ -36,24 +39,24 @@ export async function POST(request: NextRequest) {
     }
 
     const user = userResult.recordset[0];
-    
+
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Update password and clear reset token
-    await pool.request()
-      .input('userId', sql.Int, user.id)
-      .input('hashedPassword', sql.NVarChar, hashedPassword)
-      .query(`
+    await pool
+      .request()
+      .input("userId", sql.Int, user.id)
+      .input("hashedPassword", sql.NVarChar, hashedPassword).query(`
         UPDATE Users 
         SET password = @hashedPassword, resetToken = NULL, resetTokenExpiry = NULL 
         WHERE id = @userId
       `);
 
-    return NextResponse.json({ 
-      message: "Password reset successfully! You can now sign in with your new password." 
+    return NextResponse.json({
+      message:
+        "Password reset successfully! You can now sign in with your new password.",
     });
-
   } catch (error) {
     console.error("Reset password error:", error);
     return NextResponse.json(

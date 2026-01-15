@@ -4,16 +4,14 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 export async function signup(formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const requestedRole = (formData.get("role") as string) || "User";
-  const assignedRole = "User"; 
-
-
+  const assignedRole = "User";
 
   console.log("Signup attempt:", { name, email, assignedRole });
 
@@ -91,19 +89,17 @@ export async function signin(formData: FormData) {
   const password = formData.get("password") as string;
   const twoFactorCode = formData.get("twoFactorCode") as string;
 
-  console.log("🔐 Signin attempt:", { 
-    email, 
-    hasPassword: !!password, 
-    has2FA: !!twoFactorCode 
+  console.log("🔐 Signin attempt:", {
+    email,
+    hasPassword: !!password,
+    has2FA: !!twoFactorCode,
   });
 
   try {
     // If 2FA code is provided, we're in the second step
     if (twoFactorCode) {
       console.log("🔄 Processing 2FA session creation...");
-      
 
-      
       // Get user info to set the session
       const pool = await connectToDatabase();
       const userResult = await pool
@@ -118,7 +114,7 @@ export async function signin(formData: FormData) {
 
       const user = userResult.recordset[0];
       console.log("✅ User found for session:", user);
-      
+
       // Set session cookie
       const cookieStore = await cookies();
       cookieStore.set("auth-user", user.email, {
@@ -129,9 +125,9 @@ export async function signin(formData: FormData) {
       });
 
       console.log("✅ Session cookie set");
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         message: "Login successful",
       };
     }
@@ -143,13 +139,16 @@ export async function signin(formData: FormData) {
     }
 
     console.log("🔄 Step 1: Verifying credentials...");
-    
+
     //  verify credentials
-    const verifyResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/verify-credentials`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    const verifyResponse = await fetch(
+      `${process.env.NEXTAUTH_URL}/api/auth/verify-credentials`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      }
+    );
 
     if (!verifyResponse.ok) {
       const errorData = await verifyResponse.json();
@@ -163,12 +162,15 @@ export async function signin(formData: FormData) {
     // If 2FA is required, send code and show 2FA form
     if (verifyData.requires2FA) {
       console.log("🔄 2FA required, sending code...");
-      
-      const twoFactorResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/send-2fa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+
+      const twoFactorResponse = await fetch(
+        `${process.env.NEXTAUTH_URL}/api/auth/send-2fa`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }
+      );
 
       if (twoFactorResponse.ok) {
         console.log("✅ 2FA code sent");
@@ -181,7 +183,7 @@ export async function signin(formData: FormData) {
 
     // If no 2FA required, set session and redirect
     console.log("🔄 No 2FA required, setting session...");
-    
+
     const cookieStore = await cookies();
     cookieStore.set("auth-user", email, {
       httpOnly: true,
@@ -191,13 +193,12 @@ export async function signin(formData: FormData) {
     });
 
     console.log("✅ Signin successful");
-    
-    return { 
-      success: true, 
-      message: "Login successful",
-      redirectTo: "/management-portal/dashboard"
-    };
 
+    return {
+      success: true,
+      message: "Login successful",
+      redirectTo: "/management-portal/dashboard",
+    };
   } catch (error: any) {
     console.error("🚨 Signin error:", error);
     return { error: "Failed to sign in: " + error.message };
@@ -233,7 +234,7 @@ export async function getCurrentUser() {
 
     const user = result.recordset[0] || null;
     console.log("getCurrentUser found:", user ? user.email : "no user");
-    
+
     return user;
   } catch (error) {
     console.error("Get user error:", error);

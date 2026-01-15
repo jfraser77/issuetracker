@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 // Direct database config (temporarily)
 const dbConfig = {
