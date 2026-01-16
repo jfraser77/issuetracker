@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
       "aevans@nsnrevenue.com",
       "mle@nsnrevenue.com",
       "tneal@nsnrevenue.com",
+      "lmaurer@nsnrevenue.com",
+      "lmaxwell@nsnrevenue.com",
     ];
 
     if (!email || !password) {
