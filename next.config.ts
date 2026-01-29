@@ -1,8 +1,7 @@
-// next.config.js - NO CHANGES NEEDED
 import type { NextConfig } from "next";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
+  // Your existing settings
   serverExternalPackages: ["mssql"],
   typescript: {
     ignoreBuildErrors: true,
@@ -10,6 +9,22 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // New Azure optimization settings
+  reactStrictMode: true,
+  swcMinify: true,
+  optimizeFonts: false,
+  images: {
+    unoptimized: true,
+  },
+  // Increase timeout for Azure
+  staticPageGenerationTimeout: 1000,
+
+  // Optional: Add output configuration for Azure
+  output: "standalone", // Creates a standalone folder for deployment
+
+  // Optional: Disable source maps in production
+  productionBrowserSourceMaps: false,
 };
 
-module.exports = nextConfig;
+export default nextConfig;

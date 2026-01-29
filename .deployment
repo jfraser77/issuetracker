@@ -1,0 +1,5 @@
+[config]
+command = npm run build
+SCM_DO_BUILD_DURING_DEPLOYMENT = true
+WEBSITE_NODE_DEFAULT_VERSION = 20-lts
+WEBSITE_RUN_FROM_PACKAGE = 0
