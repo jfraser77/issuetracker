@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
@@ -9,15 +9,15 @@ export async function GET() {
 
     const result = await pool.request().query(`
       SELECT 
-        id, 
-        name, 
-        email, 
-        role, 
-        createdAt,
-        lastLogin,
-        isActive
-      FROM Users 
-      ORDER BY name
+    id, 
+    name, 
+    email, 
+    role, 
+    createdAt,
+    ISNULL(lastLogin, createdAt) as lastLogin, -- Handle NULL
+    ISNULL(isActive, 1) as isActive -- Default to active if NULL
+FROM Users 
+ORDER BY name
     `);
 
     return NextResponse.json(result.recordset);
@@ -25,7 +25,7 @@ export async function GET() {
     console.error("Error fetching users:", error);
     return NextResponse.json(
       { error: "Failed to fetch users" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!name || !email || !role || !password) {
       return NextResponse.json(
         { error: "All fields are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if (existingUser.recordset.length > 0) {
       return NextResponse.json(
         { error: "User with this email already exists" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     console.error("Error creating user:", error);
     return NextResponse.json(
       { error: "Failed to create user" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
