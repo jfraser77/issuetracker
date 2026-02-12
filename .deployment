@@ -1,5 +1,5 @@
 [config]
-command = npm run build
 SCM_DO_BUILD_DURING_DEPLOYMENT = true
 WEBSITE_NODE_DEFAULT_VERSION = 20-lts
-command = export PATH=/opt/nodejs/20/bin:$PATH && node --version && npm --version && npm install --omit=dev --legacy-peer-deps --ignore-engines && npm run build
+NODE_ENV = production
+command = bash deploy.sh
