@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching archived employees:", error);
     return NextResponse.json(
       { error: "Failed to fetch archived employees" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -31,7 +33,7 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json(
         { error: "Employee ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -50,7 +52,7 @@ export async function DELETE(request: NextRequest) {
     console.error("Error deleting archived employee:", error);
     return NextResponse.json(
       { error: "Failed to delete archived employee" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

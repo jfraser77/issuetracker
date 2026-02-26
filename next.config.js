@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["mssql"],
+  experimental: {
+    serverComponentsExternalPackages: ["mssql"],
+  },
   output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
@@ -12,6 +14,13 @@ const nextConfig = {
   swcMinify: true,
   images: {
     unoptimized: true,
+  },
+
+  env: {
+    DB_USER: process.env.DB_USER,
+    DB_PASSWORD: process.env.DB_PASSWORD,
+    DB_SERVER: process.env.DB_SERVER,
+    DB_NAME: process.env.DB_NAME,
   },
 };
 
