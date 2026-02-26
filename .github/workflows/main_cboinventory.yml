@@ -24,12 +24,6 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --legacy-peer-deps
-          npm install -D tailwindcss postcss autoprefixer
-
-      - name: Verify Tailwind installation
-        run: |
-          npm list tailwindcss || echo "Tailwind not found"
-          npx tailwindcss --help || echo "Tailwind CLI not available"
 
       - name: Build
         run: |
@@ -40,13 +34,20 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_SERVER: ${{ secrets.DB_SERVER }}
           DB_NAME: ${{ secrets.DB_NAME }}
-          NODE_ENV: production
+
+      - name: Verify standalone output
+        run: |
+          ls -la .next/standalone/ || echo "Standalone directory not found"
+          ls -la .next/static/ || echo "Static directory not found"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          path: |
+            .
+            !node_modules
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
