@@ -1,11 +1,13 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const { id } = params;
@@ -14,7 +16,7 @@ export async function POST(
     if (!newPassword || newPassword.length < 6) {
       return NextResponse.json(
         { error: "Password must be at least 6 characters" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -44,7 +46,7 @@ export async function POST(
     console.error("Error resetting password:", error);
     return NextResponse.json(
       { error: "Failed to reset password" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
