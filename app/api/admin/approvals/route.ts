@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
@@ -13,8 +15,8 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASSWORD,
   },
   tls: {
-    ciphers: 'SSLv3',
-    rejectUnauthorized: false
+    ciphers: "SSLv3",
+    rejectUnauthorized: false,
   },
 } as nodemailer.TransportOptions);
 
@@ -42,65 +44,92 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ approvals: result.recordset });
   } catch (error: any) {
     console.error("Error fetching approvals:", error);
-    return NextResponse.json({ error: "Failed to fetch approvals" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch approvals" },
+      { status: 500 },
+    );
   }
 }
 
 // POST - Update approval status
 export async function POST(request: NextRequest) {
   try {
-    const { approvalId, action, userId, requestedRole, userEmail, userName } = await request.json();
+    const { approvalId, action, userId, requestedRole, userEmail, userName } =
+      await request.json();
 
     if (!approvalId || !action || !userId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 },
+      );
     }
 
     const pool = await connectToDatabase();
 
-    if (action === 'approve') {
+    if (action === "approve") {
       // Update user role
-      await pool.request()
+      await pool
+        .request()
         .input("userId", sql.Int, userId)
         .input("newRole", sql.NVarChar, requestedRole)
         .query("UPDATE Users SET role = @newRole WHERE id = @userId");
 
       // Update approval status
-      await pool.request()
+      await pool
+        .request()
         .input("approvalId", sql.Int, approvalId)
-        .query("UPDATE PendingApprovals SET status = 'approved', updatedAt = GETDATE() WHERE id = @approvalId");
+        .query(
+          "UPDATE PendingApprovals SET status = 'approved', updatedAt = GETDATE() WHERE id = @approvalId",
+        );
 
       // Send approval notification email to user
       await sendApprovalNotification(userEmail, userName, requestedRole, true);
 
       console.log(`Role approved: User ${userId} upgraded to ${requestedRole}`);
-
-    } else if (action === 'reject') {
+    } else if (action === "reject") {
       // Update approval status to rejected
-      await pool.request()
+      await pool
+        .request()
         .input("approvalId", sql.Int, approvalId)
-        .query("UPDATE PendingApprovals SET status = 'rejected', updatedAt = GETDATE() WHERE id = @approvalId");
+        .query(
+          "UPDATE PendingApprovals SET status = 'rejected', updatedAt = GETDATE() WHERE id = @approvalId",
+        );
 
       // Send rejection notification email to user
       await sendApprovalNotification(userEmail, userName, requestedRole, false);
 
-      console.log(`Role rejected: User ${userId} request for ${requestedRole} rejected`);
+      console.log(
+        `Role rejected: User ${userId} request for ${requestedRole} rejected`,
+      );
     }
 
-    return NextResponse.json({ success: true, message: `Role request ${action}d` });
+    return NextResponse.json({
+      success: true,
+      message: `Role request ${action}d`,
+    });
   } catch (error: any) {
     console.error("Error updating approval:", error);
-    return NextResponse.json({ error: "Failed to update approval" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update approval" },
+      { status: 500 },
+    );
   }
 }
 
 // Function to send approval/rejection notification
-async function sendApprovalNotification(userEmail: string, userName: string, requestedRole: string, approved: boolean) {
+async function sendApprovalNotification(
+  userEmail: string,
+  userName: string,
+  requestedRole: string,
+  approved: boolean,
+) {
   try {
-    const subject = approved 
+    const subject = approved
       ? `Role Upgrade Approved - ${requestedRole}`
       : `Role Upgrade Request Declined`;
 
-    const html = approved ? `
+    const html = approved
+      ? `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
           <h1 style="margin: 0; font-size: 24px;">Role Upgrade Approved! 🎉</h1>
@@ -128,7 +157,8 @@ async function sendApprovalNotification(userEmail: string, userName: string, req
           </div>
         </div>
       </div>
-    ` : `
+    `
+      : `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
           <h1 style="margin: 0; font-size: 24px;">Role Request Update</h1>
@@ -163,14 +193,13 @@ async function sendApprovalNotification(userEmail: string, userName: string, req
       to: userEmail,
       subject: subject,
       html: html,
-      text: approved 
+      text: approved
         ? `Your ${requestedRole} role request has been approved. You now have ${requestedRole} level access.`
-        : `Your ${requestedRole} role request has been declined. You will maintain User level access.`
+        : `Your ${requestedRole} role request has been declined. You will maintain User level access.`,
     };
 
     await transporter.sendMail(mailOptions);
     console.log(`Approval notification sent to ${userEmail}`);
-    
   } catch (error) {
     console.error("Error sending approval notification:", error);
   }
