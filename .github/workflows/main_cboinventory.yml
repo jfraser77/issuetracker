@@ -37,7 +37,11 @@ jobs:
 
       - name: Verify standalone output
         run: |
+          echo "=== Checking build output ==="
+          ls -la .next/
+          echo "=== Standalone directory ==="
           ls -la .next/standalone/ || echo "Standalone directory not found"
+          echo "=== Static directory ==="
           ls -la .next/static/ || echo "Static directory not found"
 
       - name: Upload artifact for deployment job
