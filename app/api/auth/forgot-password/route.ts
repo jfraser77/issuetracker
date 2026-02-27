@@ -1,8 +1,9 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import crypto from "crypto";
+import { sendEmail, getPasswordResetEmail } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -50,9 +51,26 @@ export async function POST(request: Request) {
     // Create reset URL
     const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${resetToken}`;
 
-    // TODO: Send email
-    console.log("Reset URL (for testing):", resetUrl);
-    console.log("IMPORTANT: Configure email sending in production");
+    // ✅ SEND ACTUAL EMAIL
+    try {
+      const emailResult = await sendEmail({
+        to: email,
+        subject: "Reset Your Password - NSN IT Management Portal",
+        html: getPasswordResetEmail(resetUrl),
+      });
+
+      if (emailResult.success) {
+        console.log("Password reset email sent to:", email);
+      } else {
+        console.error("Failed to send email:", emailResult.error);
+        // Log the URL as fallback
+        console.log("Reset URL (fallback):", resetUrl);
+      }
+    } catch (emailError) {
+      console.error("Email error:", emailError);
+      // Log the URL as fallback
+      console.log("Reset URL (fallback):", resetUrl);
+    }
 
     return NextResponse.json({
       message:
