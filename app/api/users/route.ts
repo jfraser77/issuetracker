@@ -14,8 +14,7 @@ export async function GET(request: Request) {
     const pool = await connectToDatabase();
     const dbRequest = pool.request();
 
-    let query =
-      "SELECT id, name, email, role FROM Users WHERE ISNULL(isActive, 1) = 1";
+    let query = "SELECT id, name, email, role FROM Users";
 
     if (roleParam) {
       // Map "IT" to "I.T." to match DB role values
@@ -26,7 +25,7 @@ export async function GET(request: Request) {
         dbRequest.input(`role${i}`, role);
         return `@role${i}`;
       });
-      query += ` AND role IN (${paramNames.join(", ")})`;
+      query += ` WHERE role IN (${paramNames.join(", ")})`;
     }
 
     query += " ORDER BY name";
