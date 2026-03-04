@@ -17,15 +17,17 @@ export async function POST(request: NextRequest) {
     const terminations = result.recordset;
     const now = new Date();
     const hrEmails = [
-      "aogden@nsnrevenue.com",
+      "aogden@uspi.com",
       "aevans@nsnrevenue.com",
       "anwaters@uspi.com",
+      "eolson@nsnrevenue.com",
     ];
     // CC recipients for employee emails
     const ccRecipients = [
-      "aogden@nsnrevenue.com",
+      "aogden@uspi.com",
       "aevans@nsnrevenue.com",
       "anwaters@uspi.com",
+      "eolson@nsnrevenue.com",
     ];
 
     console.log(
