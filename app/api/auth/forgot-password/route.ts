@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     console.log("Reset token generated for:", email);
 
     // Create reset URL
-    const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${resetToken}`;
+   const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${resetToken}`;
 
     // ✅ SEND ACTUAL EMAIL using the dedicated function
     try {

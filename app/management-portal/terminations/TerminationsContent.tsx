@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDownIcon,
@@ -58,6 +58,8 @@ interface Termination {
   checklist?: ChecklistItem[];
   completedByUserId?: number;
   completedByUser?: User;
+  computerSerial?: string;
+  computerModel?: string;
   timestamp: string;
   isExpanded?: boolean;
 }
@@ -593,6 +595,40 @@ export default function TerminationsContent() {
     [debouncedUpdateTrackingNumber]
   );
 
+  const handleComputerSerialChange = useCallback(
+    (terminationId: number, value: string) => {
+      setTerminations((prev) =>
+        prev.map((t) =>
+          t.id === terminationId
+            ? { ...t, computerSerial: value, isExpanded: t.isExpanded }
+            : t
+        )
+      );
+      const timeoutId = setTimeout(() => {
+        updateTermination(terminationId, { computerSerial: value });
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    },
+    []
+  );
+
+  const handleComputerModelChange = useCallback(
+    (terminationId: number, value: string) => {
+      setTerminations((prev: Termination[]) =>
+        prev.map((t: Termination) =>
+          t.id === terminationId
+            ? { ...t, computerModel: value, isExpanded: t.isExpanded }
+            : t
+        )
+      );
+      const timeoutId = setTimeout(() => {
+        updateTermination(terminationId, { computerModel: value });
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    },
+    []
+  );
+
   const getStatusColor = (
     status: string,
     isOverdue: boolean,
@@ -1028,6 +1064,38 @@ export default function TerminationsContent() {
         <h3 className="font-medium text-gray-900 mb-3">
           IT Access Removal Checklist
         </h3>
+
+        {/* Computer Info */}
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Computer Serial #
+            </label>
+            <input
+              type="text"
+              value={termination.computerSerial || ""}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                handleComputerSerialChange(termination.id, e.target.value)
+              }
+              placeholder="Enter serial number"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Computer Model
+            </label>
+            <input
+              type="text"
+              value={termination.computerModel || ""}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                handleComputerModelChange(termination.id, e.target.value)
+              }
+              placeholder="Enter computer model"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+          </div>
+        </div>
 
         {/* Global Check All/Uncheck All Buttons */}
         <div className="mb-4 flex gap-2">

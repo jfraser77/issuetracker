@@ -3,6 +3,77 @@ import { connectToDatabase } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { getCurrentUser } from "@/app/actions/auth";
 
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const roleParam = searchParams.get("role");
+
+    const pool = await connectToDatabase();
+    const dbRequest = pool.request();
+
+    let query =
+      "SELECT id, name, email, role FROM Users WHERE ISNULL(isActive, 1) = 1";
+
+    if (roleParam) {
+      // Map "IT" to "I.T." to match DB role values
+      const roles = roleParam
+        .split(",")
+        .map((r) => (r.trim() === "IT" ? "I.T." : r.trim()));
+      const paramNames = roles.map((role, i) => {
+        dbRequest.input(`role${i}`, role);
+        return `@role${i}`;
+      });
+      query += ` AND role IN (${paramNames.join(", ")})`;
+    }
+
+    query += " ORDER BY name";
+    const result = await dbRequest.query(query);
+    return NextResponse.json(result.recordset);
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch users" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const roleParam = searchParams.get("role");
+
+    const pool = await connectToDatabase();
+    const dbRequest = pool.request();
+
+    let query =
+      "SELECT id, name, email, role FROM Users WHERE ISNULL(isActive, 1) = 1";
+
+    if (roleParam) {
+      // Map "IT" to "I.T." to match DB role values
+      const roles = roleParam
+        .split(",")
+        .map((r) => (r.trim() === "IT" ? "I.T." : r.trim()));
+      const paramNames = roles.map((role, i) => {
+        dbRequest.input(`role${i}`, role);
+        return `@role${i}`;
+      });
+      query += ` AND role IN (${paramNames.join(", ")})`;
+    }
+
+    query += " ORDER BY name";
+    const result = await dbRequest.query(query);
+    return NextResponse.json(result.recordset);
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch users" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     // Check if user is admin
