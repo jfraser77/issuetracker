@@ -199,7 +199,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       status: { field: 'status', type: sql.NVarChar },
       trackingNumber: { field: 'trackingNumber', type: sql.NVarChar },
       equipmentDisposition: { field: 'equipmentDisposition', type: sql.NVarChar },
-      completedByUserId: { field: 'completedByUserId', type: sql.Int }
+      completedByUserId: { field: 'completedByUserId', type: sql.Int },
+      computerSerial: { field: 'computerSerial', type: sql.NVarChar },
+      computerModel: { field: 'computerModel', type: sql.NVarChar }
     };
 
     Object.entries(fieldMappings).forEach(([key, config]) => {
