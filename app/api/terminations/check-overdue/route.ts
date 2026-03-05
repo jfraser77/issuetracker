@@ -167,10 +167,8 @@ export async function POST(request: NextRequest) {
                         termination.terminationDate
                       ).toLocaleDateString()}</td>
                     </tr>
-                 git pull
-                 
                   </table>
-                  
+
                   <p style="font-size: 16px; color: #374151;">
                     <strong>Action Required:</strong> Please follow up with the employee regarding equipment return.
                     This termination has been automatically marked as <span style="color: #dc2626; font-weight: bold;">OVERDUE</span> in the system.

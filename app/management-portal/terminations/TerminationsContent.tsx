@@ -43,7 +43,7 @@ interface Termination {
   initiatedBy: string;
   status: "pending" | "equipment_returned" | "archived" | "overdue";
   trackingNumber?: string;
-  equipmentDisposition: "return_to_pool" | "retire" | "pending_assessment";
+  equipmentDisposition: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage";
   daysRemaining: number; // Calculated field
   isOverdue: boolean; // Calculated field
   licensesRemoved: {
@@ -536,7 +536,7 @@ export default function TerminationsContent() {
   const handleEquipmentDispositionChange = useCallback(
     (
       terminationId: number,
-      value: "return_to_pool" | "retire" | "pending_assessment"
+      value: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage"
     ) => {
       setTerminations((prev) =>
         prev.map((t) =>
@@ -1691,9 +1691,10 @@ export default function TerminationsContent() {
                                 | "return_to_pool"
                                 | "retire"
                                 | "pending_assessment"
+                                | "malicious_damage"
                             )
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                          className={"w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" + (termination.equipmentDisposition === "malicious_damage" ? " text-red-600 font-bold" : "")}
                           required
                         >
                           <option value="pending_assessment">
@@ -1703,6 +1704,9 @@ export default function TerminationsContent() {
                             Return to Available Pool
                           </option>
                           <option value="retire">Retire Equipment</option>
+                          <option value="malicious_damage">
+                            Malicious Damage by Employee
+                          </option>
                         </select>
                       </div>
 
