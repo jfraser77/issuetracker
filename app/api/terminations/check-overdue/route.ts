@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import { sendEmail } from "@/lib/email";
+import { HR_EMAILS } from "@/lib/terminationConstants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,25 +11,12 @@ export async function POST(request: NextRequest) {
 
     // Get all pending terminations
     const result = await pool.request().query(`
-        SELECT * FROM Terminations 
+        SELECT * FROM Terminations
         WHERE status IN ('pending', 'overdue')
       `);
 
     const terminations = result.recordset;
     const now = new Date();
-    const hrEmails = [
-      "aogden@uspi.com",
-      "aevans@nsnrevenue.com",
-      "anwaters@uspi.com",
-      "eolson@nsnrevenue.com",
-    ];
-    // CC recipients for employee emails
-    const ccRecipients = [
-      "aogden@uspi.com",
-      "aevans@nsnrevenue.com",
-      "anwaters@uspi.com",
-      "eolson@nsnrevenue.com",
-    ];
 
     console.log(
       `🔍 Checking ${terminations.length} terminations for overdue status`
@@ -67,7 +55,7 @@ export async function POST(request: NextRequest) {
           );
           await sendEmail({
             to: termination.employeeEmail,
-            cc: ccRecipients, // CC Amy, Amanda, and Andrew
+            cc: HR_EMAILS,
             subject: "Reminder: Return Company Equipment",
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -127,7 +115,7 @@ export async function POST(request: NextRequest) {
           // Send separate notification to HR team (as primary recipients)
           console.log(`📧 Notifying HR team about ${termination.employeeName}`);
           await sendEmail({
-            to: hrEmails,
+            to: HR_EMAILS,
             subject: `URGENT: Equipment Not Returned - ${termination.employeeName}`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback, useMemo, ChangeEvent } from "react";
+import { useState, useCallback, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDownIcon,
@@ -10,67 +10,31 @@ import {
   TrashIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  PlusIcon,
-  MinusIcon,
   PrinterIcon,
 } from "@heroicons/react/24/outline";
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-}
-
-interface ChecklistItem {
-  id: string;
-  category: string;
-  description: string;
-  completed: boolean;
-  completedBy?: string;
-  completedDate?: string;
-  notes?: string;
-}
-
-interface Termination {
-  id: number;
-  employeeName: string;
-  employeeEmail: string;
-  jobTitle: string;
-  department: string;
-  terminationDate: string; // This is the key date for calculation
-  terminationReason: string;
-  initiatedBy: string;
-  status: "pending" | "equipment_returned" | "archived" | "overdue";
-  trackingNumber?: string;
-  equipmentDisposition: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage";
-  daysRemaining: number; // Calculated field
-  isOverdue: boolean; // Calculated field
-  licensesRemoved: {
-    automateLicense: boolean;
-    screenConnect: boolean;
-    office365: boolean;
-    adobeAcrobat: boolean;
-    phone: boolean;
-    fax: boolean;
-    additionalRemovals?: string;
-  };
-  checklist?: ChecklistItem[];
-  completedByUserId?: number;
-  completedByUser?: User;
-  computerSerial?: string;
-  computerModel?: string;
-  timestamp: string;
-  isExpanded?: boolean;
-}
+import type { Termination } from "@/types/termination";
+import { canArchive, getChecklistCompletion } from "@/types/termination";
+import { useTerminationData } from "@/hooks/useTerminationData";
+import { ChecklistSection } from "@/components/terminations/ChecklistSection";
 
 export default function TerminationsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [terminations, setTerminations] = useState<Termination[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [itUsers, setItUsers] = useState<User[]>([]);
+  const filter = searchParams.get("filter");
+
+  const {
+    terminations,
+    loading,
+    currentUser,
+    itUsers,
+    fetchTerminations,
+    createTermination: hookCreateTermination,
+    updateTermination,
+    markEquipmentReturned,
+    archiveTermination,
+    toggleExpanded,
+  } = useTerminationData({ filter });
+
   const [showTerminationForm, setShowTerminationForm] = useState(false);
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
@@ -84,512 +48,68 @@ export default function TerminationsContent() {
     currentUser?.role === "HR";
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
-  const filter = searchParams.get("filter");
-  const [isClient, setIsClient] = useState(false);
 
-  // Memoize the filtered terminations to prevent unnecessary re-renders
-  const filteredTerminations = useMemo(() => {
-    return terminations;
-  }, [terminations]);
+  // ---- Form submit wrapper ----
 
-  // Default IT checklist items
-  const defaultChecklist: ChecklistItem[] = [
-    {
-      id: "1",
-      category: "Active Directory",
-      description: "Disable Windows/AD account",
-      completed: false,
-    },
-    {
-      id: "2",
-      category: "Active Directory",
-      description:
-        'Enter "disabled" and your initials and date in the Description field',
-      completed: false,
-    },
-    {
-      id: "3",
-      category: "Active Directory",
-      description: "Remove all groups from Member Of tab",
-      completed: false,
-    },
-    {
-      id: "4",
-      category: "Active Directory",
-      description:
-        "Run Powershell script: Start-ADSyncSyncCycle -PolicyType Delta",
-      completed: false,
-    },
-    {
-      id: "5",
-      category: "Active Directory",
-      description: "ScreenConnect and remove the computer from the domain",
-      completed: false,
-    },
-    {
-      id: "6",
-      category: "Active Directory",
-      description: "ScreenConnect - General button > Machine Product/Serial#",
-      completed: false,
-    },
-    {
-      id: "7",
-      category: "Microsoft 365",
-      description: "Active Users > (NOTE: do not remove license for 30 days)",
-      completed: false,
-    },
-    {
-      id: "8",
-      category: "Microsoft 365",
-      description: "Account tab > Groups > Manage Groups – remove all groups",
-      completed: false,
-    },
-    {
-      id: "9",
-      category: "Software Access",
-      description: "Navigator",
-      completed: false,
-    },
-    {
-      id: "10",
-      category: "Software Access",
-      description: "SourceMed Analytics USPI",
-      completed: false,
-    },
-    {
-      id: "11",
-      category: "Software Access",
-      description: "SourceMed Analytics NSN",
-      completed: false,
-    },
-    {
-      id: "12",
-      category: "Software Access",
-      description: "SonicWall VPN Connect",
-      completed: false,
-    },
-    {
-      id: "13",
-      category: "Software Access",
-      description:
-        "Viirtue – Numbers and Devices. Change drop down to Available Number",
-      completed: false,
-    },
-    {
-      id: "14",
-      category: "Phone/Fax",
-      description: "Phone #",
-      completed: false,
-    },
-    {
-      id: "15",
-      category: "Phone/Fax",
-      description: "Fax #",
-      completed: false,
-    },
-    {
-      id: "16",
-      category: "Software Access",
-      description: "Adobe – permanently delete",
-      completed: false,
-    },
-    {
-      id: "17",
-      category: "Software Access",
-      description:
-        "Set Ticket type = Access > Termination. Then Angie gets a notice and will disable Availity and Waystar",
-      completed: false,
-    },
-    {
-      id: "18",
-      category: "Software Access",
-      description: "Automate - removed automate license",
-      completed: false,
-    },
-  ];
-
-  useEffect(() => {
-    setIsClient(true);
-    fetchCurrentUser();
-    fetchTerminations();
-    fetchITUsers();
-
-    const interval = setInterval(checkOverdueTerminations, 24 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [filter]);
-
-  const fetchCurrentUser = async () => {
-    try {
-      const response = await fetch("/api/auth/user");
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  };
-
-  const fetchITUsers = async () => {
-    try {
-      const response = await fetch("/api/users?role=IT,Admin");
-      if (response.ok) {
-        const users = await response.json();
-        setItUsers(users);
-      }
-    } catch (error) {
-      console.error("Error fetching IT users:", error);
-    }
-  };
-
-  const fetchTerminations = async () => {
-    try {
-      const url = filter
-        ? `/api/terminations?filter=${filter}`
-        : "/api/terminations";
-      const response = await fetch(url);
-      if (response.ok) {
-        const terminationsData = await response.json();
-
-        // Calculate overdue status for each termination
-        const terminationsWithCalculatedStatus = terminationsData.map(
-          (t: Termination) => {
-            const isOverdue = calculateOverdueStatus(
-              t.terminationDate,
-              t.status
-            );
-            const daysRemaining = calculateDaysRemaining(
-              t.terminationDate,
-              t.status
-            );
-
-            return {
-              ...t,
-              isOverdue,
-              daysRemaining,
-              isExpanded: false,
-              // Always ensure we have the full checklist
-              checklist:
-                t.checklist && t.checklist.length > 0
-                  ? t.checklist
-                  : [...defaultChecklist],
-            };
-          }
-        );
-
-        setTerminations(terminationsWithCalculatedStatus);
-      } else {
-        console.error("Failed to fetch terminations:", response.status);
-      }
-    } catch (error) {
-      console.error("Error fetching terminations:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const debouncedUpdateTrackingNumber = useCallback(
-    (terminationId: number, trackingNumber: string) => {
-      const timeoutId = setTimeout(async () => {
-        try {
-          await updateTermination(terminationId, { trackingNumber });
-        } catch (error) {
-          console.error("Error updating tracking number:", error);
-        }
-      }, 1000);
-
-      return () => clearTimeout(timeoutId);
-    },
-    []
-  );
-
-  const toggleTerminationExpanded = useCallback((terminationId: number) => {
-    setTerminations((prev) =>
-      prev.map((t) =>
-        t.id === terminationId ? { ...t, isExpanded: !t.isExpanded } : t
-      )
-    );
-  }, []);
-
-  const createTermination = async (e: React.FormEvent) => {
+  const handleCreateTermination = async (e: FormEvent) => {
     e.preventDefault();
     if (!isAuthorized) {
       alert("You are not authorized to initiate terminations.");
       return;
     }
-
-    try {
-      const response = await fetch("/api/terminations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employeeName: terminationForm.employeeName,
-          employeeEmail: terminationForm.employeeEmail,
-          terminationDate: terminationForm.terminationDate,
-          initiatedBy: currentUser?.name,
-          checklist: defaultChecklist,
-          // Set default values for removed fields
-          jobTitle: "To be determined",
-          department: "To be determined",
-          terminationReason: "Termination process initiated",
-        }),
+    const ok = await hookCreateTermination(terminationForm, currentUser?.name);
+    if (ok) {
+      setShowTerminationForm(false);
+      setTerminationForm({
+        employeeName: "",
+        employeeEmail: "",
+        terminationDate: new Date().toISOString().split("T")[0],
       });
-
-      if (response.ok) {
-        setShowTerminationForm(false);
-        setTerminationForm({
-          employeeName: "",
-          employeeEmail: "",
-          terminationDate: new Date().toISOString().split("T")[0],
-        });
-        fetchTerminations();
-        alert("Termination process initiated successfully.");
-      } else {
-        const errorData = await response.json();
-        console.error("API Error:", errorData);
-        alert(
-          `Failed to initiate termination: ${
-            errorData.error || errorData.details || "Unknown error"
-          }`
-        );
-      }
-    } catch (error) {
-      console.error("Error creating termination:", error);
-      alert(
-        "Failed to initiate termination process. Please check console for details."
-      );
+      alert("Termination process initiated successfully.");
     }
   };
 
-  const updateTermination = async (
-    terminationId: number,
-    updates: Partial<Termination>
-  ) => {
+  // ---- Delete (not in hook — directly removes from local list) ----
+
+  const deleteTermination = async (terminationId: number) => {
+    if (!confirm("Are you sure you want to delete this termination record? This action cannot be undone.")) return;
     try {
-      console.log(`🔄 Updating termination ${terminationId} with:`, updates);
-
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          `❌ HTTP error! status: ${response.status}, response:`,
-          errorText
-        );
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log(`✅ Update response:`, result);
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update termination");
-      }
-
-      // ✅ DON'T call fetchTerminations() here - update local state instead
-      // This preserves the expanded state
-      if (result.termination) {
-        setTerminations((prev) =>
-          prev.map((t) =>
-            t.id === terminationId
-              ? {
-                  ...result.termination,
-                  isExpanded: t.isExpanded, // Preserve expanded state
-                }
-              : t
-          )
-        );
-      }
+      const res = await fetch(`/api/terminations/${terminationId}`, { method: "DELETE" });
+      if (res.ok) await fetchTerminations();
     } catch (error) {
-      console.error("❌ Error updating termination:", error);
-      alert("Failed to update termination. Please try again.");
-      // Only refresh on error
-      fetchTerminations();
+      console.error("Error deleting termination:", error);
     }
   };
 
-  const updateChecklistItem = async (
-    terminationId: number,
-    itemId: string,
-    updates: Partial<ChecklistItem>
-  ) => {
-    try {
-      // Update local state immediately and capture the updated checklist
-      let updatedChecklistForApi: ChecklistItem[] | null = null;
+  // ---- Debounced field handlers (delegate to hook's updateTermination) ----
 
-      setTerminations((prevTerminations) => {
-        return prevTerminations.map((t) => {
-          if (t.id !== terminationId || !t.checklist) return t;
-
-          const updatedChecklist = t.checklist.map((item) =>
-            item.id === itemId ? { ...item, ...updates } : item
-          );
-
-          // Store the updated checklist for the API call
-          updatedChecklistForApi = updatedChecklist;
-
-          return {
-            ...t,
-            checklist: updatedChecklist,
-          };
-        });
-      });
-
-      // Debounced API call using the captured updated checklist
-      const timeoutId = setTimeout(async () => {
-        try {
-          if (!updatedChecklistForApi) return;
-
-          await fetch(`/api/terminations/${terminationId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ checklist: updatedChecklistForApi }),
-          });
-        } catch (error) {
-          console.error("Error updating checklist item:", error);
-        }
-      }, 500); // Reduced to 500ms for better responsiveness
-
+  const debouncedUpdateTrackingNumber = useCallback(
+    (terminationId: number, trackingNumber: string) => {
+      const timeoutId = setTimeout(() => {
+        updateTermination(terminationId, { trackingNumber });
+      }, 1000);
       return () => clearTimeout(timeoutId);
-    } catch (error) {
-      console.error("Error in updateChecklistItem:", error);
-    }
-  };
-
-  const markEquipmentReturned = async (
-    terminationId: number,
-    trackingNumber: string,
-    equipmentDisposition: string,
-    completedByUserId?: number
-  ) => {
-    try {
-      const response = await fetch(
-        `/api/terminations/${terminationId}/return`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            trackingNumber,
-            equipmentDisposition,
-            completedByUserId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to mark equipment returned");
-      }
-
-      const result = await response.json();
-      const updatedTermination = result.termination;
-
-      // Update local state immediately
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...updatedTermination,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // If equipment is being returned to pool, update IT Staff inventory
-      if (equipmentDisposition === "return_to_pool" && completedByUserId) {
-        try {
-          await fetch("/api/it-assets/inventory", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: completedByUserId,
-              change: 1,
-            }),
-          });
-          console.log(
-            `Updated IT Staff inventory for user ${completedByUserId}`
-          );
-        } catch (inventoryError) {
-          console.error("Error updating IT Staff inventory:", inventoryError);
-          // Continue even if inventory update fails
-        }
-      }
-
-      alert("Equipment return recorded successfully and inventory updated.");
-    } catch (error) {
-      console.error("Error marking equipment returned:", error);
-      alert(
-        `Failed to record equipment return: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-      // Refresh on error to restore correct state
-      fetchTerminations();
-    }
-  };
+    },
+    [updateTermination]
+  );
 
   const handleEquipmentDispositionChange = useCallback(
-    (
-      terminationId: number,
-      value: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage"
-    ) => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                equipmentDisposition: value,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
+    (terminationId: number, value: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage") => {
       updateTermination(terminationId, { equipmentDisposition: value });
     },
-    []
+    [updateTermination]
   );
 
   const handleCompletedByChange = useCallback(
     (terminationId: number, value: string) => {
       const completedByUserId = value ? parseInt(value) : undefined;
-
-      // Update local state immediately for better UX
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                completedByUserId,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // Update in database - this won't trigger a full refresh anymore
       updateTermination(terminationId, { completedByUserId });
     },
-    []
+    [updateTermination]
   );
 
   const handleTrackingNumberChange = useCallback(
     (terminationId: number, value: string) => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                trackingNumber: value,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
       debouncedUpdateTrackingNumber(terminationId, value);
     },
     [debouncedUpdateTrackingNumber]
@@ -597,36 +117,22 @@ export default function TerminationsContent() {
 
   const handleComputerSerialChange = useCallback(
     (terminationId: number, value: string) => {
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? { ...t, computerSerial: value, isExpanded: t.isExpanded }
-            : t
-        )
-      );
       const timeoutId = setTimeout(() => {
         updateTermination(terminationId, { computerSerial: value });
       }, 1000);
       return () => clearTimeout(timeoutId);
     },
-    []
+    [updateTermination]
   );
 
   const handleComputerModelChange = useCallback(
     (terminationId: number, value: string) => {
-      setTerminations((prev: Termination[]) =>
-        prev.map((t: Termination) =>
-          t.id === terminationId
-            ? { ...t, computerModel: value, isExpanded: t.isExpanded }
-            : t
-        )
-      );
       const timeoutId = setTimeout(() => {
         updateTermination(terminationId, { computerModel: value });
       }, 1000);
       return () => clearTimeout(timeoutId);
     },
-    []
+    [updateTermination]
   );
 
   const getStatusColor = (
@@ -677,124 +183,6 @@ export default function TerminationsContent() {
         return "Overdue";
       default:
         return "Pending";
-    }
-  };
-
-  const calculateOverdueStatus = (
-    terminationDate: string,
-    status: string
-  ): boolean => {
-    // Only pending terminations can be overdue
-    if (status !== "pending") return false;
-
-    const termination = new Date(terminationDate);
-    const today = new Date();
-
-    // Calculate days since termination
-    const daysSinceTermination = Math.floor(
-      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    // Consider overdue after 30 days
-    return daysSinceTermination > 30;
-  };
-
-  // calculate days remaining
-  const calculateDaysRemaining = (
-    terminationDate: string,
-    status: string
-  ): number => {
-    if (status !== "pending") return 0;
-
-    const termination = new Date(terminationDate);
-    const today = new Date();
-
-    // Calculate days since termination
-    const daysSinceTermination = Math.floor(
-      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    // Days remaining until overdue (30 days total)
-    const daysRemaining = 30 - daysSinceTermination;
-
-    return Math.max(0, daysRemaining);
-  };
-
-  // Helper function to calculate days since termination
-  const calculateDaysSinceTermination = (terminationDate: string): number => {
-    const termination = new Date(terminationDate);
-    const today = new Date();
-    return Math.floor(
-      (today.getTime() - termination.getTime()) / (1000 * 60 * 60 * 24)
-    );
-  };
-
-  const archiveTermination = async (terminationId: number) => {
-    try {
-      const response = await fetch(
-        `/api/terminations/${terminationId}/archive`,
-        {
-          method: "POST",
-        }
-      );
-
-      if (response.ok) {
-        fetchTerminations();
-        alert("Termination archived successfully!");
-      } else {
-        const errorData = await response.json();
-        alert(`Failed to archive termination: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error("Error archiving termination:", error);
-      alert("Failed to archive termination. Please try again.");
-    }
-  };
-
-  const deleteTermination = async (terminationId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this termination record? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/terminations/${terminationId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setTerminations((prev) => prev.filter((t) => t.id !== terminationId));
-      }
-    } catch (error) {
-      console.error("Error deleting termination:", error);
-    }
-  };
-
-  const checkOverdueTerminations = async () => {
-    try {
-      setTerminations((prev) =>
-        prev.map((t) => {
-          const isOverdue = calculateOverdueStatus(t.terminationDate, t.status);
-          const daysRemaining = calculateDaysRemaining(
-            t.terminationDate,
-            t.status
-          );
-
-          return {
-            ...t,
-            isOverdue,
-            daysRemaining,
-          };
-        })
-      );
-
-      // update on server
-      await fetch("/api/terminations/check-overdue", { method: "POST" });
-    } catch (error) {
-      console.error("Error checking overdue terminations:", error);
     }
   };
 
@@ -984,400 +372,6 @@ export default function TerminationsContent() {
     printWindow.document.close();
   };
 
-  const ChecklistSection = ({ termination }: { termination: Termination }) => {
-    const [localNewItem, setLocalNewItem] = useState({
-      category: "",
-      description: "",
-    });
-
-    const handleAddChecklistItem = async () => {
-      if (!localNewItem.category.trim() || !localNewItem.description.trim()) {
-        alert("Please enter both category and description");
-        return;
-      }
-
-      try {
-        const newItem: ChecklistItem = {
-          id: `custom-${Date.now()}`,
-          category: localNewItem.category.trim(),
-          description: localNewItem.description.trim(),
-          completed: false,
-        };
-
-        const updatedChecklist = [...(termination.checklist || []), newItem];
-
-        setTerminations((prev) =>
-          prev.map((t) =>
-            t.id === termination.id
-              ? {
-                  ...t,
-                  checklist: updatedChecklist,
-                  isExpanded: t.isExpanded,
-                }
-              : t
-          )
-        );
-
-        await updateTermination(termination.id, {
-          checklist: updatedChecklist,
-        });
-        setLocalNewItem({ category: "", description: "" });
-      } catch (error) {
-        console.error("Error adding checklist item:", error);
-        fetchTerminations();
-      }
-    };
-
-    const groupChecklistByCategory = (checklist: ChecklistItem[]) => {
-      const grouped: { [key: string]: ChecklistItem[] } = {};
-      checklist.forEach((item) => {
-        if (!grouped[item.category]) {
-          grouped[item.category] = [];
-        }
-        grouped[item.category].push(item);
-      });
-      return grouped;
-    };
-
-    return (
-      <div className="border-t pt-4">
-        {/* Completed By Dropdown */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Completed By
-          </label>
-          <select
-            value={termination.completedByUserId || ""}
-            onChange={(e) =>
-              handleCompletedByChange(termination.id, e.target.value)
-            }
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="">Select IT Staff</option>
-            {itUsers.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name} ({user.role})
-              </option>
-            ))}
-          </select>
-        </div>
-        <h3 className="font-medium text-gray-900 mb-3">
-          IT Access Removal Checklist
-        </h3>
-
-        {/* Computer Info */}
-        <div className="mb-4 grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Computer Serial #
-            </label>
-            <input
-              type="text"
-              value={termination.computerSerial || ""}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                handleComputerSerialChange(termination.id, e.target.value)
-              }
-              placeholder="Enter serial number"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Computer Model
-            </label>
-            <input
-              type="text"
-              value={termination.computerModel || ""}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                handleComputerModelChange(termination.id, e.target.value)
-              }
-              placeholder="Enter computer model"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Global Check All/Uncheck All Buttons */}
-        <div className="mb-4 flex gap-2">
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: true,
-                completedBy: currentUser?.name,
-                completedDate: new Date().toISOString(),
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <CheckCircleIcon className="h-4 w-4 mr-1" />
-            Check All
-          </button>
-          <button
-            onClick={() => {
-              const updatedChecklist = termination.checklist!.map((item) => ({
-                ...item,
-                completed: false,
-                completedBy: undefined,
-                completedDate: undefined,
-              }));
-              updateTermination(termination.id, {
-                checklist: updatedChecklist,
-              });
-            }}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <MinusIcon className="h-4 w-4 mr-1" />
-            Uncheck All
-          </button>
-        </div>
-
-        {/* Checklist Items */}
-        {Object.entries(
-          groupChecklistByCategory(termination.checklist || [])
-        ).map(([category, items]) => (
-          <div key={category} className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-gray-800">{category}</h4>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: true,
-                              completedBy: currentUser?.name,
-                              completedDate: new Date().toISOString(),
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-green-600 hover:text-green-800 text-xs flex items-center"
-                >
-                  <CheckCircleIcon className="h-3 w-3 mr-1" />
-                  Check All
-                </button>
-                <button
-                  onClick={() => {
-                    const updatedChecklist = termination.checklist!.map(
-                      (item) =>
-                        item.category === category
-                          ? {
-                              ...item,
-                              completed: false,
-                              completedBy: undefined,
-                              completedDate: undefined,
-                            }
-                          : item
-                    );
-                    updateTermination(termination.id, {
-                      checklist: updatedChecklist,
-                    });
-                  }}
-                  className="text-gray-600 hover:text-gray-800 text-xs flex items-center"
-                >
-                  <MinusIcon className="h-3 w-3 mr-1" />
-                  Uncheck All
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start space-x-3 p-2 bg-gray-50 rounded"
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={(e) =>
-                      updateChecklistItem(termination.id, item.id, {
-                        completed: e.target.checked,
-                        completedBy: e.target.checked
-                          ? currentUser?.name
-                          : undefined,
-                        completedDate: e.target.checked
-                          ? new Date().toISOString()
-                          : undefined,
-                      })
-                    }
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div className="flex-1">
-                    <label
-                      className={`text-sm ${
-                        item.completed
-                          ? "text-gray-500 line-through"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      {item.description}
-                    </label>
-                    {item.completed && item.completedBy && (
-                      <p className="text-xs text-green-600 mt-1">
-                        Completed by {item.completedBy} on{" "}
-                        {item.completedDate
-                          ? new Date(item.completedDate).toLocaleDateString()
-                          : "unknown date"}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeChecklistItem(termination.id, item.id)}
-                    className="text-red-500 hover:text-red-700"
-                    title="Remove item"
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Progress Summary */}
-        {termination.checklist && (
-          <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-blue-800">
-                Checklist Progress
-              </span>
-              <span className="text-sm text-blue-700">
-                {termination.checklist.filter((item) => item.completed).length}{" "}
-                of {termination.checklist.length} completed
-              </span>
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${
-                    (termination.checklist.filter((item) => item.completed)
-                      .length /
-                      termination.checklist.length) *
-                    100
-                  }%`,
-                }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {/* Add New Checklist Item */}
-        <div className="border-t pt-4">
-          <h4 className="font-medium text-gray-800 mb-2">
-            Add New Checklist Item
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-            <input
-              type="text"
-              placeholder="Category (e.g., Software Access)"
-              value={localNewItem.category}
-              onChange={(e) =>
-                setLocalNewItem({ ...localNewItem, category: e.target.value })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Description"
-              value={localNewItem.description}
-              onChange={(e) =>
-                setLocalNewItem({
-                  ...localNewItem,
-                  description: e.target.value,
-                })
-              }
-              className="px-3 py-2 border border-gray-300 rounded text-sm"
-            />
-          </div>
-          <button
-            onClick={handleAddChecklistItem}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
-          >
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Add Item
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const removeChecklistItem = async (terminationId: number, itemId: string) => {
-    if (!confirm("Are you sure you want to remove this checklist item?")) {
-      return;
-    }
-
-    try {
-      const termination = terminations.find((t) => t.id === terminationId);
-      if (!termination?.checklist) return;
-
-      const updatedChecklist = termination.checklist.filter(
-        (item) => item.id !== itemId
-      );
-
-      // Update local state immediately
-      setTerminations((prev) =>
-        prev.map((t) =>
-          t.id === terminationId
-            ? {
-                ...t,
-                checklist: updatedChecklist,
-                isExpanded: t.isExpanded, // Preserve expanded state
-              }
-            : t
-        )
-      );
-
-      // Update in database - don't call fetchTerminations after this
-      await updateTermination(terminationId, { checklist: updatedChecklist });
-    } catch (error) {
-      console.error("Error removing checklist item:", error);
-      // Only refresh on error
-      fetchTerminations();
-    }
-  };
-
-  // Helper function to determine if a termination can be archived
-  const canArchiveTermination = (termination: Termination) => {
-    if (termination.status !== "equipment_returned") return false;
-    if (!termination.trackingNumber) return false;
-    if (!termination.completedByUserId) return false;
-
-    // Check checklist completion
-    const completedItems =
-      termination.checklist?.filter((item) => item.completed).length || 0;
-    const totalItems = termination.checklist?.length || 0;
-    const checklistCompletion =
-      totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-    return checklistCompletion === 100;
-  };
-
-  // Helper function to get checklist completion status
-  const getCompletionStatus = (termination: Termination) => {
-    const completedItems =
-      termination.checklist?.filter((item) => item.completed).length || 0;
-    const totalItems = termination.checklist?.length || 0;
-    const checklistCompletion =
-      totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-    return {
-      checklistCompletion: Math.round(checklistCompletion),
-      isChecklistComplete: checklistCompletion === 100,
-      completedItems,
-      totalItems,
-    };
-  };
-
   const formatTerminationDate = (dateString: string) => {
   const date = new Date(dateString);
   // Add a day if the date appears off due to timezone
@@ -1391,7 +385,7 @@ export default function TerminationsContent() {
   });
 };
 
-  if (!isClient || loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
         <div className="text-lg">Loading...</div>
@@ -1423,7 +417,7 @@ export default function TerminationsContent() {
             <h3 className="text-lg font-semibold mb-4">
               Initiate Termination Process
             </h3>
-            <form onSubmit={createTermination}>
+            <form onSubmit={handleCreateTermination}>
               <div className="space-y-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1514,7 +508,7 @@ export default function TerminationsContent() {
         </div>
       )}
 
-      {filteredTerminations.length === 0 ? (
+      {terminations.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-6 text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             No Active Termination Processes
@@ -1535,7 +529,7 @@ export default function TerminationsContent() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {filteredTerminations.map((termination) => (
+          {terminations.map((termination) => (
             <div
               key={termination.id}
               className="bg-white rounded-lg shadow-sm border border-gray-200"
@@ -1545,7 +539,7 @@ export default function TerminationsContent() {
                 <div className="flex justify-between items-start">
                   <div className="flex items-start space-x-4">
                     <button
-                      onClick={() => toggleTerminationExpanded(termination.id)}
+                      onClick={() => toggleExpanded(termination.id)}
                       className="mt-1 text-gray-400 hover:text-gray-600"
                     >
                       {termination.isExpanded ? (
@@ -1624,14 +618,7 @@ export default function TerminationsContent() {
 
                     {termination.isOverdue && (
                       <div className="text-xs text-red-600 mt-1 font-medium">
-                        ⚠️{" "}
-                        {Math.abs(
-                          30 -
-                            calculateDaysSinceTermination(
-                              termination.terminationDate
-                            )
-                        )}{" "}
-                        days overdue
+                        ⚠️ {Math.abs(termination.daysRemaining)} days overdue
                       </div>
                     )}
                     {termination.trackingNumber && (
@@ -1784,13 +771,13 @@ export default function TerminationsContent() {
                         </div>
                         <div
                           className={`p-2 rounded ${
-                            getCompletionStatus(termination).isChecklistComplete
+                            getChecklistCompletion(termination.checklist).percent === 100
                               ? "bg-green-100 text-green-800"
                               : "bg-amber-100 text-amber-800"
                           }`}
                         >
                           Checklist:{" "}
-                          {getCompletionStatus(termination).checklistCompletion}
+                          {getChecklistCompletion(termination.checklist).percent}
                           %
                         </div>
                       </div>
@@ -1872,7 +859,15 @@ export default function TerminationsContent() {
 
                   {/* IT Checklist Section */}
                   {isAdminOrIT && termination.checklist && (
-                    <ChecklistSection termination={termination} />
+                    <ChecklistSection
+                      termination={termination}
+                      currentUserName={currentUser?.name}
+                      itUsers={itUsers}
+                      onUpdate={updateTermination}
+                      onCompletedByChange={handleCompletedByChange}
+                      onComputerSerialChange={handleComputerSerialChange}
+                      onComputerModelChange={handleComputerModelChange}
+                    />
                   )}
 
                   {/* Action Buttons */}
@@ -1896,10 +891,7 @@ export default function TerminationsContent() {
                           </span>
                           <span className="text-blue-600">
                             Checklist:{" "}
-                            {
-                              getCompletionStatus(termination)
-                                .checklistCompletion
-                            }
+                            {getChecklistCompletion(termination.checklist).percent}
                             % Complete
                           </span>
                         </div>
@@ -1910,30 +902,29 @@ export default function TerminationsContent() {
                       {termination.status === "equipment_returned" && (
                         <button
                           onClick={() => {
-                            const completion = getCompletionStatus(termination);
-                            if (!canArchiveTermination(termination)) {
+                            if (!canArchive(termination)) {
                               alert(
-                                `Cannot archive yet:\n• Checklist must be 100% complete (currently ${completion.checklistCompletion}%)\n• All fields must be completed`
+                                `Cannot archive yet:\n• Checklist must be 100% complete (currently ${getChecklistCompletion(termination.checklist).percent}%)\n• All fields must be completed`
                               );
                               return;
                             }
                             archiveTermination(termination.id);
                           }}
                           className={`px-3 py-1 rounded text-sm flex items-center ${
-                            canArchiveTermination(termination)
+                            canArchive(termination)
                               ? "bg-green-500 hover:bg-green-600 text-white shadow-sm"
                               : "bg-gray-300 text-gray-500 cursor-not-allowed"
                           }`}
-                          disabled={!canArchiveTermination(termination)}
+                          disabled={!canArchive(termination)}
                           title={
-                            canArchiveTermination(termination)
+                            canArchive(termination)
                               ? "Archive this completed termination"
                               : "Complete all requirements to archive"
                           }
                         >
                           <CheckCircleIcon className="h-4 w-4 mr-1" />
                           Archive
-                          {canArchiveTermination(termination) && (
+                          {canArchive(termination) && (
                             <span className="ml-1 text-xs bg-green-600 px-1 rounded">
                               ✓
                             </span>
@@ -1942,7 +933,7 @@ export default function TerminationsContent() {
                       )}
 
                       {termination.status === "equipment_returned" &&
-                        !canArchiveTermination(termination) && (
+                        !canArchive(termination) && (
                           <div className="text-xs text-amber-600 flex items-center">
                             <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
                             Complete checklist to archive

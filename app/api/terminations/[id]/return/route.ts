@@ -4,13 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../../lib/db";
 import sql from "mssql";
 import { sendEmail } from "../../../../../lib/email";
-
-const hrEmails = [
-  "aogden@uspi.com",
-  "aevans@nsnrevenue.com",
-  "anwaters@uspi.com",
-  "eolson@nsnrevenue.com",
-];
+import { HR_EMAILS } from "../../../../../lib/terminationConstants";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -94,7 +88,7 @@ export async function POST(
       : dispositionLabel;
 
     sendEmail({
-      to: hrEmails,
+      to: HR_EMAILS,
       subject: `Equipment Return Satisfied: ${updatedTermination.employeeName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
