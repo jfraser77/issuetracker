@@ -237,12 +237,24 @@ export async function signout() {
 export async function getCurrentUser() {
   try {
     const cookieStore = await cookies();
-    const userEmail = cookieStore.get("auth-user")?.value;
+    const cookieValue = cookieStore.get("auth-user")?.value;
 
-    if (!userEmail) {
+    if (!cookieValue) {
       console.log("No auth-user cookie found");
       return null;
     }
+
+    // Cookie is stored as JSON: { id, email, name, role, timestamp }
+    let userEmail: string;
+    try {
+      const parsed = JSON.parse(cookieValue);
+      userEmail = parsed.email;
+    } catch {
+      // Fallback for any old plain-email cookies still in browsers
+      userEmail = cookieValue;
+    }
+
+    if (!userEmail) return null;
 
     const pool = await connectToDatabase();
     const result = await pool

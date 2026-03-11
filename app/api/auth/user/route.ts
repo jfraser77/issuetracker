@@ -6,11 +6,22 @@ import sql from "mssql";
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
-    const userEmail = cookieStore.get("auth-user")?.value;
+    const cookieValue = cookieStore.get("auth-user")?.value;
 
-    if (!userEmail) {
+    if (!cookieValue) {
       return NextResponse.json(null);
     }
+
+    // Cookie is stored as JSON: { id, email, name, role, timestamp }
+    let userEmail: string;
+    try {
+      const parsed = JSON.parse(cookieValue);
+      userEmail = parsed.email;
+    } catch {
+      userEmail = cookieValue; // fallback for old plain-email cookies
+    }
+
+    if (!userEmail) return NextResponse.json(null);
 
     const pool = await connectToDatabase();
     const result = await pool
