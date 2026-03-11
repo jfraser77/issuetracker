@@ -76,20 +76,36 @@ export function useTerminationData({
 
   // ---- helpers ----
 
+  /**
+   * Normalizes a raw DB row: parses checklist JSON string → array,
+   * recalculates derived fields, and falls back to DEFAULT_CHECKLIST.
+   */
+  function normalizeTermination(t: Termination, isExpanded = false): Termination {
+    let checklist = t.checklist as unknown;
+    if (typeof checklist === "string") {
+      try { checklist = JSON.parse(checklist); } catch { checklist = []; }
+    }
+    return {
+      ...t,
+      checklist:
+        Array.isArray(checklist) && checklist.length > 0
+          ? (checklist as Termination["checklist"])
+          : [...DEFAULT_CHECKLIST],
+      isOverdue: isTerminationOverdue(t.terminationDate, t.status),
+      daysRemaining: daysRemainingUntilOverdue(t.terminationDate, t.status),
+      isExpanded,
+    };
+  }
+
   /** Merges server data with client-only `isExpanded` flags. */
   function mergeWithExpanded(
     incoming: Termination[],
     existing: Termination[]
   ): Termination[] {
     const expandedMap = new Map(existing.map((t) => [t.id, t.isExpanded]));
-    return incoming.map((t) => ({
-      ...t,
-      isOverdue: isTerminationOverdue(t.terminationDate, t.status),
-      daysRemaining: daysRemainingUntilOverdue(t.terminationDate, t.status),
-      isExpanded: expandedMap.get(t.id) ?? false,
-      checklist:
-        t.checklist && t.checklist.length > 0 ? t.checklist : [...DEFAULT_CHECKLIST],
-    }));
+    return incoming.map((t) =>
+      normalizeTermination(t, expandedMap.get(t.id) ?? false)
+    );
   }
 
   // ---- fetches ----
@@ -197,7 +213,7 @@ export function useTerminationData({
           setTerminations((prev) =>
             prev.map((t) =>
               t.id === id
-                ? { ...result.termination, isExpanded: t.isExpanded }
+                ? normalizeTermination(result.termination, t.isExpanded)
                 : t
             )
           );
@@ -233,7 +249,7 @@ export function useTerminationData({
         const { termination: updated } = await res.json();
         setTerminations((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...updated, isExpanded: t.isExpanded } : t
+            t.id === id ? normalizeTermination(updated, t.isExpanded) : t
           )
         );
 
