@@ -65,9 +65,15 @@ export async function signup(formData: FormData) {
       // Continue anyway - inventory can be created later
     }
 
-    // Set session cookie
+    // Set session cookie — value must be JSON so middleware can parse it
     const cookieStore = await cookies();
-    cookieStore.set("auth-user", newUser.email, {
+    cookieStore.set("auth-user", JSON.stringify({
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: "User",
+      timestamp: Date.now(),
+    }), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -115,9 +121,15 @@ export async function signin(formData: FormData) {
       const user = userResult.recordset[0];
       console.log("✅ User found for session:", user);
 
-      // Set session cookie
+      // Set session cookie — value must be JSON so middleware can parse it
       const cookieStore = await cookies();
-      cookieStore.set("auth-user", user.email, {
+      cookieStore.set("auth-user", JSON.stringify({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        timestamp: Date.now(),
+      }), {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         maxAge: 60 * 60 * 24 * 7, // 1 week
@@ -185,7 +197,13 @@ export async function signin(formData: FormData) {
     console.log("🔄 No 2FA required, setting session...");
 
     const cookieStore = await cookies();
-    cookieStore.set("auth-user", email, {
+    cookieStore.set("auth-user", JSON.stringify({
+      id: verifyData.user.id,
+      email: verifyData.user.email,
+      name: verifyData.user.name,
+      role: verifyData.user.role,
+      timestamp: Date.now(),
+    }), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 week
