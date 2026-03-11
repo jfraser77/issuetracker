@@ -21,6 +21,11 @@ export function middleware(request: NextRequest) {
     "/api/auth/signin",
     "/api/auth/signup",
     "/api/auth/check",
+    "/api/auth/verify-credentials",
+    "/api/auth/send-2fa",
+    "/api/auth/verify-2fa",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
     "/api/test-cookies",
     "/_next", // Next.js static files
     "/favicon.ico",
