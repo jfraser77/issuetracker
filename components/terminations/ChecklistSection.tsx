@@ -8,7 +8,7 @@
  * causing `localNewItem` state to reset every time the parent re-rendered.
  */
 
-import { useState, ChangeEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 import {
   CheckCircleIcon,
   MinusIcon,
@@ -46,6 +46,21 @@ export function ChecklistSection({
   onComputerModelChange,
 }: ChecklistSectionProps) {
   const [newItem, setNewItem] = useState({ category: "", description: "" });
+
+  // Local display state so inputs feel instant while the debounced API write catches up.
+  // The focused refs prevent the useEffect sync from overwriting in-progress typing.
+  const [localSerial, setLocalSerial] = useState(termination.computerSerial ?? "");
+  const [localModel, setLocalModel] = useState(termination.computerModel ?? "");
+  const serialFocused = useRef(false);
+  const modelFocused = useRef(false);
+
+  useEffect(() => {
+    if (!serialFocused.current) setLocalSerial(termination.computerSerial ?? "");
+  }, [termination.computerSerial]);
+
+  useEffect(() => {
+    if (!modelFocused.current) setLocalModel(termination.computerModel ?? "");
+  }, [termination.computerModel]);
 
   const {
     toggleItem,
@@ -104,10 +119,13 @@ export function ChecklistSection({
           </label>
           <input
             type="text"
-            value={termination.computerSerial ?? ""}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              onComputerSerialChange(termination.id, e.target.value)
-            }
+            value={localSerial}
+            onFocus={() => { serialFocused.current = true; }}
+            onBlur={() => { serialFocused.current = false; }}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              setLocalSerial(e.target.value);
+              onComputerSerialChange(termination.id, e.target.value);
+            }}
             placeholder="Enter serial number"
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
           />
@@ -118,10 +136,13 @@ export function ChecklistSection({
           </label>
           <input
             type="text"
-            value={termination.computerModel ?? ""}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              onComputerModelChange(termination.id, e.target.value)
-            }
+            value={localModel}
+            onFocus={() => { modelFocused.current = true; }}
+            onBlur={() => { modelFocused.current = false; }}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              setLocalModel(e.target.value);
+              onComputerModelChange(termination.id, e.target.value);
+            }}
             placeholder="Enter computer model"
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
           />
