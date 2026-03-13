@@ -1,5 +1,5 @@
 # CBO / NSN IT Management Portal — Developer Handoff
-**Last updated:** 2026-03-09
+**Last updated:** 2026-03-11
 **Maintained by:** Joe Fraser (Admin)
 **Live URL:** https://cboinventory-fse2g6h2fub6apac.centralus-01.azurewebsites.net
 
@@ -66,7 +66,9 @@ issuetracker/
 │   │   └── users/
 │   ├── management-portal/        # All page UI
 │   │   ├── terminations/
-│   │   │   └── TerminationsContent.tsx   # Main terminations UI component
+│   │   │   ├── TerminationsContent.tsx   # Main terminations UI component
+│   │   │   ├── archived/page.tsx         # Archived terminations (restore + delete)
+│   │   │   └── [id]/edit/page.tsx        # Edit single termination
 │   │   ├── employees/
 │   │   ├── it-assets/
 │   │   └── admin/
@@ -87,6 +89,7 @@ issuetracker/
 │   └── apiResponse.ts            # Standardized API response helpers (ok, badRequest, etc.)
 ├── services/
 │   └── employeeService.ts
+├── middleware.ts                  # Auth middleware — cookie check + publicPaths allow-list
 ├── server.js                     # Custom server — listens on PORT or 8080
 └── next.config.js
 ```
@@ -230,6 +233,8 @@ The frontend calls `check-overdue` on a 24-hour interval (`setInterval`) when th
 6. Once checklist is 100% complete + all fields filled → "Archive" button unlocks
 7. POST /api/terminations/[id]/archive → status → 'archived'
    └── Moves to Archived Terminations view
+8. (Optional) Admin/IT can Restore to Active → PUT /api/terminations/[id] { status: 'equipment_returned' }
+9. (Optional) Admin/IT can Delete → DELETE /api/terminations/[id] (permanent)
 ```
 
 ### Equipment Disposition Values
@@ -244,11 +249,11 @@ The frontend calls `check-overdue` on a 24-hour interval (`setInterval`) when th
 
 ## 11. Role Permissions
 
-| Role | Can Initiate Termination | Can Mark Equipment Returned | Can Archive | Can View |
-|---|---|---|---|---|
-| Admin | ✓ | ✓ | ✓ | ✓ |
-| I.T. | ✓ | ✓ | ✓ | ✓ |
-| HR | ✓ | ✗ | ✗ | ✓ |
+| Role | Initiate | Mark Returned | Archive | Restore from Archive | Delete | View |
+|---|---|---|---|---|---|---|
+| Admin | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| I.T. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| HR | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ |
 
 ---
 
@@ -277,16 +282,32 @@ The frontend calls `check-overdue` on a 24-hour interval (`setInterval`) when th
 - Created `lib/apiResponse.ts` — standardized API response helpers used across all termination routes
 - `TerminationsContent.tsx` reduced by ~400 lines
 
+### Auth System Fixes (2026-03-11)
+- **Middleware `publicPaths` fix** — added missing login-flow routes (`/api/auth/verify-credentials`, `/api/auth/send-2fa`, `/api/auth/verify-2fa`, `/api/auth/forgot-password`, `/api/auth/reset-password`). These were being blocked as unauthenticated requests, causing `alert("Unauthorized")` on signin.
+- **Session cookie format normalized** — all `cookieStore.set("auth-user", ...)` calls now write `JSON.stringify({ id, email, name, role, timestamp })`. Previously the `signin` server action was writing a plain email string while the middleware was calling `JSON.parse()` on it, causing a `SyntaxError` that deleted the cookie and bounced users back to signin immediately after 2FA.
+- **`getCurrentUser()` and `/api/auth/user` updated** — both now parse the JSON cookie and extract `.email` before the DB query. Added `try/catch` fallback for any old plain-email cookies still in browsers.
+- **`middleware.ts` confirmed at project root** — `issuetracker/middleware.ts` is the correct location and is active.
+
+### Checklist Runtime Error Fix (2026-03-11)
+- **`checklist.filter is not a function`** — SQL Server returns the `checklist` column as a raw `NVARCHAR` string. `markEquipmentReturned` and `updateTermination` were spreading the raw API response into state without parsing it. Added `normalizeTermination()` helper to `useTerminationData.ts` that parses the JSON string → array, falls back to `DEFAULT_CHECKLIST`, and recalculates derived fields. All state-update paths now call this helper.
+
+### Computer Serial / Model Input Fix (2026-03-11)
+- **Typing lag and character replacement fixed** — inputs were controlled by hook state with a 1-second debounce, causing React to reset the displayed value on every re-render before the debounce fired. Fixed in `ChecklistSection.tsx` by adding `localSerial` / `localModel` local state that updates immediately on keystroke, with `useRef` focus guards that prevent a `useEffect` sync from overwriting in-progress typing.
+
+### Archived Terminations — Restore & Delete (2026-03-11)
+- Added **Restore to Active** button on each archived record — calls `PUT /api/terminations/[id]` with `{ status: "equipment_returned" }`, returning the record to the active terminations page. Requires Admin or I.T. role.
+- Added **Delete** button — calls `DELETE /api/terminations/[id]` (permanent, requires confirmation). Requires Admin or I.T. role.
+- HR role can view and print archived records but cannot restore or delete.
+
 ---
 
 ## 13. Known Issues / Watch Points
 
 ### 🔴 Security — Action Required
-- **Middleware is in the wrong location** — `app/middleware.ts` must be moved to `issuetracker/middleware.ts` (project root). Until moved, Next.js does not enforce any route protection.
-- **Hardcoded TEMP_PASSWORD** exists in the auth code — remove before shipping to production.
-- **No server-side role enforcement on API routes** — role checks are UI-only. Any authenticated user can call sensitive endpoints directly. Add `requireRole()` guards.
-- **Session cookies are not HMAC-signed** — susceptible to cookie tampering.
-- **`/api/auth/user` has a JSON parse bug** — add try/catch around the session JSON parse.
+- **Hardcoded `TEMP_PASSWORD`** in `app/api/auth/signin/route.ts` — remove before treating this as a production-grade auth system.
+- **No server-side role enforcement on API routes** — role checks are UI-only. Any authenticated user can call sensitive endpoints directly (e.g. `DELETE /api/terminations/[id]`). Add server-side `requireRole()` guards.
+- **Session cookies are not HMAC-signed** — the `auth-user` cookie value is plain JSON. A user who can write cookies could forge a session. Add HMAC signing (e.g. with the `iron-session` or `jose` library).
+- **`verify-credentials` route bypasses password checking** — `app/api/auth/verify-credentials/route.ts` uses a hardcoded `allowedUsers` list and does no password verification. This is a significant security gap.
 
 ### 🟡 Reliability
 - **Overdue check only runs client-side** — if no browser has the Terminations page open, overdue records won't be detected or emailed. Add an Azure Function or a GitHub Actions scheduled workflow calling `POST /api/terminations/check-overdue` daily.
@@ -296,6 +317,13 @@ The frontend calls `check-overdue` on a 24-hour interval (`setInterval`) when th
 - ~~`hrEmails` duplicated across 3 route files~~ — consolidated into `lib/terminationConstants.ts`
 - ~~`ccRecipients` identical duplicate of `hrEmails`~~ — removed, now uses `HR_EMAILS`
 - ~~`ChecklistSection` defined inside parent component~~ — moved to module-level file, remount bug fixed
+- ~~Middleware in wrong location~~ — `issuetracker/middleware.ts` is at the project root and active
+- ~~Session cookie format mismatch~~ — all writers set JSON, all readers parse JSON
+- ~~`/api/auth/user` JSON parse bug~~ — fixed with try/catch and JSON parse
+- ~~Login-flow API routes blocked by middleware~~ — all auth routes added to `publicPaths`
+- ~~`checklist.filter is not a function`~~ — `normalizeTermination()` helper parses JSON string on all state-update paths
+- ~~Computer serial/model inputs lag and replace characters~~ — local state buffer with focus guards fixes the controlled input + debounce conflict
 
 ### ℹ️ General
 - `typescript.ignoreBuildErrors: true` means TypeScript errors won't break CI — check IDE diagnostics panel periodically.
+- The `/api/auth/signin` route (older route) and `/api/auth/verify-credentials` route (newer route) both attempt authentication. The signin page uses `verify-credentials`. The older `signin` route is unused by the UI but still exists — consider removing it to reduce confusion.

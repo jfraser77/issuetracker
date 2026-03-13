@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ComputerDesktopIcon,
   ArrowPathIcon,
@@ -14,10 +14,13 @@ import {
   PencilIcon,
   CheckIcon as CheckSolidIcon,
   XMarkIcon,
+  ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/app/hooks/useUser";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface User {
   id: number;
@@ -50,21 +53,207 @@ interface LaptopOrder {
   intendedRecipient?: User | null;
 }
 
-interface TerminationStats {
-  pendingReturns: number;
+interface ToastState {
+  message: string;
+  type: "success" | "error";
 }
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({
+  message,
+  type,
+  onDismiss,
+}: {
+  message: string;
+  type: "success" | "error";
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3500);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium animate-fade-in ${
+        type === "success" ? "bg-green-600" : "bg-red-600"
+      }`}
+    >
+      {type === "error" && <ExclamationCircleIcon className="h-4 w-4 shrink-0" />}
+      {message}
+      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100">
+        <XMarkIcon className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Inventory Card ───────────────────────────────────────────────────────────
+
+function InventoryCard({
+  staff,
+  isCurrentUser,
+  editingUserId,
+  editValue,
+  onIncrease,
+  onDecrease,
+  onStartEdit,
+  onCancelEdit,
+  onEditChange,
+  onEditSubmit,
+  onEditKeyDown,
+}: {
+  staff: ITStaffInventory;
+  isCurrentUser: boolean;
+  editingUserId: number | null;
+  editValue: string;
+  onIncrease: (userId: number) => void;
+  onDecrease: (userId: number, current: number) => void;
+  onStartEdit: (userId: number, current: number) => void;
+  onCancelEdit: () => void;
+  onEditChange: (value: string) => void;
+  onEditSubmit: (userId: number) => void;
+  onEditKeyDown: (e: React.KeyboardEvent, userId: number) => void;
+}) {
+  const name = staff.user?.name ?? `User ${staff.userId}`;
+  const role = staff.user?.role ?? "User";
+  const initial = name.charAt(0).toUpperCase();
+  const isEditing = editingUserId === staff.userId;
+
+  return (
+    <div
+      className={`bg-white rounded-xl shadow-sm p-6 transition-shadow hover:shadow-md ${
+        isCurrentUser ? "ring-2 ring-blue-500" : ""
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100">
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0">
+          <span className="text-white font-semibold text-base">{initial}</span>
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 truncate">{name}</h3>
+            {isCurrentUser && (
+              <span className="text-xs bg-blue-100 text-blue-700 font-medium px-2 py-0.5 rounded-full shrink-0">
+                You
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">{role}</p>
+        </div>
+      </div>
+
+      {/* Count */}
+      <div className="flex flex-col items-center mb-5">
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              value={editValue}
+              onChange={(e) => onEditChange(e.target.value)}
+              onKeyDown={(e) => onEditKeyDown(e, staff.userId)}
+              className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-center text-2xl font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              autoFocus
+            />
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => onEditSubmit(staff.userId)}
+                className="text-green-600 hover:text-green-800 transition-colors"
+                title="Save"
+              >
+                <CheckSolidIcon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={onCancelEdit}
+                className="text-red-500 hover:text-red-700 transition-colors"
+                title="Cancel"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => onStartEdit(staff.userId, staff.availableLaptops)}
+            className="group flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+            title="Click to edit"
+          >
+            <span className="text-4xl font-bold text-gray-900">
+              {staff.availableLaptops}
+            </span>
+            <PencilIcon className="h-4 w-4 text-gray-300 group-hover:text-blue-500 transition-colors mt-1" />
+          </button>
+        )}
+        <span className="text-xs text-gray-500 mt-1">
+          Available Laptop{staff.availableLaptops !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* +/- Controls */}
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={() => onDecrease(staff.userId, staff.availableLaptops)}
+          disabled={staff.availableLaptops <= 0}
+          className={`flex items-center justify-center w-10 h-10 rounded-lg font-medium transition-colors ${
+            staff.availableLaptops <= 0
+              ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+              : "bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-600"
+          }`}
+          title="Remove one laptop"
+        >
+          <MinusIcon className="h-5 w-5" />
+        </button>
+        <button
+          onClick={() => onIncrease(staff.userId)}
+          className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors font-medium"
+          title="Add one laptop"
+        >
+          <PlusIcon className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Status helpers ───────────────────────────────────────────────────────────
+
+const STATUS_STYLES: Record<string, string> = {
+  received: "bg-green-100 text-green-800",
+  ordered: "bg-amber-100 text-amber-800",
+  cancelled: "bg-red-100 text-red-800",
+  archived: "bg-gray-100 text-gray-600",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  received: "Received",
+  ordered: "Ordered",
+  cancelled: "Cancelled",
+  archived: "Archived",
+};
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ITAssetsPage() {
   const router = useRouter();
   const { user: currentUser, loading: userLoading } = useUser();
+
   const [itStaff, setItStaff] = useState<ITStaffInventory[]>([]);
   const [laptopOrders, setLaptopOrders] = useState<LaptopOrder[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [terminationStats, setTerminationStats] = useState<TerminationStats>({
-    pendingReturns: 0,
-  });
+  const [pendingReturns, setPendingReturns] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  // Inline edit state
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // New order form state
   const [newOrder, setNewOrder] = useState({
     quantity: 1,
     trackingNumber: "",
@@ -72,260 +261,217 @@ export default function ITAssetsPage() {
     intendedRecipientId: "",
     notes: "",
   });
-  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
 
-  // State for direct input editing
-  const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState<string>("");
-
-  // Check if user has access (Admin or I.T. roles only)
   const hasAccess =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
 
-  // Check if user should see IT Staff Inventory section
-  const shouldShowITStaffInventory = hasAccess;
-
-  // Filter IT staff to only show Admin and I.T. roles
   const filteredITStaff = itStaff.filter(
-    (staff) => staff.user?.role === "Admin" || staff.user?.role === "I.T."
+    (s) => s.user?.role === "Admin" || s.user?.role === "I.T."
   );
 
-  // Separate current user's inventory from other users (only for Admin/I.T.)
-  const currentUserInventory =
-    currentUser && shouldShowITStaffInventory
-      ? filteredITStaff.find((staff) => staff.userId === currentUser.id)
-      : null;
+  const currentUserInventory = currentUser
+    ? filteredITStaff.find((s) => s.userId === currentUser.id) ?? null
+    : null;
 
-  const otherUsersInventory = shouldShowITStaffInventory
-    ? filteredITStaff.filter((staff) => staff.userId !== currentUser?.id)
-    : [];
+  const otherUsersInventory = filteredITStaff.filter(
+    (s) => s.userId !== currentUser?.id
+  );
 
-  // Fetch data only when user is loaded
+  const activeOrders = laptopOrders.filter(
+    (o) => o.status !== "archived" && !o.isArchived
+  );
+
+  const totalAvailable = filteredITStaff.reduce(
+    (sum, s) => sum + s.availableLaptops,
+    0
+  );
+
+  // ── Toast helper ──────────────────────────────────────────────────────────
+
+  const showToast = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      setToast({ message, type });
+    },
+    []
+  );
+
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  const fetchData = useCallback(async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      const [usersRes, inventoryRes, ordersRes, statsRes] = await Promise.all([
+        fetch("/api/users"),
+        fetch("/api/it-assets/inventory"),
+        fetch("/api/it-assets/orders?active=true"),
+        fetch("/api/terminations/stats"),
+      ]);
+
+      if (usersRes.ok) setAllUsers(await usersRes.json());
+      if (inventoryRes.ok) setItStaff(await inventoryRes.json());
+      if (ordersRes.ok) setLaptopOrders(await ordersRes.json());
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        setPendingReturns(stats.pendingReturns ?? 0);
+      }
+    } catch (error) {
+      console.error("Error fetching IT assets data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
   useEffect(() => {
     if (!userLoading && currentUser) {
+      setNewOrder((prev) => ({ ...prev, orderedByUserId: currentUser.id.toString() }));
       fetchData();
     }
-  }, [userLoading, currentUser]);
+  }, [userLoading, currentUser, fetchData]);
 
-  // Redirect if no access - only when we have user data
   useEffect(() => {
     if (currentUser && !hasAccess) {
       router.push("/management-portal/dashboard");
     }
   }, [currentUser, hasAccess, router]);
 
-  // Auto-archive old orders - only when component is ready
+  // Auto-archive old orders daily
   useEffect(() => {
     if (!currentUser || !hasAccess) return;
-
-    const archiveOldOrders = async () => {
+    const run = async () => {
       try {
-        const response = await fetch("/api/it-assets/orders/archive", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (response.ok) {
-          const result = await response.json();
-          if (result.archived > 0) {
-            console.log(`Auto-archived ${result.archived} old orders`);
-            fetchData();
-          }
+        const res = await fetch("/api/it-assets/orders/archive", { method: "POST" });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.archived > 0) fetchData();
         }
-      } catch (error) {
-        console.error("Error archiving orders:", error);
-      }
+      } catch {}
     };
-
-    archiveOldOrders();
-    const interval = setInterval(archiveOldOrders, 24 * 60 * 60 * 1000);
+    run();
+    const interval = setInterval(run, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [currentUser, hasAccess]);
+  }, [currentUser, hasAccess, fetchData]);
 
-  const fetchData = async () => {
-    if (!currentUser) return;
+  // ── Inventory mutations (optimistic) ──────────────────────────────────────
 
-    try {
-      setLoading(true);
+  const adjustInventory = useCallback(
+    async (userId: number, change: 1 | -1) => {
+      // Optimistic update
+      setItStaff((prev) =>
+        prev.map((s) =>
+          s.userId === userId
+            ? { ...s, availableLaptops: Math.max(0, s.availableLaptops + change) }
+            : s
+        )
+      );
 
-      // Set new order user ID safely
-      setNewOrder((prev) => ({
-        ...prev,
-        orderedByUserId: currentUser.id.toString(),
-      }));
-
-      // Fetch all users for the dropdown
       try {
-        const usersResponse = await fetch("/api/users");
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          setAllUsers(usersData);
-        } else if (usersResponse.status === 401) {
-          console.warn("Unauthorized access to /api/users");
-          // Continue without users data
-        }
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
+        const res = await fetch("/api/it-assets/inventory", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, change }),
+        });
 
-      // Fetch IT staff inventory
+        if (!res.ok) {
+          // Rollback
+          setItStaff((prev) =>
+            prev.map((s) =>
+              s.userId === userId
+                ? { ...s, availableLaptops: Math.max(0, s.availableLaptops - change) }
+                : s
+            )
+          );
+          showToast("Failed to update inventory", "error");
+        }
+      } catch {
+        // Rollback
+        setItStaff((prev) =>
+          prev.map((s) =>
+            s.userId === userId
+              ? { ...s, availableLaptops: Math.max(0, s.availableLaptops - change) }
+              : s
+          )
+        );
+        showToast("Network error — could not update inventory", "error");
+      }
+    },
+    [showToast]
+  );
+
+  const updateInventoryByInput = useCallback(
+    async (userId: number, newValue: number) => {
+      if (isNaN(newValue) || newValue < 0) {
+        showToast("Please enter a valid non-negative number", "error");
+        return;
+      }
+      const current = itStaff.find((s) => s.userId === userId)?.availableLaptops ?? 0;
+      const change = newValue - current;
+      if (change === 0) {
+        setEditingUserId(null);
+        return;
+      }
+      setEditingUserId(null);
+      setEditValue("");
+
+      setItStaff((prev) =>
+        prev.map((s) => (s.userId === userId ? { ...s, availableLaptops: newValue } : s))
+      );
+
       try {
-        const inventoryResponse = await fetch("/api/it-assets/inventory");
-        if (inventoryResponse.ok) {
-          const inventoryData = await inventoryResponse.json();
-          setItStaff(inventoryData);
+        const res = await fetch("/api/it-assets/inventory", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, change }),
+        });
+
+        if (!res.ok) {
+          setItStaff((prev) =>
+            prev.map((s) => (s.userId === userId ? { ...s, availableLaptops: current } : s))
+          );
+          showToast("Failed to update laptop count", "error");
         }
-      } catch (error) {
-        console.error("Error fetching inventory:", error);
+      } catch {
+        setItStaff((prev) =>
+          prev.map((s) => (s.userId === userId ? { ...s, availableLaptops: current } : s))
+        );
+        showToast("Network error — could not update laptop count", "error");
       }
+    },
+    [itStaff, showToast]
+  );
 
-      // Fetch active laptop orders (non-archived)
-      try {
-        const ordersResponse = await fetch("/api/it-assets/orders?active=true");
-        if (ordersResponse.ok) {
-          const ordersData = await ordersResponse.json();
-          setLaptopOrders(ordersData);
-        }
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      }
+  const handleEditSubmit = useCallback(
+    (userId: number) => {
+      const val = parseInt(editValue);
+      updateInventoryByInput(userId, val);
+    },
+    [editValue, updateInventoryByInput]
+  );
 
-      // Fetch termination stats for pending returns
-      try {
-        const statsResponse = await fetch("/api/terminations/stats");
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setTerminationStats(statsData);
-        }
-      } catch (error) {
-        console.error("Error fetching termination stats:", error);
-      }
-    } catch (error) {
-      console.error("Error in fetchData:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Function to increase available laptops
-  const increaseAvailable = async (userId: number) => {
-    try {
-      const response = await fetch("/api/it-assets/inventory", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, change: 1 }),
-      });
-
-      if (response.ok) {
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error increasing inventory:", error);
-    }
-  };
-
-  // Function to decrease available laptops
-  const decreaseAvailable = async (
-    userId: number,
-    currentAvailable: number
-  ) => {
-    if (currentAvailable <= 0) return;
-
-    try {
-      const response = await fetch("/api/it-assets/inventory", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, change: -1 }),
-      });
-
-      if (response.ok) {
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error decreasing inventory:", error);
-    }
-  };
-
-  // Function to update available laptops by direct input
-  const updateAvailableByInput = async (userId: number, newValue: number) => {
-    if (newValue < 0) {
-      alert("Laptop count cannot be negative");
-      return;
-    }
-
-    try {
-      // Get current value to calculate the change needed
-      const currentStaff = itStaff.find((staff) => staff.userId === userId);
-      if (!currentStaff) return;
-
-      const change = newValue - currentStaff.availableLaptops;
-
-      const response = await fetch("/api/it-assets/inventory", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId, change }),
-      });
-
-      if (response.ok) {
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent, userId: number) => {
+      if (e.key === "Enter") handleEditSubmit(userId);
+      else if (e.key === "Escape") {
         setEditingUserId(null);
         setEditValue("");
-        fetchData();
       }
-    } catch (error) {
-      console.error("Error updating inventory by input:", error);
-      alert("Failed to update laptop count");
-    }
-  };
+    },
+    [handleEditSubmit]
+  );
 
-  // Function to start editing
-  const startEditing = (userId: number, currentValue: number) => {
-    setEditingUserId(userId);
-    setEditValue(currentValue.toString());
-  };
-
-  // Function to cancel editing
-  const cancelEditing = () => {
-    setEditingUserId(null);
-    setEditValue("");
-  };
-
-  // Function to handle input submission
-  const handleInputSubmit = (userId: number) => {
-    const newValue = parseInt(editValue);
-    if (isNaN(newValue)) {
-      alert("Please enter a valid number");
-      return;
-    }
-    updateAvailableByInput(userId, newValue);
-  };
-
-  // Function to handle input key press
-  const handleInputKeyPress = (e: React.KeyboardEvent, userId: number) => {
-    if (e.key === "Enter") {
-      handleInputSubmit(userId);
-    } else if (e.key === "Escape") {
-      cancelEditing();
-    }
-  };
+  // ── Order mutations ───────────────────────────────────────────────────────
 
   const createOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOrder.orderedByUserId || !newOrder.intendedRecipientId) {
-      alert("Please select who ordered and who the intended recipient is");
+      showToast("Please select who ordered and the intended recipient", "error");
       return;
     }
 
     try {
-      const response = await fetch("/api/it-assets/orders", {
+      const res = await fetch("/api/it-assets/orders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quantity: newOrder.quantity,
           trackingNumber: newOrder.trackingNumber || null,
@@ -335,52 +481,43 @@ export default function ITAssetsPage() {
         }),
       });
 
-      const responseData = await response.json();
-
-      if (response.ok) {
+      if (res.ok) {
         setShowOrderForm(false);
         setNewOrder({
           quantity: 1,
           trackingNumber: "",
-          orderedByUserId: currentUser?.id.toString() || "",
+          orderedByUserId: currentUser?.id.toString() ?? "",
           intendedRecipientId: "",
           notes: "",
         });
-        fetchData();
-        alert("Order created successfully!");
+        await fetchData();
+        showToast("Order created successfully");
       } else {
-        console.error("Order creation failed:", responseData);
-        alert(
-          responseData.error ||
-            "Failed to create order. Check console for details."
-        );
+        const err = await res.json();
+        showToast(err.error ?? "Failed to create order", "error");
       }
-    } catch (error) {
-      console.error("Error creating order:", error);
-      alert("Network error. Please check your connection and try again.");
+    } catch {
+      showToast("Network error — could not create order", "error");
     }
   };
 
   const markOrderReceived = async (orderId: number) => {
     try {
-      const response = await fetch(`/api/it-assets/orders/${orderId}`, {
+      const res = await fetch(`/api/it-assets/orders/${orderId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "received" }),
       });
 
-      if (response.ok) {
-        fetchData();
-        alert("Order marked as received!");
+      if (res.ok) {
+        await fetchData();
+        showToast("Order marked as received");
       } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to update order");
+        const err = await res.json();
+        showToast(err.error ?? "Failed to update order", "error");
       }
-    } catch (error) {
-      console.error("Error updating order:", error);
-      alert("Failed to update order");
+    } catch {
+      showToast("Network error — could not update order", "error");
     }
   };
 
@@ -389,151 +526,56 @@ export default function ITAssetsPage() {
     action: "archive" | "unarchive" = "archive"
   ) => {
     try {
-      const response = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
+      const res = await fetch(`/api/it-assets/orders/${orderId}/archive`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
 
-      if (response.ok) {
-        fetchData();
-        alert(
-          `Order ${
-            action === "unarchive" ? "unarchived" : "archived"
-          } successfully!`
-        );
+      if (res.ok) {
+        await fetchData();
+        showToast(`Order ${action === "unarchive" ? "unarchived" : "archived"}`);
       } else {
-        const errorData = await response.json();
-        alert(errorData.error || `Failed to ${action} order`);
+        const err = await res.json();
+        showToast(err.error ?? `Failed to ${action} order`, "error");
       }
-    } catch (error) {
-      console.error(`Error ${action}ing order:`, error);
-      alert(`Failed to ${action} order`);
+    } catch {
+      showToast(`Network error — could not ${action} order`, "error");
     }
   };
 
   const deleteOrder = async (orderId: number) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this order? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
-
+    if (!confirm("Delete this order? This cannot be undone.")) return;
     setDeletingOrderId(orderId);
 
     try {
-      const response = await fetch(`/api/it-assets/orders/${orderId}`, {
+      const res = await fetch(`/api/it-assets/orders/${orderId}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
-      if (response.ok) {
-        fetchData();
-        alert("Order deleted successfully!");
+      if (res.ok) {
+        await fetchData();
+        showToast("Order deleted");
       } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to delete order");
+        const err = await res.json();
+        showToast(err.error ?? "Failed to delete order", "error");
       }
-    } catch (error) {
-      console.error("Error deleting order:", error);
-      alert("Failed to delete order");
+    } catch {
+      showToast("Network error — could not delete order", "error");
     } finally {
       setDeletingOrderId(null);
     }
   };
 
-  const getStatusClass = (status: string): string => {
-    switch (status) {
-      case "received":
-        return "bg-green-100 text-green-800";
-      case "ordered":
-        return "bg-amber-100 text-amber-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      case "archived":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatusText = (status: string): string => {
-    switch (status) {
-      case "received":
-        return "Received";
-      case "ordered":
-        return "Ordered";
-      case "cancelled":
-        return "Cancelled";
-      case "archived":
-        return "Archived";
-      default:
-        return "Pending";
-    }
-  };
-
-  // Get user display name
-  const getUserDisplayName = (item: ITStaffInventory | LaptopOrder) => {
-    if ("user" in item && item.user?.name) {
-      return item.user.name;
-    }
-    if ("orderedBy" in item && item.orderedBy?.name) {
-      return item.orderedBy.name;
-    }
-    return `User ${"userId" in item ? item.userId : item.orderedByUserId}`;
-  };
-
-  // Get user initial for avatar
-  const getUserInitial = (item: ITStaffInventory | LaptopOrder) => {
-    const name = getUserDisplayName(item);
-    return name.charAt(0).toUpperCase();
-  };
-
-  // Get user role
-  const getUserRole = (item: ITStaffInventory | LaptopOrder) => {
-    if ("user" in item && item.user?.role) {
-      return item.user.role;
-    }
-    if ("orderedBy" in item && item.orderedBy?.role) {
-      return item.orderedBy.role;
-    }
-    return "User";
-  };
-
-  // Calculate dynamic stats - filter out archived orders
-  const activeOrders = laptopOrders.filter(
-    (order) => order.status !== "archived" && !order.isArchived
-  );
-
-  const dynamicStats = [
-    {
-      icon: ComputerDesktopIcon,
-      value: filteredITStaff.reduce(
-        (sum, staff) => sum + staff.availableLaptops,
-        0
-      ),
-      label: "Available Laptops",
-      color: "text-green-500",
-    },
-    {
-      icon: ArrowPathIcon,
-      value: terminationStats.pendingReturns,
-      label: "Pending Returns",
-      color: "text-red-500",
-      link: "/management-portal/terminations",
-    },
-  ];
+  // ── Guards ────────────────────────────────────────────────────────────────
 
   if (userLoading || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading IT Assets...</div>
+        <div className="flex items-center gap-3 text-gray-500">
+          <ArrowPathIcon className="h-5 w-5 animate-spin" />
+          <span>Loading IT Assets...</span>
+        </div>
       </div>
     );
   }
@@ -542,10 +584,10 @@ export default function ITAssetsPage() {
     return (
       <div className="flex justify-center items-center min-h-64">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Authentication Required
           </h2>
-          <p className="text-gray-600">Please log in to access this page.</p>
+          <p className="text-gray-500">Please log in to access this page.</p>
         </div>
       </div>
     );
@@ -555,10 +597,10 @@ export default function ITAssetsPage() {
     return (
       <div className="flex justify-center items-center min-h-64">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Access Denied
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-500">
             You don't have permission to access this page.
           </p>
         </div>
@@ -566,352 +608,202 @@ export default function ITAssetsPage() {
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          IT Staff Laptop Inventory
-        </h1>
+    <div className="space-y-8">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
+
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">IT Asset Management</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Track laptop inventory and manage orders for IT staff.
+        </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {dynamicStats.map((stat, index) => {
-          const IconComponent = stat.icon;
-          const cardContent = (
-            <div
-              className={`bg-white rounded-lg shadow-sm p-6 ${
-                stat.link
-                  ? "cursor-pointer hover:shadow-md transition-shadow"
-                  : ""
-              }`}
-            >
-              <IconComponent className={`h-8 w-8 ${stat.color} mb-4`} />
-              <div className="text-3xl font-bold text-gray-900">
-                {stat.value}
-              </div>
-              <div className="text-sm text-gray-500">{stat.label}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+          <div className="flex items-center gap-3">
+            <ComputerDesktopIcon className="h-8 w-8 text-green-500 shrink-0" />
+            <div>
+              <div className="text-3xl font-bold text-gray-900">{totalAvailable}</div>
+              <div className="text-sm text-gray-500">Available Laptops</div>
             </div>
-          );
+          </div>
+        </div>
 
-          return stat.link ? (
-            <Link key={index} href={stat.link}>
-              {cardContent}
-            </Link>
-          ) : (
-            <div key={index}>{cardContent}</div>
-          );
-        })}
+        <Link href="/management-portal/terminations">
+          <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-red-400 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-center gap-3">
+              <ArrowPathIcon className="h-8 w-8 text-red-400 shrink-0" />
+              <div>
+                <div className="text-3xl font-bold text-gray-900">{pendingReturns}</div>
+                <div className="text-sm text-gray-500">Pending Equipment Returns</div>
+              </div>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* IT Staff Inventory */}
-      {shouldShowITStaffInventory && (
-        <>
-          <div className="flex justify-between items-center mb-5">
-            <h2 className="text-xl font-semibold text-gray-900">
-              IT Staff Inventory
-            </h2>
-          </div>
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          IT Staff Inventory
+        </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {/* Current User's Inventory Card */}
+        {filteredITStaff.length === 0 ? (
+          <p className="text-gray-500 text-sm">No IT staff inventory found.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Current user card first */}
             {currentUserInventory && (
-              <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border-2 border-blue-500">
-                <div className="flex items-center mb-4 pb-4 border-b border-gray-100">
-                  <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center mr-4">
-                    <span className="text-white font-semibold text-lg">
-                      {getUserInitial(currentUserInventory)}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {getUserDisplayName(currentUserInventory)} (You)
-                    </h3>
-                    <p className="text-sm text-gray-500 capitalize">
-                      {getUserRole(currentUserInventory)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-around text-center mb-4">
-                  <div className="px-4 py-2">
-                    {editingUserId === currentUserInventory.userId ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) =>
-                            handleInputKeyPress(e, currentUserInventory.userId)
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-2xl font-bold text-gray-900"
-                          autoFocus
-                        />
-                        <div className="flex flex-col space-y-1">
-                          <button
-                            onClick={() =>
-                              handleInputSubmit(currentUserInventory.userId)
-                            }
-                            className="text-green-600 hover:text-green-800"
-                          >
-                            <CheckSolidIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <XMarkIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span className="block text-2xl font-bold text-gray-900">
-                          {currentUserInventory.availableLaptops}
-                        </span>
-                        <button
-                          onClick={() =>
-                            startEditing(
-                              currentUserInventory.userId,
-                              currentUserInventory.availableLaptops
-                            )
-                          }
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit count"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                    <span className="text-xs text-gray-500">Available</span>
-                  </div>
-                </div>
-
-                {/* Buttons to adjust available inventory */}
-                <div className="flex justify-center items-center">
-                  <div className="flex justify-center mt-4 space-x-2">
-                    <button
-                      onClick={() =>
-                        decreaseAvailable(
-                          currentUserInventory.userId,
-                          currentUserInventory.availableLaptops
-                        )
-                      }
-                      disabled={currentUserInventory.availableLaptops <= 0}
-                      className={`flex items-center px-3 py-2 rounded-md font-medium ${
-                        currentUserInventory.availableLaptops <= 0
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : "bg-blue-500 text-white hover:bg-blue-600"
-                      }`}
-                    >
-                      <MinusIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        increaseAvailable(currentUserInventory.userId)
-                      }
-                      className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <InventoryCard
+                key={currentUserInventory.userId}
+                staff={currentUserInventory}
+                isCurrentUser
+                editingUserId={editingUserId}
+                editValue={editValue}
+                onIncrease={(id) => adjustInventory(id, 1)}
+                onDecrease={(id, current) =>
+                  current > 0 && adjustInventory(id, -1)
+                }
+                onStartEdit={(id, val) => {
+                  setEditingUserId(id);
+                  setEditValue(val.toString());
+                }}
+                onCancelEdit={() => {
+                  setEditingUserId(null);
+                  setEditValue("");
+                }}
+                onEditChange={setEditValue}
+                onEditSubmit={handleEditSubmit}
+                onEditKeyDown={handleEditKeyDown}
+              />
             )}
 
-            {/* Other Users Inventory Cards */}
             {otherUsersInventory.map((staff) => (
-              <div
+              <InventoryCard
                 key={staff.userId}
-                className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center mb-4 pb-4 border-b border-gray-100">
-                  <div className="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center mr-4">
-                    <span className="text-white font-semibold text-lg">
-                      {getUserInitial(staff)}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {getUserDisplayName(staff)}
-                    </h3>
-                    <p className="text-sm text-gray-500 capitalize">
-                      {getUserRole(staff)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-around text-center mb-4">
-                  <div className="px-4 py-2">
-                    {editingUserId === staff.userId ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <input
-                          type="number"
-                          min="0"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) =>
-                            handleInputKeyPress(e, staff.userId)
-                          }
-                          className="w-20 px-2 py-1 border border-gray-300 rounded text-center text-2xl font-bold text-gray-900"
-                          autoFocus
-                        />
-                        <div className="flex flex-col space-y-1">
-                          <button
-                            onClick={() => handleInputSubmit(staff.userId)}
-                            className="text-green-600 hover:text-green-800"
-                          >
-                            <CheckSolidIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <XMarkIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span className="block text-2xl font-bold text-gray-900">
-                          {staff.availableLaptops}
-                        </span>
-                        <button
-                          onClick={() =>
-                            startEditing(staff.userId, staff.availableLaptops)
-                          }
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit count"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                    <span className="text-xs text-gray-500">Available</span>
-                  </div>
-                </div>
-
-                {/* Buttons to adjust available inventory */}
-                <div className="flex justify-center items-center">
-                  <div className="flex justify-center mt-4 space-x-2">
-                    <button
-                      onClick={() =>
-                        decreaseAvailable(staff.userId, staff.availableLaptops)
-                      }
-                      disabled={staff.availableLaptops <= 0}
-                      className={`flex items-center px-3 py-2 rounded-md font-medium ${
-                        staff.availableLaptops <= 0
-                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                          : "bg-blue-500 text-white hover:bg-blue-600"
-                      }`}
-                    >
-                      <MinusIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => increaseAvailable(staff.userId)}
-                      className="flex items-center px-3 py-2 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+                staff={staff}
+                isCurrentUser={false}
+                editingUserId={editingUserId}
+                editValue={editValue}
+                onIncrease={(id) => adjustInventory(id, 1)}
+                onDecrease={(id, current) =>
+                  current > 0 && adjustInventory(id, -1)
+                }
+                onStartEdit={(id, val) => {
+                  setEditingUserId(id);
+                  setEditValue(val.toString());
+                }}
+                onCancelEdit={() => {
+                  setEditingUserId(null);
+                  setEditValue("");
+                }}
+                onEditChange={setEditValue}
+                onEditSubmit={handleEditSubmit}
+                onEditKeyDown={handleEditKeyDown}
+              />
             ))}
-
-            {/* Empty state if no inventory */}
-            {filteredITStaff.length === 0 && (
-              <div className="col-span-full text-center py-8">
-                <p className="text-gray-500">No IT staff inventory found.</p>
-              </div>
-            )}
           </div>
-        </>
-      )}
+        )}
+      </section>
 
-      {/* Laptop Orders Section */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-4">
+      {/* Laptop Orders */}
+      <section className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-start justify-between mb-5">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Laptop Orders
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Active orders - received orders auto-archive after 30 days
+            <h2 className="text-lg font-semibold text-gray-900">Laptop Orders</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Active orders — received orders auto-archive after 30 days
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button
               onClick={() => setShowOrderForm(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
+              className="inline-flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              <ShoppingCartIcon className="h-4 w-4 mr-2" />
+              <ShoppingCartIcon className="h-4 w-4" />
               New Order
             </button>
             <Link
               href="/management-portal/order-history"
-              className="bg-blue-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
+              className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              <ClockIcon className="h-4 w-4 mr-2" />
-              Order History
+              <ClockIcon className="h-4 w-4" />
+              History
             </Link>
           </div>
         </div>
 
         {/* Order Form Modal */}
         {showOrderForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold mb-4">New Laptop Order</h3>
-              <form onSubmit={createOrder}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  New Laptop Order
+                </h3>
+                <button
+                  onClick={() => setShowOrderForm(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+              <form onSubmit={createOrder} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Ordered By *
                   </label>
                   <select
                     value={newOrder.orderedByUserId}
                     onChange={(e) =>
-                      setNewOrder({
-                        ...newOrder,
-                        orderedByUserId: e.target.value,
-                      })
+                      setNewOrder({ ...newOrder, orderedByUserId: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     required
                   >
-                    <option value="">Select User</option>
-                    {allUsers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} ({user.role})
+                    <option value="">Select user</option>
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Intended Recipient *
                   </label>
                   <select
                     value={newOrder.intendedRecipientId}
                     onChange={(e) =>
-                      setNewOrder({
-                        ...newOrder,
-                        intendedRecipientId: e.target.value,
-                      })
+                      setNewOrder({ ...newOrder, intendedRecipientId: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     required
                   >
-                    <option value="">Select Intended Recipient</option>
-                    {allUsers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} ({user.role})
+                    <option value="">Select recipient</option>
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Quantity *
                   </label>
                   <input
@@ -919,57 +811,56 @@ export default function ITAssetsPage() {
                     min="1"
                     value={newOrder.quantity}
                     onChange={(e) =>
-                      setNewOrder({
-                        ...newOrder,
-                        quantity: parseInt(e.target.value) || 1,
-                      })
+                      setNewOrder({ ...newOrder, quantity: parseInt(e.target.value) || 1 })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     required
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tracking Number (Optional)
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tracking Number{" "}
+                    <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={newOrder.trackingNumber}
                     onChange={(e) =>
-                      setNewOrder({
-                        ...newOrder,
-                        trackingNumber: e.target.value,
-                      })
+                      setNewOrder({ ...newOrder, trackingNumber: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     placeholder="Enter tracking number"
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes (Optional)
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Notes{" "}
+                    <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <textarea
                     value={newOrder.notes}
                     onChange={(e) =>
                       setNewOrder({ ...newOrder, notes: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     rows={3}
-                    placeholder="Any additional notes about this order..."
+                    placeholder="Any additional notes..."
                   />
                 </div>
-                <div className="flex justify-end gap-3">
+
+                <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowOrderForm(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
                   >
                     Place Order
                   </button>
@@ -979,169 +870,170 @@ export default function ITAssetsPage() {
           </div>
         )}
 
+        {/* Orders Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tracking Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ordered By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Intended Recipient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantity
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                {[
+                  "Tracking #",
+                  "Ordered By",
+                  "Recipient",
+                  "Qty",
+                  "Order Date",
+                  "Status",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 first:rounded-tl-lg last:rounded-tr-lg"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-50">
               {activeOrders.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-6 py-4 text-center text-gray-500"
+                    className="px-4 py-10 text-center text-sm text-gray-400"
                   >
-                    No active orders found
+                    No active orders
                   </td>
                 </tr>
               ) : (
-                activeOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.trackingNumber ? (
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded border">
-                          {order.trackingNumber}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 italic">
-                          No tracking number
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-3">
-                          <span className="text-white text-xs font-semibold">
-                            {getUserInitial(order)}
+                activeOrders.map((order) => {
+                  const orderedByName =
+                    order.orderedBy?.name ?? `User ${order.orderedByUserId}`;
+                  const orderedByRole = order.orderedBy?.role ?? "User";
+                  const recipientName =
+                    order.intendedRecipient?.name ??
+                    `User ${order.intendedRecipientId}`;
+                  const recipientRole =
+                    order.intendedRecipient?.role ?? "User";
+
+                  return (
+                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-sm">
+                        {order.trackingNumber ? (
+                          <span className="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-800 text-xs">
+                            {order.trackingNumber}
                           </span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {getUserDisplayName(order)}
-                          </div>
-                          <div className="text-xs text-gray-500 capitalize">
-                            {getUserRole(order)}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-3">
-                          <span className="text-white text-xs font-semibold">
-                            {order.intendedRecipient?.name
-                              ?.charAt(0)
-                              .toUpperCase() || "U"}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {order.intendedRecipient?.name ||
-                              `User ${order.intendedRecipientId}`}
-                          </div>
-                          <div className="text-xs text-gray-500 capitalize">
-                            {order.intendedRecipient?.role || "User"}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.orderDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(
-                          order.status
-                        )}`}
-                      >
-                        {getStatusText(order.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
-                        {order.status === "ordered" && (
-                          <button
-                            onClick={() => markOrderReceived(order.id)}
-                            className="text-green-600 hover:text-green-800 flex items-center"
-                            title="Mark as Received"
-                          >
-                            <CheckIcon className="h-4 w-4 mr-1" />
-                            Receive
-                          </button>
-                        )}
-                        {order.isArchived ? (
-                          <button
-                            onClick={() => archiveOrder(order.id, "unarchive")}
-                            className="text-blue-600 hover:text-blue-800 flex items-center"
-                            title="Unarchive Order"
-                          >
-                            <ArchiveBoxIcon className="h-4 w-4 mr-1" />
-                            Unarchive
-                          </button>
                         ) : (
-                          <button
-                            onClick={() => archiveOrder(order.id, "archive")}
-                            className="text-gray-600 hover:text-gray-800 flex items-center"
-                            title="Archive Order"
-                          >
-                            <ArchiveBoxIcon className="h-4 w-4 mr-1" />
-                            Archive
-                          </button>
+                          <span className="text-gray-400 text-xs italic">
+                            None
+                          </span>
                         )}
-                        <button
-                          onClick={() => deleteOrder(order.id)}
-                          disabled={deletingOrderId === order.id}
-                          className="text-red-600 hover:text-red-800 flex items-center group relative"
-                          title="Delete Order"
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                            <span className="text-white text-xs font-semibold">
+                              {orderedByName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {orderedByName}
+                            </div>
+                            <div className="text-xs text-gray-400">{orderedByRole}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+                            <span className="text-white text-xs font-semibold">
+                              {recipientName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {recipientName}
+                            </div>
+                            <div className="text-xs text-gray-400">{recipientRole}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {order.quantity}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(order.orderDate).toLocaleDateString()}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            STATUS_STYLES[order.status] ?? "bg-gray-100 text-gray-600"
+                          }`}
                         >
-                          <TrashIcon className="h-4 w-4" />
-                          {deletingOrderId === order.id ? (
-                            <span className="ml-1 text-xs">Deleting...</span>
+                          {STATUS_LABELS[order.status] ?? "Pending"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {order.status === "ordered" && (
+                            <button
+                              onClick={() => markOrderReceived(order.id)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 px-2 py-1 rounded-md transition-colors"
+                              title="Mark as Received"
+                            >
+                              <CheckIcon className="h-3.5 w-3.5" />
+                              Receive
+                            </button>
+                          )}
+
+                          {order.isArchived ? (
+                            <button
+                              onClick={() => archiveOrder(order.id, "unarchive")}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md transition-colors"
+                            >
+                              <ArchiveBoxIcon className="h-3.5 w-3.5" />
+                              Unarchive
+                            </button>
                           ) : (
-                            <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                              Delete
+                            <button
+                              onClick={() => archiveOrder(order.id, "archive")}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md transition-colors"
+                            >
+                              <ArchiveBoxIcon className="h-3.5 w-3.5" />
+                              Archive
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => deleteOrder(order.id)}
+                            disabled={deletingOrderId === order.id}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50"
+                            title="Delete Order"
+                          >
+                            <TrashIcon className="h-3.5 w-3.5" />
+                            {deletingOrderId === order.id ? "Deleting…" : "Delete"}
+                          </button>
+
+                          {order.status === "received" && !order.isArchived && (
+                            <span className="text-xs text-gray-400">
+                              Auto-archives in 30 days
                             </span>
                           )}
-                        </button>
-                        {order.status === "received" && (
-                          <span className="text-gray-400 text-xs">
-                            Auto-archives in 30 days
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

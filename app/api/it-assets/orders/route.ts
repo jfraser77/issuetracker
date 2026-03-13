@@ -6,22 +6,23 @@ import { cookies } from "next/headers";
 // Helper function to get current user from cookies
 async function getCurrentUser() {
   const cookieStore = await cookies();
-  const userEmail = cookieStore.get("auth-user")?.value;
+  const cookieValue = cookieStore.get("auth-user")?.value;
 
-  if (!userEmail) {
-    return null;
-  }
+  if (!cookieValue) return null;
 
   try {
+    const parsed = JSON.parse(cookieValue);
+    const email = typeof parsed === "string" ? parsed : parsed?.email;
+    if (!email) return null;
+
     const pool = await connectToDatabase();
     const result = await pool
       .request()
-      .input("email", sql.NVarChar, userEmail)
+      .input("email", sql.NVarChar, email)
       .query("SELECT id, name, email, role FROM Users WHERE email = @email");
 
     return result.recordset[0] || null;
-  } catch (error) {
-    console.error("Error getting current user:", error);
+  } catch {
     return null;
   }
 }
