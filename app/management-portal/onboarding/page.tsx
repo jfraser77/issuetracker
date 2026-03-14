@@ -18,7 +18,9 @@ import {
   ExclamationCircleIcon,
   ComputerDesktopIcon,
   BellAlertIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useUser } from "@/app/hooks/useUser";
 
 interface User {
   id: number;
@@ -96,13 +98,49 @@ interface BulkOperation {
   assignedTo?: string;
 }
 
+interface ToastState {
+  message: string;
+  type: "success" | "error";
+}
+
+function Toast({
+  message,
+  type,
+  onDismiss,
+}: {
+  message: string;
+  type: "success" | "error";
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium max-w-sm ${
+        type === "success" ? "bg-green-600" : "bg-red-600"
+      }`}
+    >
+      <span className="flex-1">{message}</span>
+      <button onClick={onDismiss} className="ml-2 opacity-70 hover:opacity-100 shrink-0">
+        <XMarkIcon className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user: currentUser, loading: userLoading } = useUser();
   const [employees, setEmployees] = useState<EmployeeWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [itStaff, setItStaff] = useState<User[]>([]);
-  const [isClient, setIsClient] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+  }, []);
 
   // NEW: Alert status state
   const [lastAlertCheck, setLastAlertCheck] = useState<string | null>(null);
@@ -217,8 +255,6 @@ export default function OnboardingPage() {
   const defaultPortals: Portal[] = [];
 
   useEffect(() => {
-    setIsClient(true);
-    fetchCurrentUser();
     fetchEmployeesWithDetails();
     fetchITStaff();
   }, []);
@@ -230,18 +266,6 @@ export default function OnboardingPage() {
       setOnboardingClasses(classes);
     }
   }, [employees]);
-
-  const fetchCurrentUser = async () => {
-    try {
-      const response = await fetch("/api/auth/user");
-      if (response.ok) {
-        const userData = await response.json();
-        setCurrentUser(userData);
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  };
 
   const fetchITStaff = async () => {
     try {
@@ -266,15 +290,15 @@ export default function OnboardingPage() {
         if (defaultTasksResponse.ok) {
           defaultTasksFromAPI = await defaultTasksResponse.json();
           setDefaultTasks(defaultTasksFromAPI); // Update state with API tasks
-          console.log("✅ Loaded default tasks from API");
+          console.log("Loaded default tasks from API");
         } else {
           console.warn(
-            "⚠️ Could not fetch default tasks from API, using local defaults"
+            "Could not fetch default tasks from API, using local defaults"
           );
         }
       } catch (apiError) {
         console.warn(
-          "⚠️ Error fetching default tasks from API, using local defaults:",
+          "Error fetching default tasks from API, using local defaults:",
           apiError
         );
       }
@@ -316,7 +340,7 @@ export default function OnboardingPage() {
                 if (portalsResponse.ok) {
                   const savedPortals = await portalsResponse.json();
                   console.log(
-                    `✅ Loaded ${savedPortals.length} portals for employee ${employee.id}`
+                    `Loaded ${savedPortals.length} portals for employee ${employee.id}`
                   );
 
                   if (savedPortals && savedPortals.length > 0) {
@@ -344,7 +368,7 @@ export default function OnboardingPage() {
                 } else if (portalsResponse.status === 404) {
                   // Table doesn't exist yet - this is normal for new installations
                   console.log(
-                    `ℹ️ Portals table not found for employee ${employee.id}, using defaults`
+                    `Portals table not found for employee ${employee.id}, using defaults`
                   );
                   portals = [...defaultPortals];
                 }
@@ -408,15 +432,15 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         const result = await response.json();
-        alert(`Alerts sent: ${result.notificationsSent} notifications`);
+        showToast(`Alerts sent: ${result.notificationsSent} notifications`);
         setLastAlertCheck(new Date().toLocaleString());
       } else {
         const error = await response.json();
-        alert(`Failed to send alerts: ${error.error}`);
+        showToast(`Failed to send alerts: ${error.error}`, "error");
       }
     } catch (error) {
       console.error("Error triggering alerts:", error);
-      alert("Failed to trigger alerts");
+      showToast("Failed to trigger alerts", "error");
     } finally {
       setSendingAlerts(false);
     }
@@ -521,12 +545,10 @@ export default function OnboardingPage() {
       );
 
       setShowBulkOperationsModal(false);
-      alert(
-        `Bulk operation completed for ${updatedEmployees.length} employees`
-      );
+      showToast(`Bulk operation completed for ${updatedEmployees.length} employees`);
     } catch (error) {
       console.error("Error performing bulk operation:", error);
-      alert("Failed to perform bulk operation");
+      showToast("Failed to perform bulk operation", "error");
     }
   };
 
@@ -1025,12 +1047,10 @@ export default function OnboardingPage() {
       const updatedEmployees = await Promise.all(updatePromises);
       setEmployees(updatedEmployees);
 
-      alert(
-        `✅ Successfully updated!\n\n• Default tasks saved for future employees\n• ${updatedEmployees.length} existing employees updated with new tasks`
-      );
+      showToast(`Default tasks saved — ${updatedEmployees.length} employees updated`);
     } catch (error) {
       console.error("Error updating default tasks:", error);
-      alert("Failed to update default tasks. Please try again.");
+      showToast("Failed to update default tasks", "error");
     } finally {
       setLoading(false);
     }
@@ -1129,7 +1149,7 @@ export default function OnboardingPage() {
 
     const addNewDefaultTask = async () => {
       if (!newTaskName.trim()) {
-        alert("Please enter a task name");
+        showToast("Please enter a task name", "error");
         return;
       }
 
@@ -1166,10 +1186,10 @@ export default function OnboardingPage() {
         setNewTaskName("");
         setNewTaskStatus("not begun");
 
-        alert(`✅ Task "${newTaskName}" added to default tasks!`);
+        showToast(`Task "${newTaskName}" added to default tasks`);
       } catch (error) {
         console.error("Error adding new task:", error);
-        alert("Failed to add new task. Please try again.");
+        showToast("Failed to add new task", "error");
       } finally {
         setLoading(false);
       }
@@ -1183,7 +1203,7 @@ export default function OnboardingPage() {
 
     const saveEditedTask = async () => {
       if (!editingTask || !editTaskName.trim()) {
-        alert("Please enter a task name");
+        showToast("Please enter a task name", "error");
         return;
       }
 
@@ -1250,12 +1270,10 @@ export default function OnboardingPage() {
           emp.onboardingTasks.some((task) => task.id === editingTask.id)
         ).length;
 
-        alert(
-          `✅ Task updated successfully! Updated ${employeesUpdated} employees.`
-        );
+        showToast(`Task updated — ${employeesUpdated} employees affected`);
       } catch (error) {
         console.error("Error updating task:", error);
-        alert("Failed to update task. Please try again.");
+        showToast("Failed to update task", "error");
       } finally {
         setLoading(false);
       }
@@ -1318,12 +1336,10 @@ export default function OnboardingPage() {
           emp.onboardingTasks.some((task) => task.id === taskId)
         ).length;
 
-        alert(
-          `✅ Task "${taskName}" deleted successfully!\n\n• Removed from default tasks\n• Removed from ${employeesAffected} employees`
-        );
+        showToast(`Task "${taskName}" deleted`);
       } catch (error) {
         console.error("Error deleting task:", error);
-        alert("Failed to delete task. Please try again.");
+        showToast("Failed to delete task", "error");
       } finally {
         setLoading(false);
       }
@@ -1391,12 +1407,10 @@ export default function OnboardingPage() {
           )
         ).length;
 
-        alert(
-          `✅ Successfully synced all ${updatedEmployees.length} employees!\n\n• Removed ${tasksRemoved} tasks no longer in default list\n• Updated task names/status\n• Preserved custom tasks`
-        );
+        showToast(`All ${updatedEmployees.length} employees synced with default tasks`);
       } catch (error) {
         console.error("Error applying changes to employees:", error);
-        alert("Failed to apply changes to employees. Please try again.");
+        showToast("Failed to apply changes", "error");
       } finally {
         setLoading(false);
       }
@@ -1440,10 +1454,10 @@ export default function OnboardingPage() {
           emp.onboardingTasks.some((empTask) => empTask.id === task.id)
         ).length;
 
-        alert(`✅ Task "${task.name}" added to ${employeesUpdated} employees!`);
+        showToast(`Task "${task.name}" added to ${employeesUpdated} employees`);
       } catch (error) {
         console.error("Error applying task to employees:", error);
-        alert("Failed to apply task to employees. Please try again.");
+        showToast("Failed to add task to employees", "error");
       } finally {
         setLoading(false);
       }
@@ -2738,13 +2752,13 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
-        alert("Employee archived successfully!");
+        showToast("Employee archived successfully");
       } else {
-        alert("Failed to archive employee.");
+        showToast("Failed to archive employee", "error");
       }
     } catch (error) {
       console.error("Error archiving employee:", error);
-      alert("Failed to archive employee.");
+      showToast("Failed to archive employee", "error");
     }
   };
 
@@ -2764,13 +2778,13 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
-        alert("Employee deleted successfully!");
+        showToast("Employee deleted successfully");
       } else {
-        alert("Failed to delete employee.");
+        showToast("Failed to delete employee", "error");
       }
     } catch (error) {
       console.error("Error deleting employee:", error);
-      alert("Failed to delete employee.");
+      showToast("Failed to delete employee", "error");
     }
   };
 
@@ -2958,13 +2972,13 @@ export default function OnboardingPage() {
       classGroup.classNotes || classGroup.trainerNotes || classGroup.itNotes;
 
     if (!hasNotes) {
-      alert("No class notes available to print.");
+      showToast("No class notes available to print", "error");
       return;
     }
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Please allow pop-ups to generate the class notes report.");
+      showToast("Please allow pop-ups to generate reports", "error");
       return;
     }
 
@@ -3318,7 +3332,7 @@ export default function OnboardingPage() {
   // Bulk Print Reports Function
   const generateBulkPrintReport = async (classGroup: OnboardingClass) => {
     if (!classGroup.employees.length) {
-      alert("No employees in this class to print reports for.");
+      showToast("No employees in this class", "error");
       return;
     }
 
@@ -3326,7 +3340,7 @@ export default function OnboardingPage() {
       // Create a single print window for all reports
       const printWindow = window.open("", "_blank");
       if (!printWindow) {
-        alert("Please allow pop-ups to generate bulk reports.");
+        showToast("Please allow pop-ups to generate reports", "error");
         return;
       }
 
@@ -3525,13 +3539,13 @@ export default function OnboardingPage() {
       printWindow.document.close();
     } catch (error) {
       console.error("Error generating bulk reports:", error);
-      alert("Failed to generate bulk reports. Please try again.");
+      showToast("Failed to generate bulk reports", "error");
     }
   };
   //  Archive Entire Class Function
   const archiveEntireClass = async (classGroup: OnboardingClass) => {
     if (!classGroup.employees.length) {
-      alert("No employees in this class to archive.");
+      showToast("No employees to archive", "error");
       return;
     }
 
@@ -3566,20 +3580,16 @@ export default function OnboardingPage() {
       ).length;
 
       if (successfulArchives === classGroup.employees.length) {
-        alert(
-          `Successfully archived entire class: ${classGroup.className}\n\n${successfulArchives} employees moved to archived section.`
-        );
+        showToast(`${successfulArchives} employees archived from ${classGroup.className}`);
 
         // Refresh the employees list to remove archived ones
         fetchEmployeesWithDetails();
       } else {
-        alert(
-          `Partially archived class. ${successfulArchives} out of ${classGroup.employees.length} employees were archived successfully.`
-        );
+        showToast(`Partial archive: ${successfulArchives}/${classGroup.employees.length} employees archived`, "error");
       }
     } catch (error) {
       console.error("Error archiving class:", error);
-      alert("Failed to archive class. Please try again.");
+      showToast("Failed to archive class", "error");
     } finally {
       setLoading(false);
     }
@@ -3688,102 +3698,88 @@ export default function OnboardingPage() {
     <PortalItem key={portal.id} employee={employee} portal={portal} />
   );
 
-  if (!isClient || loading) {
+  if (userLoading || loading) {
     return (
       <div className="flex justify-center items-center min-h-64">
-        <div className="text-lg">Loading...</div>
+        <div className="flex items-center gap-3 text-gray-500">
+          <ArrowPathIcon className="h-5 w-5 animate-spin" />
+          <span>Loading onboarding...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
+
+      {/* Page Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
-            Employee Onboarding
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage and track new employee onboarding processes
+          <h1 className="text-2xl font-bold text-gray-900">Employee Onboarding</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Track and manage new employee onboarding by start week.
           </p>
         </div>
-        <div className="flex items-center space-x-4">
-          {/* NEW: Alert Status Button */}
-          {/* <button
-            onClick={triggerOnboardingAlerts}
-            disabled={sendingAlerts}
-            className={`flex items-center px-4 py-2 rounded-md font-medium ${
-              sendingAlerts
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-amber-500 hover:bg-amber-600"
-            } text-white`}
-            title="Send onboarding alerts for employees with incomplete tasks"
-          >
-            <BellAlertIcon className="h-4 w-4 mr-2" />
-            {sendingAlerts ? "Sending..." : "Send Alerts"}
-          </button> */}
-          {/* <Link
-            href="/management-portal/onboarding/archived"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
-          >
-            View Archived
-          </Link> */}
+        <div className="flex items-center gap-2">
           {isAdminOrIT && (
             <button
               onClick={() => setShowDefaultTasksModal(true)}
-              className="flex items-center bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md font-medium"
+              className="inline-flex items-center gap-1.5 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               title="Manage default tasks for all employees"
             >
-              <CheckCircleIcon className="h-4 w-4 mr-2" />
-              Manage Default Tasks
+              <CheckCircleIcon className="h-4 w-4" />
+              Manage Tasks
             </button>
           )}
           <Link
             href="/management-portal/onboarding/new"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+            className="inline-flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
-            Add New Employee
+            <PlusIcon className="h-4 w-4" />
+            Add Employee
           </Link>
         </div>
       </div>
 
-      {/*  Alert Status Display */}
       {lastAlertCheck && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-          <div className="flex items-center">
-            <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2" />
-            <span className="text-sm text-green-700">
-              Last alert check: {lastAlertCheck}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <CheckCircleIcon className="h-4 w-4 shrink-0" />
+          Last alert check: {lastAlertCheck}
         </div>
       )}
 
       {onboardingClasses.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            No Active Onboarding Processes
+        <div className="bg-white rounded-xl shadow-sm p-10 text-center">
+          <UserIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            No Active Onboarding
           </h2>
-          <p className="text-gray-500 mb-4">
-            Get started by adding a new employee to begin the onboarding
-            process.
+          <p className="text-gray-500 text-sm mb-6">
+            Add a new employee to begin the onboarding process.
           </p>
           <Link
             href="/management-portal/onboarding/new"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium"
+            className="inline-flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
-            Add New Employee
+            <PlusIcon className="h-4 w-4" />
+            Add Employee
           </Link>
         </div>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {onboardingClasses.map((classGroup) => (
             <ClassCard key={classGroup.id} classGroup={classGroup} />
           ))}
         </div>
       )}
 
-      {/* Modals */}
       {showBulkOperationsModal && <BulkOperationsModal />}
       {showClassNotesModal && <ClassNotesModal />}
       {showDefaultTasksModal && <DefaultTasksModal />}
