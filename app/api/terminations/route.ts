@@ -14,14 +14,16 @@ export async function GET(request: NextRequest) {
     const pool = await connectToDatabase();
     
     let query = `
-      SELECT 
+      SELECT
         t.*,
-        CASE 
-          WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 30 AND t.status = 'pending' THEN 1
-          ELSE 0
+        CASE
+          WHEN t.equipmentReturnDeadline IS NOT NULL
+            THEN CASE WHEN GETDATE() > t.equipmentReturnDeadline AND t.status = 'pending' THEN 1 ELSE 0 END
+          ELSE CASE WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 14 AND t.status = 'pending' THEN 1 ELSE 0 END
         END as isOverdue,
-        CASE 
-          WHEN DATEDIFF(day, t.terminationDate, GETDATE()) > 30 THEN 0
+        CASE
+          WHEN t.equipmentReturnDeadline IS NOT NULL
+            THEN GREATEST(0, DATEDIFF(day, GETDATE(), t.equipmentReturnDeadline))
           ELSE GREATEST(0, 30 - DATEDIFF(day, t.terminationDate, GETDATE()))
         END as daysRemaining
       FROM Terminations t
@@ -29,7 +31,12 @@ export async function GET(request: NextRequest) {
     `;
 
     if (filter === 'overdue') {
-      query += ` AND DATEDIFF(day, t.terminationDate, GETDATE()) > 30 AND t.status = 'pending'`;
+      query += `
+        AND t.status = 'pending'
+        AND (
+          (t.equipmentReturnDeadline IS NOT NULL AND GETDATE() > t.equipmentReturnDeadline)
+          OR (t.equipmentReturnDeadline IS NULL AND DATEDIFF(day, t.terminationDate, GETDATE()) > 14)
+        )`;
     } else if (filter === 'archived') {
       query += ` AND t.status = 'archived'`;
     } else {
@@ -109,16 +116,16 @@ export async function POST(request: NextRequest) {
     
     const insertQuery = `
   INSERT INTO Terminations (
-    employeeName, employeeEmail, jobTitle, department, terminationDate, 
-    terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status
-  ) 
+    employeeName, employeeEmail, jobTitle, department, terminationDate,
+    terminationReason, initiatedBy, equipmentDisposition, licensesRemoved, checklist, status, equipmentReturnDeadline
+  )
   VALUES (
     @employeeName, @employeeEmail, @jobTitle, @department, @terminationDate,
     @terminationReason, @initiatedBy, @equipmentDisposition,
     '{"automateLicense":false,"screenConnect":false,"office365":false,"adobeAcrobat":false,"phone":false,"fax":false}',
-    @checklist, 'pending'
+    @checklist, 'pending', @equipmentReturnDeadline
   );
-  
+
   -- Get the inserted record using SCOPE_IDENTITY()
   SELECT * FROM Terminations WHERE id = SCOPE_IDENTITY();
 `;
@@ -129,13 +136,14 @@ export async function POST(request: NextRequest) {
    const result = await pool.request()
   .input('employeeName', sql.NVarChar, terminationData.employeeName)
   .input('employeeEmail', sql.NVarChar, terminationData.employeeEmail)
-  .input('jobTitle', sql.NVarChar, '') 
-  .input('department', sql.NVarChar, '') 
+  .input('jobTitle', sql.NVarChar, '')
+  .input('department', sql.NVarChar, '')
   .input('terminationDate', sql.Date, terminationData.terminationDate)
   .input('terminationReason', sql.NVarChar, terminationData.terminationReason || 'Termination process initiated')
   .input('initiatedBy', sql.NVarChar, terminationData.initiatedBy || 'System')
   .input('equipmentDisposition', sql.NVarChar, 'pending_assessment')
   .input('checklist', sql.NVarChar, JSON.stringify(checklistToSave))
+  .input('equipmentReturnDeadline', sql.Date, terminationData.equipmentReturnDeadline || null)
   .query(insertQuery);
 
     console.log("✅ SQL query executed successfully");
@@ -167,15 +175,19 @@ export async function POST(request: NextRequest) {
       checklist: checklistToSave
     };
 
-    // Send initiation email to HR team
-    const equipmentDeadline = new Date(terminationDate);
-    equipmentDeadline.setDate(equipmentDeadline.getDate() + 30);
+    // Compute the equipment return deadline — use the custom date if provided, otherwise +14 days
+    const equipmentDeadline = terminationData.equipmentReturnDeadline
+      ? new Date(terminationData.equipmentReturnDeadline + "T12:00:00")
+      : (() => { const d = new Date(terminationDate); d.setDate(d.getDate() + 14); return d; })();
     const deadlineStr = equipmentDeadline.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const terminationDateStr = terminationDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+    // Send initiation email to HR team AND employee's personal email
+    const initiationRecipients = [...HR_EMAILS, terminationData.employeeEmail];
+
     sendEmail({
-      to: HR_EMAILS,
-      subject: `Termination Initiated: ${terminationData.employeeName} – Equipment Return Required`,
+      to: initiationRecipients,
+      subject: `Termination Initiated: ${terminationData.employeeName} – Equipment Return Required by ${deadlineStr}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #1d4ed8, #1e40af); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
@@ -184,7 +196,7 @@ export async function POST(request: NextRequest) {
           <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
             <p style="font-size: 16px; color: #374151;">Dear HR Team,</p>
             <p style="font-size: 16px; color: #374151;">
-              A new termination has been initiated in the Employee Management Portal. Please review the details below and complete the required action.
+              A new termination has been initiated in the Employee Management Portal. Please review the details below and ensure equipment is returned by the deadline.
             </p>
 
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
@@ -193,7 +205,7 @@ export async function POST(request: NextRequest) {
                 <td style="padding: 10px; border: 1px solid #e5e7eb;">${terminationData.employeeName}</td>
               </tr>
               <tr>
-                <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Employee Email:</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Personal Email:</td>
                 <td style="padding: 10px; border: 1px solid #e5e7eb;">${terminationData.employeeEmail}</td>
               </tr>
               <tr>
@@ -213,7 +225,7 @@ export async function POST(request: NextRequest) {
             <div style="background-color: #eff6ff; padding: 20px; margin: 25px 0; border: 2px solid #bfdbfe; border-radius: 8px;">
               <p style="font-size: 15px; color: #1d4ed8; font-weight: bold; margin: 0 0 8px 0;">Action Required: Equipment Return Tracking</p>
               <p style="font-size: 14px; color: #374151; margin: 0;">
-                HR Team, please log in to the Employee Management Portal and enter the shipping tracking number for the returned equipment on this termination record. This is required to complete the termination process.
+                HR Team, please log in to the Employee Management Portal and enter the shipping tracking number once equipment has been returned. This is required to complete the termination process.
               </p>
             </div>
 
@@ -226,7 +238,7 @@ export async function POST(request: NextRequest) {
           </div>
         </div>
       `,
-    }).catch((err) => console.error("❌ Failed to send termination initiation email:", err));
+    }).catch((err) => console.error("Failed to send termination initiation email:", err));
 
     console.log("📤 Sending success response");
     return NextResponse.json(responseTermination);

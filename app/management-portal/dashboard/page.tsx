@@ -524,7 +524,7 @@ const fetchAlerts = async () => {
                   </h3>
                   <p className="text-red-700">
                     {stats.overdueReturns} return
-                    {stats.overdueReturns !== 1 ? "s" : ""} past 30-day deadline
+                    {stats.overdueReturns !== 1 ? "s" : ""} past 14-day deadline
                   </p>
                 </div>
                 <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium">

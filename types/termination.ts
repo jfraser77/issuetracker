@@ -62,14 +62,16 @@ export interface Termination {
   department: string;
   /** ISO date string: YYYY-MM-DD */
   terminationDate: string;
+  /** ISO date string: YYYY-MM-DD. Custom equipment return deadline set at creation. */
+  equipmentReturnDeadline?: string;
   terminationReason: string;
   initiatedBy: string;
   status: TerminationStatus;
   trackingNumber?: string;
   equipmentDisposition: EquipmentDisposition;
-  /** Calculated: days until 30-day deadline expires. 0 when overdue. */
+  /** Calculated: days until return deadline. 0 when overdue. */
   daysRemaining: number;
-  /** Calculated: true when status=pending and >30 days since terminationDate */
+  /** Calculated: true when status=pending and past the return deadline */
   isOverdue: boolean;
   licensesRemoved: LicensesRemoved;
   checklist?: ChecklistItem[];
@@ -90,6 +92,8 @@ export interface CreateTerminationPayload {
   employeeName: string;
   employeeEmail: string;
   terminationDate: string;
+  /** Custom equipment return deadline. Defaults to terminationDate + 14 days. */
+  equipmentReturnDeadline?: string;
   initiatedBy?: string;
   checklist?: ChecklistItem[];
   /** Defaults to "To be determined" */
@@ -130,12 +134,21 @@ export interface TerminationFormState {
   employeeName: string;
   employeeEmail: string;
   terminationDate: string;
+  /** ISO date string: YYYY-MM-DD. Defaults to terminationDate + 14 days if omitted. */
+  equipmentReturnDeadline: string;
+}
+
+function defaultDeadline(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().split("T")[0];
 }
 
 export const EMPTY_TERMINATION_FORM: TerminationFormState = {
   employeeName: "",
   employeeEmail: "",
   terminationDate: new Date().toISOString().split("T")[0],
+  equipmentReturnDeadline: defaultDeadline(),
 };
 
 // ---------------------------------------------------------------------------
@@ -143,7 +156,8 @@ export const EMPTY_TERMINATION_FORM: TerminationFormState = {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true if the termination is overdue (pending + >30 days elapsed).
+ * Returns true if the termination is overdue (pending + >14 days elapsed).
+ * Use only when equipmentReturnDeadline is not available from the API response.
  */
 export function isTerminationOverdue(
   terminationDate: string,
@@ -153,12 +167,13 @@ export function isTerminationOverdue(
   const daysSince = Math.floor(
     (Date.now() - new Date(terminationDate).getTime()) / 86_400_000
   );
-  return daysSince > 30;
+  return daysSince > 14;
 }
 
 /**
- * Returns the number of days remaining before the 30-day return deadline.
+ * Returns the number of days remaining before the 14-day return deadline.
  * Returns 0 when overdue or when status is not pending.
+ * Use only when equipmentReturnDeadline is not available from the API response.
  */
 export function daysRemainingUntilOverdue(
   terminationDate: string,
@@ -168,7 +183,7 @@ export function daysRemainingUntilOverdue(
   const daysSince = Math.floor(
     (Date.now() - new Date(terminationDate).getTime()) / 86_400_000
   );
-  return Math.max(0, 30 - daysSince);
+  return Math.max(0, 14 - daysSince);
 }
 
 /**

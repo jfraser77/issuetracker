@@ -146,7 +146,7 @@ export async function GET() {
       const overdueResult = await pool.request().query(`
         SELECT COUNT(*) as count FROM Terminations 
         WHERE status = 'overdue' 
-        AND DATEDIFF(day, terminationDate, GETDATE()) > 30
+        AND DATEDIFF(day, terminationDate, GETDATE()) > 14
       `);
       overdueReturns = overdueResult.recordset[0]?.count || 0;
     } catch (error) {

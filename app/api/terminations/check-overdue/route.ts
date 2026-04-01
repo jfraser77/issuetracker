@@ -23,18 +23,19 @@ export async function POST(request: NextRequest) {
     );
 
     for (const termination of terminations) {
-      const terminationDate = new Date(termination.terminationDate);
-      const daysSinceTermination = Math.floor(
-        (now.getTime() - terminationDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      // Use the stored custom deadline if set, otherwise fall back to terminationDate + 14 days
+      const deadline = termination.equipmentReturnDeadline
+        ? new Date(termination.equipmentReturnDeadline)
+        : (() => {
+            const d = new Date(termination.terminationDate);
+            d.setDate(d.getDate() + 14);
+            return d;
+          })();
 
-      console.log(
-        `📅 Termination ${termination.id}: ${daysSinceTermination} days since termination`
-      );
+      const isPastDeadline = now >= deadline;
 
-      // Check if 30 days have passed and equipment not returned
-      if (daysSinceTermination >= 30 && termination.status === "pending") {
-        console.log(`🚨 Marking termination ${termination.id} as overdue`);
+      // Check if past the return deadline and equipment not returned
+      if (isPastDeadline && termination.status === "pending") {
 
         // Mark as overdue
         await pool
@@ -48,53 +49,53 @@ export async function POST(request: NextRequest) {
             WHERE id = @id
           `);
 
+        const deadlineStr = deadline.toLocaleDateString("en-US", {
+          year: "numeric", month: "long", day: "numeric",
+        });
+
         try {
           // Send reminder email to terminated employee WITH CC to HR team
           console.log(
-            `📧 Sending reminder to ${termination.employeeEmail} with CC to HR`
+            `Sending reminder to ${termination.employeeEmail} with CC to HR`
           );
           await sendEmail({
             to: termination.employeeEmail,
             cc: HR_EMAILS,
-            subject: "Reminder: Return Company Equipment",
+            subject: "Overdue: Company Equipment Return Required",
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: linear-gradient(135deg, #dc2626, #b91c1c); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
-                  <h1 style="margin: 0; font-size: 24px;">NSN Equipment Return Reminder</h1>
+                  <h1 style="margin: 0; font-size: 24px;">NSN Equipment Return – Overdue</h1>
                 </div>
                 <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                  <p style="font-size: 16px; color: #374151;">Hello <strong>${
-                    termination.employeeName
-                  }</strong>,</p>
+                  <p style="font-size: 16px; color: #374151;">Hello <strong>${termination.employeeName}</strong>,</p>
                   <p style="font-size: 16px; color: #374151;">
-                    This is a reminder that it has been 30 days since your termination date of 
-                    <strong>${new Date(
-                      termination.terminationDate
-                    ).toLocaleDateString()}</strong>.
+                    Our records indicate that company equipment has not been returned as of your deadline of
+                    <strong>${deadlineStr}</strong>.
                   </p>
-                  
+
                   <div style="background-color: #fef2f2; padding: 20px; margin: 25px 0; border: 2px solid #fecaca; border-radius: 8px;">
-                    <p style="font-size: 16px; color: #dc2626; font-weight: bold; text-align: center;">
-                      ⚠️ Please return all company equipment immediately
+                    <p style="font-size: 16px; color: #dc2626; font-weight: bold; text-align: center; margin: 0;">
+                      Please return all company equipment immediately.
                     </p>
                   </div>
-                  
+
                   <p style="font-size: 16px; color: #374151;">
-                    If you have already returned the equipment, please contact HR to update your records.
-                    If you have any questions about the return process, please reach out to the HR department.
+                    If you have already returned the equipment, please contact HR so your records can be updated.
+                    For questions about the return process, please reach out to the HR department directly.
                   </p>
-                  
+
                   <div style="background-color: #f8fafc; padding: 15px; margin: 20px 0; border-left: 4px solid #3b82f6; border-radius: 4px;">
                     <p style="font-size: 14px; color: #374151; margin: 0;">
                       <strong>HR Contact:</strong><br>
                       HR@nsnrevenue.com
                     </p>
                   </div>
-                  
+
                   <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
                     <p style="font-size: 12px; color: #9ca3af;">
                       NSN Revenue Resources HR Department<br>
-                      This is an automated message - please do not reply to this email
+                      This is an automated message – please do not reply to this email
                     </p>
                   </div>
                 </div>
@@ -116,55 +117,53 @@ export async function POST(request: NextRequest) {
           console.log(`📧 Notifying HR team about ${termination.employeeName}`);
           await sendEmail({
             to: HR_EMAILS,
-            subject: `URGENT: Equipment Not Returned - ${termination.employeeName}`,
+            subject: `URGENT: Equipment Not Returned – ${termination.employeeName} (Deadline: ${deadlineStr})`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: linear-gradient(135deg, #dc2626, #b91c1c); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
-                  <h1 style="margin: 0; font-size: 24px;">Equipment Return Alert</h1>
+                  <h1 style="margin: 0; font-size: 24px;">Equipment Return – Overdue</h1>
                 </div>
                 <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
                   <p style="font-size: 16px; color: #374151;">Dear HR Team,</p>
-                  
+
                   <div style="background-color: #fef2f2; padding: 20px; margin: 25px 0; border: 2px solid #fecaca; border-radius: 8px;">
-                    <p style="font-size: 18px; color: #dc2626; font-weight: bold; text-align: center;">
-                      🚨 EQUIPMENT NOT RETURNED AFTER 30 DAYS
+                    <p style="font-size: 16px; color: #dc2626; font-weight: bold; text-align: center; margin: 0;">
+                      Equipment not returned by deadline of ${deadlineStr}
                     </p>
                   </div>
-                  
+
                   <p style="font-size: 16px; color: #374151;">
-                    The following terminated employee has not returned company equipment after 30 days.
-                    A reminder email has been sent to the employee with this team CC'd.
+                    The following employee has not returned company equipment by their agreed deadline.
+                    A reminder has been sent directly to the employee with this team CC'd.
                   </p>
-                  
+
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                     <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Employee Name:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.employeeName
-                      }</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold; width: 40%;">Employee Name:</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${termination.employeeName}</td>
                     </tr>
                     <tr>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Email:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${
-                        termination.employeeEmail
-                      }</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Personal Email:</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${termination.employeeEmail}</td>
                     </tr>
                     <tr>
                       <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Termination Date:</td>
-                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${new Date(
-                        termination.terminationDate
-                      ).toLocaleDateString()}</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb;">${new Date(termination.terminationDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb; background-color: #f8fafc; font-weight: bold;">Return Deadline:</td>
+                      <td style="padding: 10px; border: 1px solid #e5e7eb; color: #dc2626; font-weight: bold;">${deadlineStr}</td>
                     </tr>
                   </table>
 
                   <p style="font-size: 16px; color: #374151;">
                     <strong>Action Required:</strong> Please follow up with the employee regarding equipment return.
-                    This termination has been automatically marked as <span style="color: #dc2626; font-weight: bold;">OVERDUE</span> in the system.
+                    This termination has been marked as <span style="color: #dc2626; font-weight: bold;">OVERDUE</span> in the system.
                   </p>
-                  
+
                   <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
                     <p style="font-size: 12px; color: #9ca3af;">
-                      NSN Revenue Resources IT Department - Automated Notification<br>
+                      NSN Revenue Resources IT Department – Automated Notification<br>
                       This alert was generated by the Employee Management System
                     </p>
                   </div>

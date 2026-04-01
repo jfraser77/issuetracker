@@ -36,10 +36,19 @@ export default function TerminationsContent() {
   } = useTerminationData({ filter });
 
   const [showTerminationForm, setShowTerminationForm] = useState(false);
+
+  function deadlineFrom(terminationDate: string): string {
+    const d = new Date(terminationDate + "T12:00:00");
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  }
+
+  const today = new Date().toISOString().split("T")[0];
   const [terminationForm, setTerminationForm] = useState({
     employeeName: "",
     employeeEmail: "",
-    terminationDate: new Date().toISOString().split("T")[0],
+    terminationDate: today,
+    equipmentReturnDeadline: deadlineFrom(today),
   });
 
   const isAuthorized =
@@ -60,10 +69,12 @@ export default function TerminationsContent() {
     const ok = await hookCreateTermination(terminationForm, currentUser?.name);
     if (ok) {
       setShowTerminationForm(false);
+      const resetDate = new Date().toISOString().split("T")[0];
       setTerminationForm({
         employeeName: "",
         employeeEmail: "",
-        terminationDate: new Date().toISOString().split("T")[0],
+        terminationDate: resetDate,
+        equipmentReturnDeadline: deadlineFrom(resetDate),
       });
       alert("Termination process initiated successfully.");
     }
@@ -462,15 +473,41 @@ export default function TerminationsContent() {
                   <input
                     type="date"
                     value={terminationForm.terminationDate}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setTerminationForm((prev) => ({
+                        ...prev,
+                        terminationDate: newDate,
+                        // Auto-update deadline only if it still matches the old +14 default
+                        equipmentReturnDeadline:
+                          prev.equipmentReturnDeadline === deadlineFrom(prev.terminationDate)
+                            ? deadlineFrom(newDate)
+                            : prev.equipmentReturnDeadline,
+                      }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Equipment Return Deadline *
+                  </label>
+                  <input
+                    type="date"
+                    value={terminationForm.equipmentReturnDeadline}
                     onChange={(e) =>
-                      setTerminationForm({
-                        ...terminationForm,
-                        terminationDate: e.target.value,
-                      })
+                      setTerminationForm((prev) => ({
+                        ...prev,
+                        equipmentReturnDeadline: e.target.value,
+                      }))
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Defaults to 14 days after termination. Adjust if a different deadline was communicated.
+                  </p>
                 </div>
               </div>
 

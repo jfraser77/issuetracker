@@ -10,7 +10,7 @@ export async function GET() {
     const result = await pool.request().query(`
       SELECT 
         COUNT(*) as pendingReturns,
-        SUM(CASE WHEN DATEDIFF(day, terminationDate, GETDATE()) > 30 THEN 1 ELSE 0 END) as overdueReturns
+        SUM(CASE WHEN DATEDIFF(day, terminationDate, GETDATE()) > 14 THEN 1 ELSE 0 END) as overdueReturns
       FROM Terminations 
       WHERE status = 'pending'
     `);

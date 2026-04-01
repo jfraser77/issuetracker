@@ -166,6 +166,7 @@ export function useTerminationData({
             jobTitle: "To be determined",
             department: "To be determined",
             terminationReason: "Termination process initiated",
+            equipmentReturnDeadline: form.equipmentReturnDeadline || undefined,
           }),
         });
 
