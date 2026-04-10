@@ -21,6 +21,7 @@ export const HR_EMAILS: string[] = [
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_CHECKLIST: ChecklistItem[] = [
+  // --- Active Directory NSN-Tampa-DC ---
   {
     id: "1",
     category: "Active Directory",
@@ -37,28 +38,33 @@ export const DEFAULT_CHECKLIST: ChecklistItem[] = [
   {
     id: "3",
     category: "Active Directory",
-    description: "Remove all groups from Member Of tab",
-    completed: false,
-  },
-  {
-    id: "4",
-    category: "Active Directory",
     description:
       "Run Powershell script: Start-ADSyncSyncCycle -PolicyType Delta",
     completed: false,
   },
+  // --- SonicWall ---
+  {
+    id: "4",
+    category: "SonicWall",
+    description:
+      "Delete user: System Configuration > Authentication Servers > TOTP Service > Users",
+    completed: false,
+  },
+  // --- Computer Inventory ---
   {
     id: "5",
-    category: "Active Directory",
-    description: "ScreenConnect and remove the computer from the domain",
+    category: "Computer Inventory",
+    description:
+      "Enter the computer information into the IT Mgmt Portal > Employee Terminations > Managed Terminations > Initiate Termination",
     completed: false,
   },
   {
     id: "6",
-    category: "Active Directory",
-    description: "ScreenConnect - General button > Machine Product/Serial#",
+    category: "Computer Inventory",
+    description: "Automate app – right-click > Retire > Confirm Retire",
     completed: false,
   },
+  // --- Microsoft 365 Email Account ---
   {
     id: "7",
     category: "Microsoft 365",
@@ -71,66 +77,67 @@ export const DEFAULT_CHECKLIST: ChecklistItem[] = [
     description: "Account tab > Groups > Manage Groups – remove all groups",
     completed: false,
   },
+  // --- Delete Software Access ---
   {
     id: "9",
-    category: "Software Access",
+    category: "Delete Software Access",
     description: "Navigator",
     completed: false,
   },
   {
     id: "10",
-    category: "Software Access",
+    category: "Delete Software Access",
     description: "SourceMed Analytics USPI",
     completed: false,
   },
   {
     id: "11",
-    category: "Software Access",
+    category: "Delete Software Access",
     description: "SourceMed Analytics NSN",
     completed: false,
   },
   {
     id: "12",
-    category: "Software Access",
-    description: "SonicWall VPN Connect",
+    category: "Delete Software Access",
+    description: "Adobe – permanently delete",
     completed: false,
   },
   {
     id: "13",
-    category: "Software Access",
+    category: "Delete Software Access",
     description:
-      "Viirtue – Numbers and Devices. Change drop down to Available Number",
+      "Viirtue > Numbers and Devices. Change drop down to Available Number",
     completed: false,
   },
   {
     id: "14",
-    category: "Phone/Fax",
+    category: "Delete Software Access",
     description: "Phone #",
     completed: false,
   },
   {
     id: "15",
-    category: "Phone/Fax",
-    description: "Fax #",
+    category: "Delete Software Access",
+    description: "Viirtue Fax > Toolbox > Users > ... Delete Users",
     completed: false,
   },
   {
     id: "16",
-    category: "Software Access",
-    description: "Adobe – permanently delete",
+    category: "Delete Software Access",
+    description: "Fax #",
     completed: false,
   },
+  // --- Equipment Return (checked off once equipment is received) ---
   {
     id: "17",
-    category: "Software Access",
-    description:
-      "Set Ticket type = Access > Termination. Then Angie gets a notice and will disable Availity and Waystar",
+    category: "Equipment Return",
+    description: "ScreenConnect and remove the computer from the domain",
     completed: false,
   },
   {
     id: "18",
-    category: "Software Access",
-    description: "Automate - removed automate license",
+    category: "Equipment Return",
+    description: "ScreenConnect - General button > Machine Product/Serial#",
     completed: false,
   },
 ];

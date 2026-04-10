@@ -208,7 +208,6 @@ export function getChecklistCompletion(checklist: ChecklistItem[] = []): {
  */
 export function canArchive(termination: Termination): boolean {
   if (termination.status !== "equipment_returned") return false;
-  if (!termination.trackingNumber) return false;
   if (!termination.completedByUserId) return false;
   return getChecklistCompletion(termination.checklist).percent === 100;
 }

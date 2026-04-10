@@ -94,16 +94,6 @@ export default function TerminationsContent() {
 
   // ---- Debounced field handlers (delegate to hook's updateTermination) ----
 
-  const debouncedUpdateTrackingNumber = useCallback(
-    (terminationId: number, trackingNumber: string) => {
-      const timeoutId = setTimeout(() => {
-        updateTermination(terminationId, { trackingNumber });
-      }, 1000);
-      return () => clearTimeout(timeoutId);
-    },
-    [updateTermination]
-  );
-
   const handleEquipmentDispositionChange = useCallback(
     (terminationId: number, value: "return_to_pool" | "retire" | "pending_assessment" | "malicious_damage") => {
       updateTermination(terminationId, { equipmentDisposition: value });
@@ -117,13 +107,6 @@ export default function TerminationsContent() {
       updateTermination(terminationId, { completedByUserId });
     },
     [updateTermination]
-  );
-
-  const handleTrackingNumberChange = useCallback(
-    (terminationId: number, value: string) => {
-      debouncedUpdateTrackingNumber(terminationId, value);
-    },
-    [debouncedUpdateTrackingNumber]
   );
 
   const handleComputerSerialChange = useCallback(
@@ -511,19 +494,6 @@ export default function TerminationsContent() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <ExclamationTriangleIcon className="h-5 w-5 text-blue-500 mt-0.5" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-blue-700">
-                      <strong>Note:</strong> HR must provide the equipment
-                      return tracking number in the termination record.
-                    </p>
-                  </div>
-                </div>
-              </div>
 
               <div className="flex justify-end gap-3">
                 <button
@@ -658,11 +628,6 @@ export default function TerminationsContent() {
                         ⚠️ {Math.abs(termination.daysRemaining)} days overdue
                       </div>
                     )}
-                    {termination.trackingNumber && (
-                      <div className="text-sm text-gray-500 mt-1">
-                        Tracking: {termination.trackingNumber}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -677,27 +642,7 @@ export default function TerminationsContent() {
                       Equipment Return Process
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Tracking Number */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tracking Number *
-                        </label>
-                        <input
-                          type="text"
-                          value={termination.trackingNumber || ""}
-                          onChange={(e) =>
-                            handleTrackingNumberChange(
-                              termination.id,
-                              e.target.value
-                            )
-                          }
-                          placeholder="Enter return tracking number"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
-
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Equipment Disposition */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -768,18 +713,6 @@ export default function TerminationsContent() {
                       <div className="grid grid-cols-2 gap-4 text-xs">
                         <div
                           className={`p-2 rounded ${
-                            termination.trackingNumber
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          Tracking Number:{" "}
-                          {termination.trackingNumber
-                            ? "✓ Provided"
-                            : "✗ Missing"}
-                        </div>
-                        <div
-                          className={`p-2 rounded ${
                             termination.completedByUserId
                               ? "bg-green-100 text-green-800"
                               : "bg-red-100 text-red-800"
@@ -825,10 +758,6 @@ export default function TerminationsContent() {
                       <div className="mt-4">
                         <button
                           onClick={() => {
-                            if (!termination.trackingNumber) {
-                              alert("Please enter a tracking number");
-                              return;
-                            }
                             if (!termination.completedByUserId) {
                               alert("Please select an IT staff member");
                               return;
@@ -844,14 +773,13 @@ export default function TerminationsContent() {
 
                             markEquipmentReturned(
                               termination.id,
-                              termination.trackingNumber!,
+                              "",
                               termination.equipmentDisposition,
                               termination.completedByUserId
                             );
                           }}
                           className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm flex items-center shadow-sm"
                           disabled={
-                            !termination.trackingNumber ||
                             !termination.completedByUserId ||
                             !termination.equipmentDisposition ||
                             termination.equipmentDisposition ===
@@ -874,14 +802,11 @@ export default function TerminationsContent() {
                           )}
                         </button>
 
-                        {(!termination.trackingNumber ||
-                          !termination.completedByUserId ||
+                        {(!termination.completedByUserId ||
                           !termination.equipmentDisposition ||
                           termination.equipmentDisposition ===
                             "pending_assessment") && (
                           <div className="mt-2 text-xs text-amber-600">
-                            {!termination.trackingNumber &&
-                              "• Tracking number required\n"}
                             {!termination.completedByUserId &&
                               "• IT staff member required\n"}
                             {(!termination.equipmentDisposition ||
