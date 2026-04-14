@@ -21,14 +21,13 @@ export async function POST(
       .request()
       .input("terminationId", sql.Int, terminationId)
       .query(`
-        SELECT 
-          status, 
+        SELECT
+          status,
           employeeName,
           checklist,
           equipmentDisposition,
-          trackingNumber,
           completedByUserId
-        FROM Terminations 
+        FROM Terminations
         WHERE id = @terminationId
       `);
 
@@ -58,19 +57,15 @@ export async function POST(
 
     // Enhanced validation for archiving
     const validationErrors = [];
-    
+
     if (currentStatus !== 'equipment_returned') {
       validationErrors.push("Equipment must be marked as returned before archiving");
     }
-    
-    if (!termination.trackingNumber) {
-      validationErrors.push("Tracking number is required");
-    }
-    
+
     if (!termination.completedByUserId) {
       validationErrors.push("IT staff must be assigned");
     }
-    
+
     if (checklistCompletion < 100) {
       validationErrors.push("IT checklist must be 100% completed");
     }
