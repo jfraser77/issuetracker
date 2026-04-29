@@ -9,18 +9,23 @@ export async function GET() {
   try {
     const pool = await connectToDatabase();
 
-    const result = await pool.request().query(`
-      SELECT 
-    id, 
-    name, 
-    email, 
-    role, 
-    createdAt,
-    ISNULL(lastLogin, createdAt) as lastLogin, -- Handle NULL
-    ISNULL(isActive, 1) as isActive -- Default to active if NULL
-FROM Users 
-ORDER BY name
-    `);
+    let result;
+    try {
+      result = await pool.request().query(`
+        SELECT id, name, email, role, createdAt,
+          ISNULL(lastLogin, createdAt) as lastLogin,
+          ISNULL(isActive, 1) as isActive
+        FROM Users ORDER BY name
+      `);
+    } catch {
+      // Fallback if lastLogin/isActive columns don't exist in the DB yet
+      result = await pool.request().query(`
+        SELECT id, name, email, role, createdAt,
+          createdAt as lastLogin,
+          1 as isActive
+        FROM Users ORDER BY name
+      `);
+    }
 
     return NextResponse.json(result.recordset);
   } catch (error: any) {
