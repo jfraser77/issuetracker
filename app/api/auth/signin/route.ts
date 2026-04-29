@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // Find user with ALL columns to debug
     const result = await pool.request().input("email", sql.NVarChar, cleanEmail)
       .query(`
-        SELECT id, email, name, password, role, createdAt, updatedAt
+        SELECT id, email, name, password, role, isActive, createdAt, updatedAt
         FROM Users WHERE email = @email
       `);
 
@@ -56,6 +56,14 @@ export async function POST(request: NextRequest) {
       passwordLength: user.password?.length,
       passwordPreview: user.password?.substring(0, 50) + "...",
     });
+
+    if (user.isActive === false) {
+      console.log("❌ User account is disabled:", cleanEmail);
+      return NextResponse.json(
+        { error: "Account is disabled. Contact your administrator." },
+        { status: 403 },
+      );
+    }
 
     if (!user.password) {
       console.error("❌ User has no password field");

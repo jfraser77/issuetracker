@@ -89,7 +89,7 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/users");
+      const response = await fetch("/api/admin/users");
       if (response.ok) {
         const usersData = await response.json();
         setUsers(usersData);
