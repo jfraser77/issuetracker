@@ -66,17 +66,31 @@ export async function POST(request: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
-    const result = await pool
-      .request()
-      .input("name", sql.NVarChar, name)
-      .input("email", sql.NVarChar, email)
-      .input("role", sql.NVarChar, role)
-      .input("password", sql.NVarChar, hashedPassword).query(`
-        INSERT INTO Users (name, email, role, password, createdAt, isActive)
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt
-        VALUES (@name, @email, @role, @password, GETDATE(), 1)
-      `);
+    // Create user — try with optional columns first, fall back to minimal insert
+    let result: any;
+    try {
+      result = await pool
+        .request()
+        .input("name", sql.NVarChar, name)
+        .input("email", sql.NVarChar, email)
+        .input("role", sql.NVarChar, role)
+        .input("password", sql.NVarChar, hashedPassword).query(`
+          INSERT INTO Users (name, email, role, password, createdAt, updatedAt, isActive)
+          OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt
+          VALUES (@name, @email, @role, @password, GETDATE(), GETDATE(), 1)
+        `);
+    } catch {
+      result = await pool
+        .request()
+        .input("name", sql.NVarChar, name)
+        .input("email", sql.NVarChar, email)
+        .input("role", sql.NVarChar, role)
+        .input("password", sql.NVarChar, hashedPassword).query(`
+          INSERT INTO Users (name, email, role, password, createdAt)
+          OUTPUT INSERTED.id, INSERTED.name, INSERTED.email, INSERTED.role, INSERTED.createdAt
+          VALUES (@name, @email, @role, @password, GETDATE())
+        `);
+    }
 
     return NextResponse.json({
       success: true,
