@@ -17,6 +17,18 @@ export const HR_EMAILS: string[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// IT Staff notification recipients
+// Used for the 30-day O365 license removal reminder (sent by Azure Function).
+// Mirror these values in the IT_DISTRIBUTION_EMAIL app setting on the
+// Azure Function app so the function can send without importing from here.
+// ---------------------------------------------------------------------------
+
+export const IT_EMAILS: string[] = [
+  // Add IT staff / distribution-list email(s) here
+  // e.g. "it-staff@nsnrevenue.com"
+];
+
+// ---------------------------------------------------------------------------
 // Default IT offboarding checklist
 // ---------------------------------------------------------------------------
 
