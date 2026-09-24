@@ -27,6 +27,7 @@ export function middleware(request: NextRequest) {
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/test-cookies",
+    "/api/terminations/check-o365-reminders", 
     "/_next", // Next.js static files
     "/favicon.ico",
   ];
