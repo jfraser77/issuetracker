@@ -79,9 +79,7 @@ export function getPasswordResetEmail(resetUrl: string): string {
 
 // ---------------------------------------------------------------------------
 // O365 License Removal Reminder (30-day post-termination)
-// This template is consumed by the Azure Function timer trigger.
-// The function has its own standalone sendEmail — keep this template in sync
-// with azure-functions/src/functions/o365LicenseReminder.ts if you edit it.
+// Consumed by POST /api/terminations/check-o365-reminders.
 // ---------------------------------------------------------------------------
 
 export function getO365LicenseReminderEmail(

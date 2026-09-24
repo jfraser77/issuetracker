@@ -60,6 +60,7 @@ interface UseTerminationDataReturn {
   archiveTermination: (id: number) => Promise<void>;
   toggleExpanded: (id: number) => void;
   checkOverdueTerminations: () => Promise<void>;
+  checkO365Reminders: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +308,14 @@ export function useTerminationData({
     }
   }, []);
 
+  const checkO365Reminders = useCallback(async () => {
+    try {
+      await fetch("/api/terminations/check-o365-reminders", { method: "POST" });
+    } catch (error) {
+      console.error("Error checking O365 license reminders:", error);
+    }
+  }, []);
+
   // ---- UI helpers ----
 
   const toggleExpanded = useCallback((id: number) => {
@@ -322,10 +331,10 @@ export function useTerminationData({
     fetchTerminations();
     fetchITUsers();
 
-    const interval = setInterval(
-      checkOverdueTerminations,
-      24 * 60 * 60 * 1000
-    );
+    const interval = setInterval(() => {
+      checkOverdueTerminations();
+      checkO365Reminders();
+    }, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -341,5 +350,6 @@ export function useTerminationData({
     archiveTermination,
     toggleExpanded,
     checkOverdueTerminations,
+    checkO365Reminders,
   };
 }
