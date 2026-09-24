@@ -18,7 +18,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Termination, TerminationFormState } from "@/types/termination";
 import { isTerminationOverdue, daysRemainingUntilOverdue } from "@/types/termination";
-import { DEFAULT_CHECKLIST } from "@/lib/terminationConstants";
+import { DEFAULT_CHECKLIST, DEFAULT_LICENSES_REMOVED } from "@/lib/terminationConstants";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,12 +86,20 @@ export function useTerminationData({
     if (typeof checklist === "string") {
       try { checklist = JSON.parse(checklist); } catch { checklist = []; }
     }
+    let licensesRemoved = t.licensesRemoved as unknown;
+    if (typeof licensesRemoved === "string") {
+      try { licensesRemoved = JSON.parse(licensesRemoved); } catch { licensesRemoved = {}; }
+    }
     return {
       ...t,
       checklist:
         Array.isArray(checklist) && checklist.length > 0
           ? (checklist as Termination["checklist"])
           : [...DEFAULT_CHECKLIST],
+      licensesRemoved: {
+        ...DEFAULT_LICENSES_REMOVED,
+        ...(licensesRemoved as Partial<Termination["licensesRemoved"]>),
+      },
       isOverdue: isTerminationOverdue(t.terminationDate, t.status),
       daysRemaining: daysRemainingUntilOverdue(t.terminationDate, t.status),
       isExpanded,

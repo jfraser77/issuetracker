@@ -80,6 +80,8 @@ export interface Termination {
   computerSerial?: string;
   computerModel?: string;
   timestamp: string;
+  /** Set once the 30-day O365 license removal reminder email has been sent. Null until then. */
+  o365ReminderSentAt?: string | null;
   /** UI-only — not persisted to DB */
   isExpanded?: boolean;
 }
@@ -204,10 +206,19 @@ export function getChecklistCompletion(checklist: ChecklistItem[] = []): {
 }
 
 /**
+ * Returns true once the 30-day O365 reminder has fired for this termination
+ * and the license has not yet been confirmed removed.
+ */
+export function needsO365LicenseRemoval(termination: Termination): boolean {
+  return !!termination.o365ReminderSentAt && !termination.licensesRemoved?.office365;
+}
+
+/**
  * Returns true when all archive requirements are satisfied.
  */
 export function canArchive(termination: Termination): boolean {
   if (termination.status !== "equipment_returned") return false;
   if (!termination.completedByUserId) return false;
+  if (needsO365LicenseRemoval(termination)) return false;
   return getChecklistCompletion(termination.checklist).percent === 100;
 }

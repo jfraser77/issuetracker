@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../lib/db";
 import sql from "mssql";
 import { sendEmail } from "../../../lib/email";
-import { HR_EMAILS, DEFAULT_CHECKLIST } from "../../../lib/terminationConstants";
+import { HR_EMAILS, DEFAULT_CHECKLIST, DEFAULT_LICENSES_REMOVED } from "../../../lib/terminationConstants";
 
 
 
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // Parse checklist JSON if it exists, otherwise use default
     const terminations = result.recordset.map(termination => {
       let checklist = DEFAULT_CHECKLIST;
-      
+
       try {
         if (termination.checklist) {
           const parsedChecklist = JSON.parse(termination.checklist);
@@ -62,9 +62,19 @@ export async function GET(request: NextRequest) {
         console.error("Error parsing checklist for termination", termination.id, error);
       }
 
+      let licensesRemoved = DEFAULT_LICENSES_REMOVED;
+      try {
+        if (termination.licensesRemoved) {
+          licensesRemoved = { ...DEFAULT_LICENSES_REMOVED, ...JSON.parse(termination.licensesRemoved) };
+        }
+      } catch (error) {
+        console.error("Error parsing licensesRemoved for termination", termination.id, error);
+      }
+
       return {
         ...termination,
         checklist,
+        licensesRemoved,
         // Ensure daysRemaining is never negative
         daysRemaining: Math.max(0, termination.daysRemaining || 0)
       };

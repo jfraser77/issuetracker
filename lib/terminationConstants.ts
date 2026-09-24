@@ -3,7 +3,7 @@
  * Import from here instead of duplicating across API routes and components.
  */
 
-import type { ChecklistItem } from "@/types/termination";
+import type { ChecklistItem, LicensesRemoved } from "@/types/termination";
 
 // ---------------------------------------------------------------------------
 // HR notification recipients
@@ -15,6 +15,19 @@ export const HR_EMAILS: string[] = [
   "anwaters@uspi.com",
   "eolson@nsnrevenue.com",
 ];
+
+// ---------------------------------------------------------------------------
+// Default licensesRemoved value for a newly-created termination
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_LICENSES_REMOVED: LicensesRemoved = {
+  automateLicense: false,
+  screenConnect: false,
+  office365: false,
+  adobeAcrobat: false,
+  phone: false,
+  fax: false,
+};
 
 // ---------------------------------------------------------------------------
 // IT Staff notification recipients

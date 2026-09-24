@@ -13,7 +13,7 @@ import {
   PrinterIcon,
 } from "@heroicons/react/24/outline";
 import type { Termination } from "@/types/termination";
-import { canArchive, getChecklistCompletion } from "@/types/termination";
+import { canArchive, getChecklistCompletion, needsO365LicenseRemoval } from "@/types/termination";
 import { useTerminationData } from "@/hooks/useTerminationData";
 import { ChecklistSection } from "@/components/terminations/ChecklistSection";
 
@@ -57,6 +57,20 @@ export default function TerminationsContent() {
     currentUser?.role === "HR";
   const isAdminOrIT =
     currentUser?.role === "Admin" || currentUser?.role === "I.T.";
+
+  const pendingO365Removals = terminations.filter(needsO365LicenseRemoval);
+
+  const confirmO365LicenseRemoved = (termination: Termination) => {
+    if (
+      !confirm(
+        `Confirm that ${termination.employeeName}'s Office 365 license has been removed from the Microsoft 365 Admin Center?`
+      )
+    )
+      return;
+    updateTermination(termination.id, {
+      licensesRemoved: { ...termination.licensesRemoved, office365: true },
+    } as Partial<Termination>);
+  };
 
   // ---- Form submit wrapper ----
 
@@ -403,6 +417,51 @@ export default function TerminationsContent() {
           </button>
         )}
       </div>
+
+      {/* O365 License Removal Banner */}
+      {pendingO365Removals.length > 0 && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-800">
+                O365 License Removal Overdue –{" "}
+                {pendingO365Removals.length} employee
+                {pendingO365Removals.length > 1 ? "s" : ""}
+              </h3>
+              <p className="text-sm text-red-700 mt-1">
+                These employees passed their 30-day post-termination mark. Remove their
+                Office 365 license in the Microsoft 365 Admin Center, then confirm below.
+                Records cannot be archived until confirmed.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {pendingO365Removals.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between bg-white border border-red-100 rounded px-3 py-2 text-sm"
+                  >
+                    <span className="text-gray-800">
+                      <span className="font-medium">{t.employeeName}</span>{" "}
+                      <span className="text-gray-500">
+                        — terminated {formatTerminationDate(t.terminationDate)}
+                      </span>
+                    </span>
+                    {isAdminOrIT && (
+                      <button
+                        onClick={() => confirmO365LicenseRemoved(t)}
+                        className="ml-3 flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded"
+                      >
+                        <CheckCircleIcon className="h-3.5 w-3.5" />
+                        Confirm License Removed
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Termination Form Modal */}
       {showTerminationForm && (
@@ -865,9 +924,16 @@ export default function TerminationsContent() {
                         <button
                           onClick={() => {
                             if (!canArchive(termination)) {
-                              alert(
-                                `Cannot archive yet:\n• Checklist must be 100% complete (currently ${getChecklistCompletion(termination.checklist).percent}%)\n• All fields must be completed`
-                              );
+                              const reasons = [
+                                `• Checklist must be 100% complete (currently ${getChecklistCompletion(termination.checklist).percent}%)`,
+                                "• All fields must be completed",
+                              ];
+                              if (needsO365LicenseRemoval(termination)) {
+                                reasons.push(
+                                  "• O365 license removal must be confirmed (see banner above)"
+                                );
+                              }
+                              alert(`Cannot archive yet:\n${reasons.join("\n")}`);
                               return;
                             }
                             archiveTermination(termination.id);
@@ -898,7 +964,9 @@ export default function TerminationsContent() {
                         !canArchive(termination) && (
                           <div className="text-xs text-amber-600 flex items-center">
                             <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
-                            Complete checklist to archive
+                            {needsO365LicenseRemoval(termination)
+                              ? "Confirm O365 license removal to archive"
+                              : "Complete checklist to archive"}
                           </div>
                         )}
                     </div>

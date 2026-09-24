@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import sql from "mssql";
-import { DEFAULT_CHECKLIST } from "../../../../lib/terminationConstants";
+import { DEFAULT_CHECKLIST, DEFAULT_LICENSES_REMOVED } from "../../../../lib/terminationConstants";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const termination = result.recordset[0];
-    
+
     // Parse checklist JSON if it exists, otherwise use default
     let checklist = DEFAULT_CHECKLIST;
     try {
@@ -41,9 +41,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
       console.error("Error parsing checklist:", error);
     }
 
+    let licensesRemoved = DEFAULT_LICENSES_REMOVED;
+    try {
+      if (termination.licensesRemoved) {
+        licensesRemoved = { ...DEFAULT_LICENSES_REMOVED, ...JSON.parse(termination.licensesRemoved) };
+      }
+    } catch (error) {
+      console.error("Error parsing licensesRemoved:", error);
+    }
+
     const responseTermination = {
       ...termination,
-      checklist
+      checklist,
+      licensesRemoved
     };
 
     return NextResponse.json(responseTermination);
@@ -108,10 +118,18 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     // Handle checklist separately since it needs JSON stringification
     if (updates.checklist !== undefined) {
       updateFields.push("checklist = @checklist");
-      requestObj.input("checklist", sql.NVarChar, 
-        updates.checklist && updates.checklist.length > 0 
-          ? JSON.stringify(updates.checklist) 
+      requestObj.input("checklist", sql.NVarChar,
+        updates.checklist && updates.checklist.length > 0
+          ? JSON.stringify(updates.checklist)
           : JSON.stringify(DEFAULT_CHECKLIST)
+      );
+    }
+
+    // Handle licensesRemoved separately since it needs JSON stringification
+    if (updates.licensesRemoved !== undefined) {
+      updateFields.push("licensesRemoved = @licensesRemoved");
+      requestObj.input("licensesRemoved", sql.NVarChar,
+        JSON.stringify({ ...DEFAULT_LICENSES_REMOVED, ...updates.licensesRemoved })
       );
     }
 
@@ -146,7 +164,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const updatedTermination = result.recordset[0];
-    
+
     // Parse checklist back to JSON for response
     let checklist = DEFAULT_CHECKLIST;
     try {
@@ -160,9 +178,19 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       console.error("Error parsing checklist:", error);
     }
 
+    let licensesRemoved = DEFAULT_LICENSES_REMOVED;
+    try {
+      if (updatedTermination.licensesRemoved) {
+        licensesRemoved = { ...DEFAULT_LICENSES_REMOVED, ...JSON.parse(updatedTermination.licensesRemoved) };
+      }
+    } catch (error) {
+      console.error("Error parsing licensesRemoved:", error);
+    }
+
     const responseTermination = {
       ...updatedTermination,
-      checklist
+      checklist,
+      licensesRemoved
     };
 
     console.log(`✅ Termination ${terminationId} updated successfully`);

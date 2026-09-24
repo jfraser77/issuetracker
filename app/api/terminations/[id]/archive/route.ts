@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
+import { DEFAULT_LICENSES_REMOVED } from "@/lib/terminationConstants";
 
 
 
@@ -26,7 +27,9 @@ export async function POST(
           employeeName,
           checklist,
           equipmentDisposition,
-          completedByUserId
+          completedByUserId,
+          licensesRemoved,
+          o365ReminderSentAt
         FROM Terminations
         WHERE id = @terminationId
       `);
@@ -68,6 +71,22 @@ export async function POST(
 
     if (checklistCompletion < 100) {
       validationErrors.push("IT checklist must be 100% completed");
+    }
+
+    // Once the 30-day O365 reminder has fired, block archiving until the
+    // license removal is confirmed — otherwise the license goes untracked
+    // once the record leaves the active Terminations list.
+    let licensesRemoved = DEFAULT_LICENSES_REMOVED;
+    try {
+      if (termination.licensesRemoved) {
+        licensesRemoved = { ...DEFAULT_LICENSES_REMOVED, ...JSON.parse(termination.licensesRemoved) };
+      }
+    } catch (error) {
+      console.error("Error parsing licensesRemoved:", error);
+    }
+
+    if (termination.o365ReminderSentAt && !licensesRemoved.office365) {
+      validationErrors.push("O365 license removal must be confirmed before archiving");
     }
 
     if (validationErrors.length > 0) {
