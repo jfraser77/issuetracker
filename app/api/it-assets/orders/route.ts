@@ -2,18 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import sql from "mssql";
 import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
-// Helper function to get current user from cookies
+// Helper function to get current user from the signed session cookie
 async function getCurrentUser() {
   const cookieStore = await cookies();
-  const cookieValue = cookieStore.get("auth-user")?.value;
+  const session = await verifySessionToken(
+    cookieStore.get(SESSION_COOKIE)?.value
+  );
 
-  if (!cookieValue) return null;
+  if (!session) return null;
 
   try {
-    const parsed = JSON.parse(cookieValue);
-    const email = typeof parsed === "string" ? parsed : parsed?.email;
-    if (!email) return null;
+    const email = session.email;
 
     const pool = await connectToDatabase();
     const result = await pool

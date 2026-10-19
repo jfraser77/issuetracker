@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
     console.log("🔐 AUTH CHECK CALLED");
 
     // Get the cookie from the request - looking for "auth-user"
-    const authCookie = request.cookies.get("auth-user");
+    const authCookie = request.cookies.get(SESSION_COOKIE);
     console.log("Auth cookie found:", !!authCookie);
 
     if (!authCookie) {
@@ -20,43 +21,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("✅ Auth cookie found, length:", authCookie.value.length);
-    console.log(
-      "Cookie value (first 100 chars):",
-      authCookie.value.substring(0, 100)
-    );
+    // Verify the signed session cookie
+    const userData = await verifySessionToken(authCookie.value);
 
-    // Parse the cookie value
-    let userData;
-    try {
-      userData = JSON.parse(authCookie.value);
-      console.log("✅ Successfully parsed cookie data:", {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name,
-        role: userData.role,
-      });
-    } catch (parseError) {
-      console.error("❌ Failed to parse auth cookie:", parseError);
-      console.log("Raw cookie value:", authCookie.value);
+    if (!userData) {
+      console.error("❌ Invalid or expired auth cookie");
       return NextResponse.json(
         {
           authenticated: false,
-          error: "Invalid session data",
-          details: "Cookie could not be parsed as JSON",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Validate required fields
-    if (!userData.id || !userData.email) {
-      console.error("❌ Invalid user data in cookie:", userData);
-      return NextResponse.json(
-        {
-          authenticated: false,
-          error: "Invalid user data",
-          details: "Missing required fields in cookie",
+          error: "Invalid session",
         },
         { status: 401 }
       );
@@ -71,9 +44,6 @@ export async function GET(request: NextRequest) {
         role: userData.role || "user",
       },
       timestamp: new Date().toISOString(),
-      cookieAge: userData.timestamp
-        ? Date.now() - userData.timestamp
-        : "unknown",
     });
   } catch (error: any) {
     console.error("❌ AUTH CHECK ERROR:", error.message);

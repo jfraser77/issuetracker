@@ -5,6 +5,12 @@ import { cookies } from "next/headers";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import bcrypt from "bcrypt";
+import {
+  SESSION_COOKIE,
+  createSessionToken,
+  sessionCookieOptions,
+  verifySessionToken,
+} from "@/lib/session";
 
 export async function signup(formData: FormData) {
   const name = formData.get("name") as string;
@@ -65,20 +71,18 @@ export async function signup(formData: FormData) {
       // Continue anyway - inventory can be created later
     }
 
-    // Set session cookie — value must be JSON so middleware can parse it
+    // Set signed session cookie
     const cookieStore = await cookies();
-    cookieStore.set("auth-user", JSON.stringify({
-      id: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      role: "User",
-      timestamp: Date.now(),
-    }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: "/",
-    });
+    cookieStore.set(
+      SESSION_COOKIE,
+      await createSessionToken({
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: "User",
+      }),
+      sessionCookieOptions
+    );
 
     console.log("Signup completed successfully for:", newUser.email);
 
@@ -143,20 +147,13 @@ export async function signin(formData: FormData) {
       };
       console.log("✅ 2FA verified for:", user.email);
 
-      // Set session cookie — value must be JSON so middleware can parse it
+      // Set signed session cookie
       const cookieStore = await cookies();
-      cookieStore.set("auth-user", JSON.stringify({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        timestamp: Date.now(),
-      }), {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-        path: "/",
-      });
+      cookieStore.set(
+        SESSION_COOKIE,
+        await createSessionToken(user),
+        sessionCookieOptions
+      );
 
       console.log("✅ Session cookie set");
 
@@ -215,30 +212,9 @@ export async function signin(formData: FormData) {
       }
     }
 
-    // If no 2FA required, set session and redirect
-    console.log("🔄 No 2FA required, setting session...");
-
-    const cookieStore = await cookies();
-    cookieStore.set("auth-user", JSON.stringify({
-      id: verifyData.user.id,
-      email: verifyData.user.email,
-      name: verifyData.user.name,
-      role: verifyData.user.role,
-      timestamp: Date.now(),
-    }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: "/",
-    });
-
-    console.log("✅ Signin successful");
-
-    return {
-      success: true,
-      message: "Login successful",
-      redirectTo: "/management-portal/dashboard",
-    };
+    // Sessions are only created after 2FA — never from credentials alone
+    console.log("❌ Credential check did not require 2FA; refusing to create session");
+    return { error: "Verification code required" };
   } catch (error: any) {
     console.error("🚨 Signin error:", error);
     return { error: "Failed to sign in: " + error.message };
@@ -248,7 +224,7 @@ export async function signin(formData: FormData) {
 export async function signout() {
   try {
     const cookieStore = await cookies();
-    cookieStore.delete("auth-user");
+    cookieStore.delete(SESSION_COOKIE);
     console.log("User signed out");
   } catch (error) {
     console.error("Signout error:", error);
@@ -259,24 +235,16 @@ export async function signout() {
 export async function getCurrentUser() {
   try {
     const cookieStore = await cookies();
-    const cookieValue = cookieStore.get("auth-user")?.value;
+    const session = await verifySessionToken(
+      cookieStore.get(SESSION_COOKIE)?.value
+    );
 
-    if (!cookieValue) {
-      console.log("No auth-user cookie found");
+    if (!session) {
+      console.log("No valid session cookie found");
       return null;
     }
 
-    // Cookie is stored as JSON: { id, email, name, role, timestamp }
-    let userEmail: string;
-    try {
-      const parsed = JSON.parse(cookieValue);
-      userEmail = parsed.email;
-    } catch {
-      // Fallback for any old plain-email cookies still in browsers
-      userEmail = cookieValue;
-    }
-
-    if (!userEmail) return null;
+    const userEmail = session.email;
 
     const pool = await connectToDatabase();
     const result = await pool

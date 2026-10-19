@@ -73,11 +73,11 @@ export default function SignupPage() {
         setSuccess(`Account created successfully! You have been granted basic User access. Your ${formData.role} role request has been sent for administrator approval.`);
         // Wait a moment before redirecting so user can read the message
         setTimeout(() => {
-          router.push('/management-portal/dashboard');
+          router.push('/signin');
         }, 3000);
       } else {
-        // Regular user, redirect immediately
-        router.push('/management-portal/dashboard');
+        // Regular user, send to sign in (signup does not create a session)
+        router.push('/signin');
       }
       
     } catch (error) {

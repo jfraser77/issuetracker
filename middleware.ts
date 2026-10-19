@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
-export function middleware(request: NextRequest) {
-  const authCookie = request.cookies.get("auth-user");
+export async function middleware(request: NextRequest) {
+  const authCookie = request.cookies.get(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
 
   console.log("Middleware triggered:", {
@@ -18,7 +19,6 @@ export function middleware(request: NextRequest) {
     "/signup",
     "/forgot-password",
     "/reset-password",
-    "/api/auth/signin",
     "/api/auth/signup",
     "/api/auth/check",
     "/api/auth/verify-credentials",
@@ -61,39 +61,34 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(signinUrl);
   }
 
-  // Try to parse the auth cookie to verify it's valid
-  try {
-    if (authCookie.value) {
-      const userData = JSON.parse(authCookie.value);
-      console.log("✅ User authenticated:", {
-        id: userData.id,
-        email: userData.email,
-        role: userData.role,
-      });
+  // Verify the cookie signature — an unsigned, tampered or expired cookie is rejected
+  const userData = await verifySessionToken(authCookie.value);
 
-      // Add user info to headers for API routes
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set("x-user-id", userData.id.toString());
-      requestHeaders.set("x-user-email", userData.email);
-      requestHeaders.set("x-user-role", userData.role || "user");
+  if (!userData) {
+    console.error("❌ Invalid or expired auth cookie");
 
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-  } catch (error) {
-    console.error("❌ Invalid auth cookie:", error);
-
-    // Clear invalid cookie
-    const response = NextResponse.redirect(new URL("/signin", request.url));
-    response.cookies.delete("auth-user");
+    const response = pathname.startsWith("/api/")
+      ? NextResponse.json(
+          { error: "Unauthorized", message: "Authentication required" },
+          { status: 401 }
+        )
+      : NextResponse.redirect(new URL("/signin", request.url));
+    response.cookies.delete(SESSION_COOKIE);
 
     return response;
   }
 
-  return NextResponse.next();
+  // Add verified user info to headers for API routes
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-user-id", userData.id.toString());
+  requestHeaders.set("x-user-email", userData.email);
+  requestHeaders.set("x-user-role", userData.role || "user");
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {

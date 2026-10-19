@@ -2,26 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { connectToDatabase } from "../../../../lib/db";
 import sql from "mssql";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
-    const cookieValue = cookieStore.get("auth-user")?.value;
+    const session = await verifySessionToken(
+      cookieStore.get(SESSION_COOKIE)?.value
+    );
 
-    if (!cookieValue) {
+    if (!session) {
       return NextResponse.json(null);
     }
 
-    // Cookie is stored as JSON: { id, email, name, role, timestamp }
-    let userEmail: string;
-    try {
-      const parsed = JSON.parse(cookieValue);
-      userEmail = parsed.email;
-    } catch {
-      userEmail = cookieValue; // fallback for old plain-email cookies
-    }
-
-    if (!userEmail) return NextResponse.json(null);
+    const userEmail = session.email;
 
     const pool = await connectToDatabase();
     const result = await pool

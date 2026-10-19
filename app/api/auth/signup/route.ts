@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import bcrypt from "bcrypt";
-import { cookies } from "next/headers";
 import * as nodemailer from "nodemailer";
 
 // Configure Exchange Online transporter (same as your 2FA setup)
@@ -222,16 +221,8 @@ export async function POST(request: NextRequest) {
       // Continue even if inventory creation fails
     }
 
-    // Set session cookie
-    const cookieStore = await cookies();
-    cookieStore.set("auth-user", email, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: "/",
-    });
-
-    console.log("Session cookie set, returning success");
+    // No session here — new users sign in normally so 2FA proves they own the email
+    console.log("Signup complete, returning success");
 
     return NextResponse.json({
       success: true,
