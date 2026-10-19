@@ -39,6 +39,10 @@ export default function SigninPage() {
 
     if (result?.error) {
       alert(result.error);
+      // Pending step expired — go back to email/password
+      if ("restart" in result && result.restart) {
+        setShowTwoFactor(false);
+      }
       return;
     }
 
@@ -374,13 +378,22 @@ export default function SigninPage() {
                     type="button"
                     onClick={async () => {
                       setIsLoading(true);
-                      await fetch("/api/auth/send-2fa", {
+                      const resendResponse = await fetch("/api/auth/send-2fa", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ email: formData.email }),
                       });
                       setIsLoading(false);
-                      alert("New code sent!");
+                      if (resendResponse.ok) {
+                        alert("New code sent!");
+                      } else {
+                        const errorData = await resendResponse.json();
+                        alert(errorData.error || "Failed to send verification code");
+                        // Pending step expired — go back to email/password
+                        if (resendResponse.status === 401) {
+                          setShowTwoFactor(false);
+                        }
+                      }
                     }}
                     className="text-sm text-blue-600 hover:text-blue-500 font-medium transition-colors"
                   >
