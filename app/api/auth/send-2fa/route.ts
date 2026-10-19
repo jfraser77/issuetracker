@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import * as nodemailer from "nodemailer";
+import { randomInt } from "crypto";
 
 // Configure Exchange Online transporter with your dedicated account
 const transporter = nodemailer.createTransport({
@@ -55,11 +56,9 @@ console.log("🔧 Environment check:", {
     const userName = userResult.recordset[0].name;
     
     // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    
-    console.log("🔢 Generated 2FA code for", email, ":", code);
-    
+
     // Store code in database
     await pool.request()
       .input('userId', sql.Int, userId)
@@ -122,22 +121,19 @@ console.log("🔧 Environment check:", {
       console.log("✅ Email sent successfully! Message ID:", emailResult.messageId);
       console.log("✅ Email accepted by:", emailResult.accepted);
       
-      return NextResponse.json({ 
-        message: "Verification code has been sent to your email",
-        demoCode: code // Still return for testing
+      return NextResponse.json({
+        message: "Verification code has been sent to your email"
       });
-      
+
     } catch (emailError: any) {
       console.error("❌ Email sending failed:", emailError);
       console.error("Email error code:", emailError.code);
       console.error("Email error response:", emailError.response);
-      
-      // Still return success with demo code
-      return NextResponse.json({ 
-        message: "Verification code generated (email may not have been sent)",
-        demoCode: code,
-        emailError: emailError.message
-      });
+
+      // Never return the code to the client — the email is the second factor
+      return NextResponse.json({
+        error: "Failed to send verification code"
+      }, { status: 500 });
     }
     
   } catch (error: any) {

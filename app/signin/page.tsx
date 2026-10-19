@@ -30,29 +30,18 @@ export default function SigninPage() {
   setIsLoading(true);
 
   try {
-    // Verify the 2FA code via API
-    const verifyResponse = await fetch("/api/auth/verify-2fa", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: formData.email,
-        code: formData.twoFactorCode,
-      }),
-    });
-
-    if (!verifyResponse.ok) {
-      const errorData = await verifyResponse.json();
-      alert(errorData.error || "Invalid verification code");
-      return;
-    }
-
-    // Call server action to create session
+    // Server action verifies the 2FA code and creates the session
     const formDataToSubmit = new FormData();
     formDataToSubmit.append("email", formData.email);
     formDataToSubmit.append("twoFactorCode", formData.twoFactorCode);
-    
-    await signin(formDataToSubmit);
-    
+
+    const result = await signin(formDataToSubmit);
+
+    if (result?.error) {
+      alert(result.error);
+      return;
+    }
+
     // Fallback redirect (in case server action doesn't redirect)
     window.location.href = "/management-portal/dashboard";
     

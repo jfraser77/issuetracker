@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
-
-    console.log("🔐 LOGIN ATTEMPT:", email);
-
-    // ALLOWED USERS - NO PASSWORD CHECK
-    const allowedUsers = [
-      "jfraser@nsnrevenue.com",
-      "lingignoli@nsnrevenue.com",
-      "spuffenberger@nsnrevenue.com",
-      "zvollono@nsnrevenue.com",
-      "bryan.hudson@tenethealth.com",
-      "jess.groeneveld@tenethealth.com",
-      "kwalker@nsnrevenue.com",
-      "ksarantinos@nsnrevenue.com",
-      "aevans@nsnrevenue.com",
-      "mle@nsnrevenue.com",
-      "tneal@nsnrevenue.com",
-      "lmaurer@nsnrevenue.com",
-      "lmaxwell@nsnrevenue.com",
-      "ggarcia@nsnrevenue.com",
-    ];
 
     if (!email || !password) {
       return NextResponse.json(
@@ -33,37 +14,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is allowed
-    if (!allowedUsers.includes(email)) {
-      console.log("❌ User not allowed:", email);
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
-    }
-
     const pool = await connectToDatabase();
 
-    // Get user info
     const result = await pool
       .request()
-      .input("email", sql.NVarChar, email)
-      .query("SELECT id, name, email, role FROM Users WHERE email = @email");
+      .input("email", sql.NVarChar, email.trim().toLowerCase())
+      .query(
+        "SELECT id, name, email, role, password, isActive FROM Users WHERE email = @email"
+      );
 
-    if (result.recordset.length === 0) {
-      console.log("❌ User not found in database:", email);
+    const user = result.recordset[0];
+    const valid =
+      !!user?.password &&
+      user.isActive !== false &&
+      (await bcrypt.compare(password, user.password));
+
+    if (!valid) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
-    const user = result.recordset[0];
-
-    console.log("🎉 LOGIN SUCCESS (BYPASS):", email);
-    console.log("⚠️ REMEMBER: Password checking is disabled!");
-
-    // SUCCESS - return user data
+    // Credentials only prove step one; a session is created after 2FA
     return NextResponse.json({
       success: true,
       user: {
@@ -72,21 +45,13 @@ export async function POST(request: NextRequest) {
         email: user.email,
         role: user.role,
       },
-      requires2FA: false,
+      requires2FA: true,
     });
-  } catch (error: any) {
-    console.error("🚨 AUTH ERROR:", error);
-
-    // Even if everything fails, return a successful response
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: 999,
-        name: "System User",
-        email: "system@nsn.com",
-        role: "Admin",
-      },
-      requires2FA: false,
-    });
+  } catch (error) {
+    console.error("verify-credentials error:", error);
+    return NextResponse.json(
+      { error: "Authentication failed" },
+      { status: 500 }
+    );
   }
 }

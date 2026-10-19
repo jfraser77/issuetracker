@@ -106,20 +106,42 @@ export async function signin(formData: FormData) {
     if (twoFactorCode) {
       console.log("🔄 Processing 2FA session creation...");
 
-      // Get user info to set the session
+      // Verify the code server-side — this action is callable directly,
+      // so the session must never be created on the client's word alone
       const pool = await connectToDatabase();
-      const userResult = await pool
+      const codeResult = await pool
         .request()
         .input("email", sql.NVarChar, email)
-        .query("SELECT id, name, email, role FROM Users WHERE email = @email");
+        .input("code", sql.NVarChar, twoFactorCode)
+        .query(`
+          SELECT tfa.id, u.id AS userId, u.name, u.email, u.role
+          FROM TwoFactorAuth tfa
+          INNER JOIN Users u ON tfa.userId = u.id
+          WHERE tfa.email = @email
+            AND tfa.code = @code
+            AND tfa.used = 0
+            AND tfa.expiresAt > GETDATE()
+        `);
 
-      if (userResult.recordset.length === 0) {
-        console.log("❌ User not found during session creation:", email);
-        return { error: "User not found" };
+      if (codeResult.recordset.length === 0) {
+        console.log("❌ Invalid or expired 2FA code for:", email);
+        return { error: "Invalid or expired code" };
       }
 
-      const user = userResult.recordset[0];
-      console.log("✅ User found for session:", user);
+      const record = codeResult.recordset[0];
+
+      await pool
+        .request()
+        .input("id", sql.Int, record.id)
+        .query("UPDATE TwoFactorAuth SET used = 1 WHERE id = @id");
+
+      const user = {
+        id: record.userId,
+        name: record.name,
+        email: record.email,
+        role: record.role,
+      };
+      console.log("✅ 2FA verified for:", user.email);
 
       // Set session cookie — value must be JSON so middleware can parse it
       const cookieStore = await cookies();
