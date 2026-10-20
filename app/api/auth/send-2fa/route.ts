@@ -100,7 +100,7 @@ console.log("🔧 Environment check:", {
     // Send email via Exchange Online
     try {
       const mailOptions = {
-        from: `NSN IT Portal <${process.env.SMTP_FROM}>`,
+        from: `NSN IT Portal <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to: email,
         subject: 'Your NSN IT Management Portal Verification Code',
         html: `
