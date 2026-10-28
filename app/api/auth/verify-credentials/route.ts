@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import bcrypt from "bcryptjs";
+import {
+  PENDING_COOKIE,
+  createPendingToken,
+  normalizeEmail,
+  pendingCookieOptions,
+} from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const result = await pool
       .request()
-      .input("email", sql.NVarChar, email.trim().toLowerCase())
+      .input("email", sql.NVarChar, normalizeEmail(email))
       .query(
         "SELECT id, name, email, role, password, isActive FROM Users WHERE email = @email"
       );
@@ -36,8 +42,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Credentials only prove step one; a session is created after 2FA
-    return NextResponse.json({
+    // Credentials only prove step one; a session is created after 2FA.
+    // The pending cookie is what lets send-2fa and the signin action run.
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -47,6 +54,12 @@ export async function POST(request: NextRequest) {
       },
       requires2FA: true,
     });
+    response.cookies.set(
+      PENDING_COOKIE,
+      await createPendingToken(user.email),
+      pendingCookieOptions
+    );
+    return response;
   } catch (error) {
     console.error("verify-credentials error:", error);
     return NextResponse.json(

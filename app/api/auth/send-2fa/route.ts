@@ -5,6 +5,12 @@ import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import * as nodemailer from "nodemailer";
 import { randomInt } from "crypto";
+import {
+  MAX_2FA_CODES_PER_HOUR,
+  countRecentTwoFactorCodes,
+  invalidateTwoFactorCodes,
+} from "@/lib/twoFactor";
+import { PENDING_COOKIE, normalizeEmail, verifyPendingToken } from "@/lib/session";
 
 // Configure Exchange Online transporter with your dedicated account
 const transporter = nodemailer.createTransport({
@@ -25,8 +31,17 @@ export async function POST(request: NextRequest) {
 
 
   try {
-    const { email } = await request.json();
-    
+    const { email: requestedEmail } = await request.json();
+
+    // Codes are only sent after the password step, for the email it was completed for
+    const email = await verifyPendingToken(request.cookies.get(PENDING_COOKIE)?.value);
+    if (!email || (requestedEmail && normalizeEmail(requestedEmail) !== email)) {
+      return NextResponse.json(
+        { error: "Your sign-in has expired. Please sign in again." },
+        { status: 401 }
+      );
+    }
+
     console.log("📧 Send-2FA request for:", email);
     // Add this at the beginning of your POST function
 console.log("🔧 Environment check:", {
@@ -54,7 +69,19 @@ console.log("🔧 Environment check:", {
 
     const userId = userResult.recordset[0].id;
     const userName = userResult.recordset[0].name;
-    
+
+    // Throttle code requests per email to cap total guesses
+    if ((await countRecentTwoFactorCodes(email)) >= MAX_2FA_CODES_PER_HOUR) {
+      console.log("⛔ 2FA send limit reached for:", email);
+      return NextResponse.json(
+        { error: "Too many verification codes requested. Please try again later." },
+        { status: 429 }
+      );
+    }
+
+    // Only the newest code may be used
+    await invalidateTwoFactorCodes(email);
+
     // Generate 6-digit code
     const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -73,7 +100,7 @@ console.log("🔧 Environment check:", {
     // Send email via Exchange Online
     try {
       const mailOptions = {
-        from: `NSN IT Portal <${process.env.SMTP_FROM}>`,
+        from: `NSN IT Portal <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to: email,
         subject: 'Your NSN IT Management Portal Verification Code',
         html: `

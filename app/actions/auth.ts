@@ -6,11 +6,15 @@ import { connectToDatabase } from "@/lib/db";
 import sql from "mssql";
 import bcrypt from "bcrypt";
 import {
+  PENDING_COOKIE,
   SESSION_COOKIE,
   createSessionToken,
+  normalizeEmail,
   sessionCookieOptions,
+  verifyPendingToken,
   verifySessionToken,
 } from "@/lib/session";
+import { verifyTwoFactorCode } from "@/lib/twoFactor";
 
 export async function signup(formData: FormData) {
   const name = formData.get("name") as string;
@@ -110,52 +114,53 @@ export async function signin(formData: FormData) {
     if (twoFactorCode) {
       console.log("🔄 Processing 2FA session creation...");
 
-      // Verify the code server-side — this action is callable directly,
-      // so the session must never be created on the client's word alone
-      const pool = await connectToDatabase();
-      const codeResult = await pool
-        .request()
-        .input("email", sql.NVarChar, email)
-        .input("code", sql.NVarChar, twoFactorCode)
-        .query(`
-          SELECT tfa.id, u.id AS userId, u.name, u.email, u.role
-          FROM TwoFactorAuth tfa
-          INNER JOIN Users u ON tfa.userId = u.id
-          WHERE tfa.email = @email
-            AND tfa.code = @code
-            AND tfa.used = 0
-            AND tfa.expiresAt > GETDATE()
-        `);
+      // The password step must have passed for this email first
+      const cookieStore = await cookies();
+      const pendingEmail = await verifyPendingToken(
+        cookieStore.get(PENDING_COOKIE)?.value
+      );
 
-      if (codeResult.recordset.length === 0) {
-        console.log("❌ Invalid or expired 2FA code for:", email);
-        return { error: "Invalid or expired code" };
+      if (!pendingEmail || !email || normalizeEmail(email) !== pendingEmail) {
+        console.log("❌ 2FA attempted without a completed password step:", email);
+        return {
+          error: "Your sign-in has expired. Please sign in again.",
+          restart: true,
+        };
       }
 
-      const record = codeResult.recordset[0];
+      // Verify the code server-side — this action is callable directly,
+      // so the session must never be created on the client's word alone.
+      // Attempts are counted and capped per code.
+      const verification = await verifyTwoFactorCode(pendingEmail, twoFactorCode);
 
-      await pool
-        .request()
-        .input("id", sql.Int, record.id)
-        .query("UPDATE TwoFactorAuth SET used = 1 WHERE id = @id");
+      if (!verification.ok) {
+        console.log("❌ 2FA verification failed for:", pendingEmail);
+        return { error: verification.error };
+      }
 
-      const user = {
-        id: record.userId,
-        name: record.name,
-        email: record.email,
-        role: record.role,
-      };
+      const user = verification.user;
       console.log("✅ 2FA verified for:", user.email);
 
-      // Set signed session cookie
-      const cookieStore = await cookies();
+      // Set signed session cookie and end the pending step
       cookieStore.set(
         SESSION_COOKIE,
         await createSessionToken(user),
         sessionCookieOptions
       );
+      cookieStore.delete(PENDING_COOKIE);
 
       console.log("✅ Session cookie set");
+
+      // Record last login; never let this block sign-in
+      try {
+        const pool = await connectToDatabase();
+        await pool
+          .request()
+          .input("id", sql.Int, user.id)
+          .query("UPDATE Users SET lastLogin = GETDATE() WHERE id = @id");
+      } catch (lastLoginError) {
+        console.warn("⚠️ Could not update lastLogin:", lastLoginError);
+      }
 
       return {
         success: true,
